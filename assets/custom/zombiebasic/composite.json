@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "name": "core::Transform",
+      "data": {
+        "513": {
+          "json": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 1.7999999523162842,
+              "z": 0.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "parent": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "core::GltfContainer",
+      "data": {
+        "0": {
+          "json": {
+            "src": "{assetPath}/Zombie.glb",
+            "visibleMeshesCollisionMask": 3,
+            "invisibleMeshesCollisionMask": 3
+          }
+        },
+        "513": {
+          "json": {
+            "src": "{assetPath}/invisible_cylinder.glb",
+            "visibleMeshesCollisionMask": 2,
+            "invisibleMeshesCollisionMask": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "core-schema::Name",
+      "data": {
+        "0": {
+          "json": {
+            "value": "ZombieBasic"
+          }
+        },
+        "513": {
+          "json": {
+            "value": "ZombieBasic_collider"
+          }
+        }
+      }
+    },
+    {
+      "name": "core-schema::Sync-Components",
+      "data": {
+        "513": {
+          "json": {
+            "componentIds": [
+              1041
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "core::VisibilityComponent",
+      "data": {
+        "513": {
+          "json": {
+            "visible": false
+          }
+        }
+      }
+    },
+    {
+      "name": "core::Animator",
+      "data": {
+        "0": {
+          "json": {
+            "states": [
+              {
+                "weight": 1,
+                "clip": "Tpose",
+                "playing": false,
+                "speed": 1,
+                "loop": false,
+                "shouldReset": false
+              },
+              {
+                "weight": 1,
+                "clip": "ZombieAttack",
+                "playing": false,
+                "speed": 1,
+                "loop": false,
+                "shouldReset": false
+              },
+              {
+                "weight": 1,
+                "clip": "ZombieUP",
+                "playing": false,
+                "speed": 1,
+                "loop": false,
+                "shouldReset": false
+              },
+              {
+                "weight": 1,
+                "clip": "ZombieWalk",
+                "playing": false,
+                "speed": 1,
+                "loop": false,
+                "shouldReset": false
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
