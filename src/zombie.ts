@@ -10,6 +10,9 @@ import {
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { damagePlayer, setDeathTime } from './playerHealth'
+import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
+import { createHealthBarForZombie } from './healthBar'
+import { tryDropPotions } from './potions'
 
 // Animation clip names from Zombie.glb
 const ANIM_ZOMBIE_UP = 'ZombieUP'
@@ -29,7 +32,10 @@ const ZombieComponentSchema = {
   spawnTimer: Schemas.Number,
   attackRange: Schemas.Number,
   attackCooldown: Schemas.Number,
-  health: Schemas.Number
+  health: Schemas.Number,
+  speed: Schemas.Number,
+  walkAnimSpeed: Schemas.Number,
+  spawnUpDuration: Schemas.Number
 }
 
 export const ZombieComponent = engine.defineComponent('ZombieComponent', ZombieComponentSchema, {
@@ -37,7 +43,10 @@ export const ZombieComponent = engine.defineComponent('ZombieComponent', ZombieC
   spawnTimer: 0,
   attackRange: 1.2,
   attackCooldown: 0,
-  health: 2
+  health: 3,
+  speed: 1.5,
+  walkAnimSpeed: 1,
+  spawnUpDuration: 1.2
 })
 
 // Blood burst particles: fly outward and get removed when endTime is reached
@@ -60,6 +69,8 @@ const SPAWN_MAX_Z = 54
 
 const ZOMBIE_SPEED = 1.5
 const ZOMBIE_UP_DURATION = 1.2 // Approximate ZombieUP animation length in seconds
+// When a zombie is within this range of a brick, it targets the brick instead of the player
+const BRICK_AGRO_RANGE = 2.5
 
 function getRandomSpawnPosition(): Vector3 {
   const x = SPAWN_MIN_X + Math.random() * (SPAWN_MAX_X - SPAWN_MIN_X)
@@ -67,13 +78,14 @@ function getRandomSpawnPosition(): Vector3 {
   return Vector3.create(x, 0, z)
 }
 
-function playZombieAnimation(entity: Entity, clip: string, loop: boolean) {
+function playZombieAnimation(entity: Entity, clip: string, loop: boolean, clipSpeed: number = 1) {
   if (!Animator.has(entity)) return
   const animator = Animator.getMutable(entity)
   for (const state of animator.states) {
     const isActive = state.clip === clip
     state.playing = isActive
     state.loop = isActive ? loop : false
+    if (isActive) state.speed = clipSpeed
   }
 }
 
@@ -109,9 +121,99 @@ export function spawnZombie(): Entity {
     spawnTimer: 0,
     attackRange: 1.2,
     attackCooldown: 0,
-    health: 2
+    health: 3,
+    speed: ZOMBIE_SPEED,
+    walkAnimSpeed: 1,
+    spawnUpDuration: ZOMBIE_UP_DURATION
   })
 
+  createHealthBarForZombie(zombie, 3) // default height
+  return zombie
+}
+
+/** Quick zombie: ZombieYellow.glb, faster movement, 2 HP. */
+export function spawnQuickZombie(): Entity {
+  const zombie = engine.addEntity()
+  const spawnPos = getRandomSpawnPosition()
+
+  Transform.create(zombie, {
+    position: spawnPos,
+    rotation: Quaternion.Identity(),
+    scale: Vector3.One()
+  })
+
+  GltfContainer.create(zombie, {
+    src: 'assets/scene/Models/ZombieYellow/ZombieYellow.glb',
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+
+  const quickSpeed = 2.6
+  const quickWalkAnimSpeed = 1.7
+
+  Animator.create(zombie, {
+    states: [
+      { clip: ANIM_ZOMBIE_UP, playing: true, loop: false, speed: 1 },
+      { clip: ANIM_ZOMBIE_WALK, playing: false, loop: true, speed: quickWalkAnimSpeed },
+      { clip: ANIM_ZOMBIE_ATTACK, playing: false, loop: true, speed: 1 }
+    ]
+  })
+
+  ZombieComponent.create(zombie, {
+    state: ZombieState.SPAWNING,
+    spawnTimer: 0,
+    attackRange: 1.2,
+    attackCooldown: 0,
+    health: 2,
+    speed: quickSpeed,
+    walkAnimSpeed: quickWalkAnimSpeed,
+    spawnUpDuration: ZOMBIE_UP_DURATION
+  })
+
+  createHealthBarForZombie(zombie, 2, 1.55) // a bit lower
+  return zombie
+}
+
+/** Tank zombie: ZombiePurple.glb, slower movement, 10 HP. */
+export function spawnTankZombie(): Entity {
+  const zombie = engine.addEntity()
+  const spawnPos = getRandomSpawnPosition()
+
+  Transform.create(zombie, {
+    position: spawnPos,
+    rotation: Quaternion.Identity(),
+    scale: Vector3.One()
+  })
+
+  GltfContainer.create(zombie, {
+    src: 'assets/scene/Models/ZombiePurple/ZombiePurple.glb',
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+
+  const tankSpeed = 0.75
+  const tankWalkAnimSpeed = 0.6
+
+  Animator.create(zombie, {
+    states: [
+      { clip: ANIM_ZOMBIE_UP, playing: true, loop: false, speed: 1 },
+      { clip: ANIM_ZOMBIE_WALK, playing: false, loop: true, speed: tankWalkAnimSpeed },
+      { clip: ANIM_ZOMBIE_ATTACK, playing: false, loop: true, speed: 1 }
+    ]
+  })
+
+  ZombieComponent.create(zombie, {
+    state: ZombieState.SPAWNING,
+    spawnTimer: 0,
+    attackRange: 1.2,
+    attackCooldown: 0,
+    health: 10,
+    speed: tankSpeed,
+    walkAnimSpeed: tankWalkAnimSpeed,
+    spawnUpDuration: ZOMBIE_UP_DURATION
+  })
+
+  createHealthBarForZombie(zombie, 10, 2.75) // a bit higher
   return zombie
 }
 
@@ -185,6 +287,7 @@ export function damageZombie(entity: Entity, amount: number): boolean {
 
   if (zombie.health <= 0) {
     spawnBloodBurst(burstCenter, DEATH_BURST_COUNT, DEATH_BURST_SPEED, BLOOD_BURST_DURATION, DEATH_BURST_SCALE)
+    tryDropPotions(Vector3.create(pos.x, pos.y, pos.z))
     engine.removeEntity(entity)
     return true
   }
@@ -216,10 +319,17 @@ export function bloodParticleSystem(dt: number) {
   for (const e of toRemove) engine.removeEntity(e)
 }
 
+function distanceXZ(a: Vector3, b: Vector3): number {
+  const dx = a.x - b.x
+  const dz = a.z - b.z
+  return Math.sqrt(dx * dx + dz * dz)
+}
+
 export function zombieSystem(dt: number) {
   if (!Transform.has(engine.PlayerEntity)) return
 
   const playerPos = Transform.get(engine.PlayerEntity).position
+  const bricks = getBricks()
 
   for (const [zombie, zombieData, transform] of engine.getEntitiesWith(
     ZombieComponent,
@@ -231,33 +341,54 @@ export function zombieSystem(dt: number) {
     const mutableTransform = Transform.getMutable(zombie)
 
     const zombiePos = transform.position
-    const direction = Vector3.subtract(playerPos, zombiePos)
+
+    // Target: nearest brick within agro range, or player
+    let targetPos = Vector3.clone(playerPos)
+    let targetIsBrick = false
+    let targetBrickEntity: Entity | null = null
+    let nearestBrickDist = BRICK_AGRO_RANGE + 1
+    for (const { entity, position } of bricks) {
+      const d = distanceXZ(zombiePos, position)
+      if (d <= BRICK_AGRO_RANGE && d < nearestBrickDist) {
+        nearestBrickDist = d
+        targetPos = position
+        targetIsBrick = true
+        targetBrickEntity = entity
+      }
+    }
+
+    const direction = Vector3.subtract(targetPos, zombiePos)
     direction.y = 0
     const distance = Vector3.length(direction)
 
     if (mutableZombie.state === ZombieState.SPAWNING) {
       mutableZombie.spawnTimer += dt
-      if (mutableZombie.spawnTimer >= ZOMBIE_UP_DURATION) {
+      if (mutableZombie.spawnTimer >= mutableZombie.spawnUpDuration) {
         mutableZombie.state = ZombieState.WALKING
-        playZombieAnimation(zombie, ANIM_ZOMBIE_WALK, true)
+        playZombieAnimation(zombie, ANIM_ZOMBIE_WALK, true, mutableZombie.walkAnimSpeed)
       }
       continue
     }
 
+    // In attack range of current target (player or brick)
     if (distance <= mutableZombie.attackRange) {
       if (mutableZombie.state !== ZombieState.ATTACKING) {
         mutableZombie.state = ZombieState.ATTACKING
         playZombieAnimation(zombie, ANIM_ZOMBIE_ATTACK, true)
       }
-      // Attack player every 0.3 seconds
       mutableZombie.attackCooldown -= dt
       if (mutableZombie.attackCooldown <= 0) {
         mutableZombie.attackCooldown = 1
-        // Spawn blood at player (chest height) then deal damage
-        const burstCenter = Vector3.create(playerPos.x, playerPos.y + 0.9, playerPos.z)
-        spawnBloodAtPosition(burstCenter)
-        if (damagePlayer(1)) {
-          setDeathTime(_gameTime)
+        if (targetIsBrick && targetBrickEntity != null) {
+          const burstCenter = Vector3.create(targetPos.x, targetPos.y + 0.5, targetPos.z)
+          spawnBloodAtPosition(burstCenter)
+          damageBrick(targetBrickEntity, 1)
+        } else {
+          const burstCenter = Vector3.create(playerPos.x, playerPos.y + 0.9, playerPos.z)
+          spawnBloodAtPosition(burstCenter)
+          if (damagePlayer(1)) {
+            setDeathTime(_gameTime)
+          }
         }
       }
       continue
@@ -265,17 +396,24 @@ export function zombieSystem(dt: number) {
 
     if (mutableZombie.state === ZombieState.ATTACKING) {
       mutableZombie.state = ZombieState.WALKING
-      playZombieAnimation(zombie, ANIM_ZOMBIE_WALK, true)
+      playZombieAnimation(zombie, ANIM_ZOMBIE_WALK, true, mutableZombie.walkAnimSpeed)
     }
 
-    // Move toward player
+    // Move toward target
     const normalizedDir = Vector3.normalize(direction)
-    const moveAmount = ZOMBIE_SPEED * dt
-    const newPos = Vector3.add(zombiePos, Vector3.scale(normalizedDir, moveAmount))
+    const moveAmount = mutableZombie.speed * dt
+    let newPos = Vector3.add(zombiePos, Vector3.scale(normalizedDir, moveAmount))
     newPos.y = zombiePos.y
+
+    // Collision: do not move into any brick
+    for (const { position } of bricks) {
+      if (distanceXZ(newPos, position) <= BRICK_RADIUS) {
+        newPos = Vector3.clone(zombiePos)
+        break
+      }
+    }
     mutableTransform.position = newPos
 
-    // Face the player
     const lookRotation = Quaternion.lookRotation(normalizedDir)
     mutableTransform.rotation = lookRotation
   }

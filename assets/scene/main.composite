@@ -200,7 +200,12 @@
             "position": {
               "x": 4,
               "y": 0,
-              "z": 13
+              "z": 26.273927688598633
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.899999976158142,
+              "z": 1
             },
             "rotation": {
               "x": 0,
@@ -208,20 +213,15 @@
               "z": 0,
               "w": 0.6087614297866821
             },
-            "scale": {
-              "x": 1,
-              "y": 1.899999976158142,
-              "z": 1
-            },
             "parent": 0
           }
         },
         "519": {
           "json": {
             "position": {
-              "x": 4.25,
+              "x": 3.5500099658966064,
               "y": 0,
-              "z": 9
+              "z": 23.21148681640625
             },
             "scale": {
               "x": 1.399999976158142,
@@ -237,12 +237,54 @@
             "parent": 0
           }
         },
+        "522": {
+          "json": {
+            "position": {
+              "x": 0.24909210205078125,
+              "y": 0.4575212001800537,
+              "z": 0.0034732818603515625
+            },
+            "scale": {
+              "x": 0.20000000298023224,
+              "y": 0.20000000298023224,
+              "z": 0.20000000298023224
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "parent": 523
+          }
+        },
+        "523": {
+          "json": {
+            "position": {
+              "x": 3.1937055587768555,
+              "y": 1.455664873123169,
+              "z": 26.145551681518555
+            },
+            "scale": {
+              "x": 2.0999999046325684,
+              "y": 2.0999999046325684,
+              "z": 2.0999999046325684
+            },
+            "rotation": {
+              "x": 0,
+              "y": -0.760399580001831,
+              "z": 0,
+              "w": 0.6494555473327637
+            },
+            "parent": 0
+          }
+        },
         "524": {
           "json": {
             "position": {
-              "x": 5.05242919921875,
-              "y": 1.2146386395056781e-14,
-              "z": 6.60646915435791
+              "x": 3.7706620693206787,
+              "y": 1.3478654024606969e-14,
+              "z": 6.507617950439453
             },
             "scale": {
               "x": 1,
@@ -256,6 +298,169 @@
               "w": 1
             },
             "parent": 0
+          }
+        },
+        "525": {
+          "json": {
+            "position": {
+              "x": 0.24909210205078125,
+              "y": 0.4575212001800537,
+              "z": 0.0034732818603515625
+            },
+            "scale": {
+              "x": 0.20000000298023224,
+              "y": 0.20000000298023224,
+              "z": 0.20000000298023224
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "parent": 526
+          }
+        },
+        "526": {
+          "json": {
+            "position": {
+              "x": 2.7557456493377686,
+              "y": 1.455664873123169,
+              "z": 21.97943115234375
+            },
+            "scale": {
+              "x": 2.0999999046325684,
+              "y": 2.0999999046325684,
+              "z": 2.0999999046325684
+            },
+            "rotation": {
+              "x": 0,
+              "y": -0.7603995203971863,
+              "z": 0,
+              "w": 0.6494555473327637
+            },
+            "parent": 0
+          }
+        },
+        "527": {
+          "json": {
+            "position": {
+              "x": 0.24909210205078125,
+              "y": 0.4575212001800537,
+              "z": 0.0034732818603515625
+            },
+            "scale": {
+              "x": 0.20000000298023224,
+              "y": 0.20000000298023224,
+              "z": 0.20000000298023224
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "parent": 528
+          }
+        },
+        "528": {
+          "json": {
+            "position": {
+              "x": 2.6922430992126465,
+              "y": 0.5910419225692749,
+              "z": 5.6644368171691895
+            },
+            "scale": {
+              "x": 2.0999999046325684,
+              "y": 2.0999999046325684,
+              "z": 2.0999999046325684
+            },
+            "rotation": {
+              "x": 0,
+              "y": -0.7603995203971863,
+              "z": 0,
+              "w": 0.6494555473327637
+            },
+            "parent": 0
+          }
+        },
+        "538": {
+          "json": {
+            "position": {
+              "x": 3.7706620693206787,
+              "y": 1.3478654024606969e-14,
+              "z": 9.734289169311523
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "parent": 0
+          }
+        },
+        "539": {
+          "json": {
+            "position": {
+              "x": 3.7706620693206787,
+              "y": 1.3478654024606969e-14,
+              "z": 11.928523063659668
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "parent": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "core-schema::Network-Entity",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {
+          "networkId": {
+            "type": "integer",
+            "serializationType": "int64"
+          },
+          "entityId": {
+            "type": "integer",
+            "serializationType": "entity"
+          }
+        },
+        "serializationType": "map"
+      },
+      "data": {
+        "522": {
+          "json": {
+            "networkId": 0,
+            "entityId": 8002
+          }
+        },
+        "525": {
+          "json": {
+            "networkId": 0,
+            "entityId": 8003
+          }
+        },
+        "527": {
+          "json": {
+            "networkId": 0,
+            "entityId": 8004
           }
         }
       }
@@ -318,7 +523,42 @@
             "invisibleMeshesCollisionMask": 3
           }
         },
+        "523": {
+          "json": {
+            "src": "assets/asset-packs/bubble/MessageBubble.glb",
+            "visibleMeshesCollisionMask": 0,
+            "invisibleMeshesCollisionMask": 2
+          }
+        },
         "524": {
+          "json": {
+            "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
+            "visibleMeshesCollisionMask": 0,
+            "invisibleMeshesCollisionMask": 3
+          }
+        },
+        "526": {
+          "json": {
+            "src": "assets/asset-packs/bubble/MessageBubble.glb",
+            "visibleMeshesCollisionMask": 0,
+            "invisibleMeshesCollisionMask": 2
+          }
+        },
+        "528": {
+          "json": {
+            "src": "assets/asset-packs/bubble/MessageBubble.glb",
+            "visibleMeshesCollisionMask": 0,
+            "invisibleMeshesCollisionMask": 2
+          }
+        },
+        "538": {
+          "json": {
+            "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
+            "visibleMeshesCollisionMask": 0,
+            "invisibleMeshesCollisionMask": 3
+          }
+        },
+        "539": {
           "json": {
             "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
             "visibleMeshesCollisionMask": 0,
@@ -375,9 +615,207 @@
             "value": "Button2"
           }
         },
+        "522": {
+          "json": {
+            "value": "Text"
+          }
+        },
+        "523": {
+          "json": {
+            "value": "Bubble"
+          }
+        },
         "524": {
           "json": {
             "value": "Button"
+          }
+        },
+        "525": {
+          "json": {
+            "value": "Text_2"
+          }
+        },
+        "526": {
+          "json": {
+            "value": "Bubble_2"
+          }
+        },
+        "527": {
+          "json": {
+            "value": "Text_3"
+          }
+        },
+        "528": {
+          "json": {
+            "value": "Bubble_3"
+          }
+        },
+        "538": {
+          "json": {
+            "value": "ButtonQuick"
+          }
+        },
+        "539": {
+          "json": {
+            "value": "ButtonTank"
+          }
+        }
+      }
+    },
+    {
+      "name": "core-schema::Sync-Components",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {
+          "componentIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "serializationType": "int64"
+            },
+            "serializationType": "array"
+          }
+        },
+        "serializationType": "map"
+      },
+      "data": {
+        "522": {
+          "json": {
+            "componentIds": [
+              1030,
+              1081
+            ]
+          }
+        },
+        "525": {
+          "json": {
+            "componentIds": [
+              1030,
+              1081
+            ]
+          }
+        },
+        "527": {
+          "json": {
+            "componentIds": [
+              1030,
+              1081
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "core::TextShape",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {},
+        "serializationType": "protocol-buffer",
+        "protocolBuffer": "PBTextShape"
+      },
+      "data": {
+        "522": {
+          "json": {
+            "text": "START GAME",
+            "font": 2,
+            "fontSize": 4,
+            "fontAutoSize": false,
+            "textAlign": 4,
+            "paddingTop": 0,
+            "paddingRight": 0,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "lineSpacing": 0,
+            "outlineWidth": 0,
+            "outlineColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "textColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        },
+        "525": {
+          "json": {
+            "text": "SET CAMERA",
+            "font": 2,
+            "fontSize": 4,
+            "fontAutoSize": false,
+            "textAlign": 4,
+            "paddingTop": 0,
+            "paddingRight": 0,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "lineSpacing": 0,
+            "outlineWidth": 0,
+            "outlineColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "textColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        },
+        "527": {
+          "json": {
+            "text": "SPAWN ZOMBIE",
+            "font": 2,
+            "fontSize": 4,
+            "fontAutoSize": false,
+            "textAlign": 4,
+            "paddingTop": 0,
+            "paddingRight": 0,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "lineSpacing": 0,
+            "outlineWidth": 0,
+            "outlineColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "textColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "core::VisibilityComponent",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {},
+        "serializationType": "protocol-buffer",
+        "protocolBuffer": "PBVisibilityComponent"
+      },
+      "data": {
+        "523": {
+          "json": {
+            "visible": true
+          }
+        },
+        "526": {
+          "json": {
+            "visible": true
+          }
+        },
+        "528": {
+          "json": {
+            "visible": true
           }
         }
       }
@@ -424,9 +862,9 @@
         "serializationType": "map"
       },
       "data": {
-        "517": {
+        "0": {
           "json": {
-            "gizmo": 3
+            "gizmo": 0
           }
         }
       }
@@ -931,7 +1369,12 @@
                   515,
                   524,
                   519,
-                  517
+                  517,
+                  523,
+                  526,
+                  528,
+                  538,
+                  539
                 ]
               },
               {
@@ -972,6 +1415,44 @@
               },
               {
                 "entity": 517,
+                "children": []
+              },
+              {
+                "entity": 522,
+                "children": []
+              },
+              {
+                "entity": 523,
+                "children": [
+                  522
+                ]
+              },
+              {
+                "entity": 526,
+                "children": [
+                  525
+                ]
+              },
+              {
+                "entity": 525,
+                "children": []
+              },
+              {
+                "entity": 528,
+                "children": [
+                  527
+                ]
+              },
+              {
+                "entity": 527,
+                "children": []
+              },
+              {
+                "entity": 538,
+                "children": []
+              },
+              {
+                "entity": 539,
                 "children": []
               }
             ]
@@ -1255,6 +1736,118 @@
       }
     },
     {
+      "name": "asset-packs::Actions",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "serializationType": "int32"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "serializationType": "utf8-string"
+                },
+                "type": {
+                  "type": "string",
+                  "serializationType": "utf8-string"
+                },
+                "jsonPayload": {
+                  "type": "string",
+                  "serializationType": "utf8-string"
+                },
+                "allowedInBasicView": {
+                  "type": "boolean",
+                  "serializationType": "optional",
+                  "optionalJsonSchema": {
+                    "type": "boolean",
+                    "serializationType": "boolean"
+                  }
+                },
+                "basicViewId": {
+                  "type": "string",
+                  "serializationType": "optional",
+                  "optionalJsonSchema": {
+                    "type": "string",
+                    "serializationType": "utf8-string"
+                  }
+                },
+                "default": {
+                  "type": "boolean",
+                  "serializationType": "optional",
+                  "optionalJsonSchema": {
+                    "type": "boolean",
+                    "serializationType": "boolean"
+                  }
+                }
+              },
+              "serializationType": "map"
+            },
+            "serializationType": "array"
+          }
+        },
+        "serializationType": "map"
+      },
+      "data": {
+        "523": {
+          "json": {
+            "id": 1,
+            "value": [
+              {
+                "name": "Hide",
+                "type": "set_visibility",
+                "jsonPayload": "{\"visible\":false,\"collider\":0}"
+              },
+              {
+                "name": "Show",
+                "type": "set_visibility",
+                "jsonPayload": "{\"visible\":true,\"collider\":0}"
+              }
+            ]
+          }
+        },
+        "526": {
+          "json": {
+            "id": 2,
+            "value": [
+              {
+                "name": "Hide",
+                "type": "set_visibility",
+                "jsonPayload": "{\"visible\":false,\"collider\":0}"
+              },
+              {
+                "name": "Show",
+                "type": "set_visibility",
+                "jsonPayload": "{\"visible\":true,\"collider\":0}"
+              }
+            ]
+          }
+        },
+        "528": {
+          "json": {
+            "id": 3,
+            "value": [
+              {
+                "name": "Hide",
+                "type": "set_visibility",
+                "jsonPayload": "{\"visible\":false,\"collider\":0}"
+              },
+              {
+                "name": "Show",
+                "type": "set_visibility",
+                "jsonPayload": "{\"visible\":true,\"collider\":0}"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "name": "asset-packs::Counter",
       "jsonSchema": {
         "type": "object",
@@ -1274,7 +1867,7 @@
         "0": {
           "json": {
             "id": 0,
-            "value": 0
+            "value": 3
           }
         }
       }
@@ -1317,7 +1910,40 @@
         "519": {
           "json": {}
         },
+        "522": {
+          "json": {}
+        },
+        "523": {
+          "json": {}
+        },
         "524": {
+          "json": {}
+        },
+        "525": {
+          "json": {}
+        },
+        "526": {
+          "json": {}
+        },
+        "527": {
+          "json": {}
+        },
+        "528": {
+          "json": {}
+        },
+        "535": {
+          "json": {}
+        },
+        "536": {
+          "json": {}
+        },
+        "537": {
+          "json": {}
+        },
+        "538": {
+          "json": {}
+        },
+        "539": {
           "json": {}
         }
       }

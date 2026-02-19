@@ -12,9 +12,13 @@ import {
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { setupUi } from './ui'
-import { spawnZombie, zombieSystem, bloodParticleSystem } from './zombie'
+import { spawnZombie, spawnQuickZombie, spawnTankZombie, zombieSystem, bloodParticleSystem } from './zombie'
 import { createGun, initGunSystems } from './gun'
+import { initShotGunSystems } from './shotGun'
+import { initMiniGunSystems } from './miniGun'
 import { waveManagerSystem, onStartPressed, resetToIdle } from './waveManager'
+import { initBrickSystem } from './brick'
+import { initHealthBarSystem, createHealthBarForPlayer } from './healthBar'
 import {
   isPlayerDead,
   getDeathTime,
@@ -22,6 +26,9 @@ import {
   respawnPlayer
 } from './playerHealth'
 import { getGameTime } from './zombie'
+import { rageEffectSystem } from './rageEffect'
+import { initRageAura } from './rageAura'
+import { potionPickupSystem, potionVisualSystem } from './potions'
 import { EntityNames } from '../assets/scene/entity-names'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
@@ -102,16 +109,30 @@ export function main() {
 
   // Blood burst particles (must run every frame to advance _gameTime)
   engine.addSystem(bloodParticleSystem)
+  // Rage potion duration decay
+  engine.addSystem(() => rageEffectSystem(getGameTime()))
+  // Red aura around player when enraged
+  initRageAura()
+  // Deferred brick placement (spawn from game loop, not from UI callback)
+  initBrickSystem()
+  // Health bar billboards above zombies and player
+  initHealthBarSystem()
+  createHealthBarForPlayer()
   // Add zombie behavior system
   engine.addSystem(zombieSystem)
+  // Potion pickup and visual (tilt + spin)
+  engine.addSystem(potionPickupSystem)
+  engine.addSystem(potionVisualSystem)
   // Death respawn: after delay, respawn player and reset game
   engine.addSystem(deathRespawnSystem)
   // Wave manager: countdown, spawn schedule, wave complete
   engine.addSystem(waveManagerSystem)
 
-  // Create gun and init gun systems (shooting, projectiles)
+  // Create starting gun and init all weapon systems (only active weapon runs per frame)
   createGun()
   initGunSystems()
+  initShotGunSystems()
+  initMiniGunSystems()
 
   // Setup Button click to spawn zombies
   const buttonEntity = engine.getEntityOrNullByName(EntityNames.Button)
@@ -222,6 +243,78 @@ export function main() {
     pointerEventsSystem.onPointerDown(
       { entity: button3Entity, opts: { button: InputAction.IA_PRIMARY, hoverText: 'Start' } },
       () => { onStartPressed() }
+    )
+  }
+
+  // ButtonQuick: spawn quick zombie (fast, 2 HP)
+  const buttonQuickEntity = engine.getEntityOrNullByName(EntityNames.ButtonQuick)
+  if (buttonQuickEntity) {
+    MeshCollider.setBox(buttonQuickEntity, ColliderLayer.CL_POINTER)
+    PointerEvents.create(buttonQuickEntity, {
+      pointerEvents: [
+        {
+          eventType: PointerEventType.PET_DOWN,
+          eventInfo: {
+            button: InputAction.IA_POINTER,
+            hoverText: 'Spawn Quick Zombie',
+            maxDistance: 10,
+            showFeedback: true
+          }
+        },
+        {
+          eventType: PointerEventType.PET_DOWN,
+          eventInfo: {
+            button: InputAction.IA_PRIMARY,
+            hoverText: 'Spawn Quick Zombie',
+            maxDistance: 10,
+            showFeedback: true
+          }
+        }
+      ]
+    })
+    pointerEventsSystem.onPointerDown(
+      { entity: buttonQuickEntity, opts: { button: InputAction.IA_POINTER, hoverText: 'Spawn Quick Zombie' } },
+      () => { spawnQuickZombie() }
+    )
+    pointerEventsSystem.onPointerDown(
+      { entity: buttonQuickEntity, opts: { button: InputAction.IA_PRIMARY, hoverText: 'Spawn Quick Zombie' } },
+      () => { spawnQuickZombie() }
+    )
+  }
+
+  // ButtonTank: spawn tank zombie (slow, 10 HP)
+  const buttonTankEntity = engine.getEntityOrNullByName(EntityNames.ButtonTank)
+  if (buttonTankEntity) {
+    MeshCollider.setBox(buttonTankEntity, ColliderLayer.CL_POINTER)
+    PointerEvents.create(buttonTankEntity, {
+      pointerEvents: [
+        {
+          eventType: PointerEventType.PET_DOWN,
+          eventInfo: {
+            button: InputAction.IA_POINTER,
+            hoverText: 'Spawn Tank Zombie',
+            maxDistance: 10,
+            showFeedback: true
+          }
+        },
+        {
+          eventType: PointerEventType.PET_DOWN,
+          eventInfo: {
+            button: InputAction.IA_PRIMARY,
+            hoverText: 'Spawn Tank Zombie',
+            maxDistance: 10,
+            showFeedback: true
+          }
+        }
+      ]
+    })
+    pointerEventsSystem.onPointerDown(
+      { entity: buttonTankEntity, opts: { button: InputAction.IA_POINTER, hoverText: 'Spawn Tank Zombie' } },
+      () => { spawnTankZombie() }
+    )
+    pointerEventsSystem.onPointerDown(
+      { entity: buttonTankEntity, opts: { button: InputAction.IA_PRIMARY, hoverText: 'Spawn Tank Zombie' } },
+      () => { spawnTankZombie() }
     )
   }
 }

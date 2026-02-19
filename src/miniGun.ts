@@ -7,33 +7,30 @@ import {
   MeshRenderer,
   Material,
   MeshCollider,
-  TriggerArea,
-  triggerAreaEventsSystem,
-  ColliderLayer,
-  Schemas
+  ColliderLayer
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
-import { ZombieComponent, damageZombie } from './zombie'
-import { addZombieCoins, COINS_PER_KILL } from './zombieCoins'
+import { ZombieComponent } from './zombie'
+import { ProjectileComponent } from './gun'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
 
-const GUN_MODEL = 'assets/scene/Models/Gun01/Gun01.glb'
+const GUN_MODEL = 'assets/scene/Models/MiniGun01/MiniGun01.glb'
 
 // Animation name in Gun01.glb - change if your model uses a different name
-const GUN_SHOOT_ANIM = 'KeyAction'
+const GUN_SHOOT_ANIM = 'Key.002Action'
 
 // Gun config - tweak these to your liking
 const GUN_OFFSET = Vector3.create(0, 0, 0) // Local offset from player (right, up, forward)
-const ROUNDS_PER_SECOND = 1 // How many shots per second - tweak to change fire rate
-const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
+const ROUNDS_PER_SECOND = 5 // Minigun fires faster
+const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (0.2s = 5 rounds/sec)
 const SHOOT_RANGE = 100
 const PROJECTILE_SPEED = 10 // Meters per second - lower = slower bullets
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
 const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0, 1.27, 0.25)
-// How long to freeze gun rotation after shooting (so bullet spawn looks correct). Tweak to match your shoot clip length.
-const SHOOT_ANIM_FREEZE_DURATION = 0.4
+// Shorter freeze so rotation can update between shots (minigun fires every 0.2s; 0.4s would block rotation entirely)
+const SHOOT_ANIM_FREEZE_DURATION = 0.06
 // Bullet flies straight; remove after this distance from spawn (out of scene)
 const BULLET_MAX_DISTANCE = 40
 const GUN_SYSTEM_PRIORITY_LAST = -1000
@@ -41,17 +38,6 @@ const GUN_SYSTEM_PRIORITY_LAST = -1000
 // Unparented gun: we set position and rotation every frame (lerp/slerp to reduce jitter). Bullet spawns at exact gunWorldPos/gunWorldRot.
 const GUN_POSITION_SMOOTH_SPEED = 12
 const GUN_ROTATION_SMOOTH_SPEED = 12
-
-// Projectile: flies straight; hit detection is via TriggerArea on zombies (collider-based)
-const ProjectileComponentSchema = {
-  direction: Schemas.Vector3,
-  startPosition: Schemas.Vector3
-}
-export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
-
-// Tag: zombie already has a bullet trigger area (so we add it only once)
-const ZombieBulletTriggerSchema = {}
-const ZombieBulletTriggerTag = engine.defineComponent('ZombieBulletTriggerTag', ZombieBulletTriggerSchema)
 
 let gunEntity: Entity | null = null
 let shootTimer = 0
@@ -126,7 +112,7 @@ function spawnProjectile(
   MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
 }
 
-export function createGun(): Entity {
+export function createMiniGun(): Entity {
   const gun = engine.addEntity()
   const startPos =
     Transform.has(engine.PlayerEntity)
@@ -154,67 +140,15 @@ export function createGun(): Entity {
   return gun
 }
 
-export function destroyGun(): void {
+export function destroyMiniGun(): void {
   if (gunEntity !== null) {
     engine.removeEntity(gunEntity)
     gunEntity = null
   }
 }
 
-function projectileSystem(dt: number) {
-  for (const [projectile, projData, transform] of engine.getEntitiesWith(
-    ProjectileComponent,
-    Transform
-  )) {
-    const currentPos = transform.position
-    const dir = projData.direction
-    const startPos = projData.startPosition
-
-    // Move bullet straight; hit detection is done by TriggerArea on zombies (collider-based)
-    const newPos = Vector3.add(currentPos, Vector3.scale(dir, PROJECTILE_SPEED * dt))
-
-    // Remove if bullet went out of range (out of scene)
-    const traveled = Vector3.distance(newPos, startPos)
-    if (traveled > BULLET_MAX_DISTANCE) {
-      engine.removeEntity(projectile)
-      continue
-    }
-
-    const mutableTransform = Transform.getMutable(projectile)
-    mutableTransform.position = newPos
-  }
-}
-
-// One-time setup: add a TriggerArea to each zombie so bullets (MeshCollider CL_CUSTOM1) trigger hit
-function zombieBulletTriggerSetupSystem() {
-  for (const [zombie] of engine.getEntitiesWith(ZombieComponent, Transform)) {
-    if (ZombieBulletTriggerTag.has(zombie)) continue
-
-    const triggerChild = engine.addEntity()
-    Transform.create(triggerChild, {
-      parent: zombie,
-      position: Vector3.create(0, ZOMBIE_TARGET_HEIGHT, 0),
-      scale: Vector3.create(2, 2, 2),
-      rotation: Quaternion.Identity()
-    })
-    TriggerArea.setSphere(triggerChild, ColliderLayer.CL_CUSTOM1)
-    triggerAreaEventsSystem.onTriggerEnter(triggerChild, (result) => {
-      const areaEntity = result.triggeredEntity as Entity
-      const bulletEntity = result.trigger?.entity as Entity | undefined
-      if (bulletEntity == null || !ProjectileComponent.has(bulletEntity)) return
-      const zombieEntity = Transform.has(areaEntity) ? (Transform.get(areaEntity).parent as Entity) : null
-      if (zombieEntity == null || !ZombieComponent.has(zombieEntity)) return
-      if (damageZombie(zombieEntity, 1)) {
-        addZombieCoins(COINS_PER_KILL)
-      }
-      engine.removeEntity(bulletEntity)
-    })
-    ZombieBulletTriggerTag.create(zombie)
-  }
-}
-
-export function gunSystem(dt: number) {
-  if (getCurrentWeapon() !== 'gun' || !Transform.has(engine.PlayerEntity) || !gunEntity) return
+export function miniGunSystem(dt: number) {
+  if (getCurrentWeapon() !== 'minigun' || !Transform.has(engine.PlayerEntity) || !gunEntity) return
 
   if (rotationFreezeRemaining > 0) rotationFreezeRemaining -= dt
 
@@ -261,8 +195,6 @@ export function gunSystem(dt: number) {
   }
 }
 
-export function initGunSystems() {
-  engine.addSystem(zombieBulletTriggerSetupSystem)
-  engine.addSystem(projectileSystem)
-  engine.addSystem(gunSystem, GUN_SYSTEM_PRIORITY_LAST, 'gunSystem')
+export function initMiniGunSystems() {
+  engine.addSystem(miniGunSystem, GUN_SYSTEM_PRIORITY_LAST, 'miniGunSystem')
 }

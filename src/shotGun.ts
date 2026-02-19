@@ -7,21 +7,18 @@ import {
   MeshRenderer,
   Material,
   MeshCollider,
-  TriggerArea,
-  triggerAreaEventsSystem,
-  ColliderLayer,
-  Schemas
+  ColliderLayer
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
-import { ZombieComponent, damageZombie } from './zombie'
-import { addZombieCoins, COINS_PER_KILL } from './zombieCoins'
+import { ZombieComponent } from './zombie'
+import { ProjectileComponent } from './gun'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
 
-const GUN_MODEL = 'assets/scene/Models/Gun01/Gun01.glb'
+const GUN_MODEL = 'assets/scene/Models/ShotGun01/ShotGun01.glb'
 
 // Animation name in Gun01.glb - change if your model uses a different name
-const GUN_SHOOT_ANIM = 'KeyAction'
+const GUN_SHOOT_ANIM = 'Key.001Action'
 
 // Gun config - tweak these to your liking
 const GUN_OFFSET = Vector3.create(0, 0, 0) // Local offset from player (right, up, forward)
@@ -41,17 +38,6 @@ const GUN_SYSTEM_PRIORITY_LAST = -1000
 // Unparented gun: we set position and rotation every frame (lerp/slerp to reduce jitter). Bullet spawns at exact gunWorldPos/gunWorldRot.
 const GUN_POSITION_SMOOTH_SPEED = 12
 const GUN_ROTATION_SMOOTH_SPEED = 12
-
-// Projectile: flies straight; hit detection is via TriggerArea on zombies (collider-based)
-const ProjectileComponentSchema = {
-  direction: Schemas.Vector3,
-  startPosition: Schemas.Vector3
-}
-export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
-
-// Tag: zombie already has a bullet trigger area (so we add it only once)
-const ZombieBulletTriggerSchema = {}
-const ZombieBulletTriggerTag = engine.defineComponent('ZombieBulletTriggerTag', ZombieBulletTriggerSchema)
 
 let gunEntity: Entity | null = null
 let shootTimer = 0
@@ -88,45 +74,55 @@ function playGunAnimation() {
   rotationFreezeRemaining = SHOOT_ANIM_FREEZE_DURATION
 }
 
+const SHOTGUN_SPREAD_DEG = 30 // +30° and -30° from center for the side pellets
+const SHOTGUN_SPREAD_TAN = Math.tan((SHOTGUN_SPREAD_DEG * Math.PI) / 180)
+
 function spawnProjectile(
   gunWorldPos: Vector3,
   gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number }
 ) {
-  // Bullet direction = gun forward (where the barrel points), so bullet always matches gun aim
-  const direction = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
-  const right = Vector3.rotate(Vector3.Right(), gunWorldRot)
+  const baseDirection = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
+  const right = Vector3.normalize(Vector3.rotate(Vector3.Right(), gunWorldRot))
   const up = Vector3.rotate(Vector3.Up(), gunWorldRot)
   const offset = Vector3.add(
     Vector3.add(
       Vector3.scale(right, MUZZLE_OFFSET_GUN_LOCAL.x),
       Vector3.scale(up, MUZZLE_OFFSET_GUN_LOCAL.y)
     ),
-    Vector3.scale(direction, MUZZLE_OFFSET_GUN_LOCAL.z)
+    Vector3.scale(baseDirection, MUZZLE_OFFSET_GUN_LOCAL.z)
   )
   const spawnPos = Vector3.add(gunWorldPos, offset)
-  const projectile = engine.addEntity()
-  Transform.create(projectile, {
-    position: Vector3.clone(spawnPos),
-    scale: Vector3.create(0.18, 0.18, 0.18)
-  })
-  MeshRenderer.setSphere(projectile)
-  // Red material like blood (no emissive glow) – matches zombie/player blood style
-  Material.setPbrMaterial(projectile, {
-    albedoColor: Color4.create(0.55, 0.05, 0.05, 0.95),
-    emissiveColor: Color3.create(0.6, 0.1, 0.1),
-    emissiveIntensity: 0.2,
-    metallic: 0.1,
-    roughness: 0.8
-  })
-  ProjectileComponent.create(projectile, {
-    direction,
-    startPosition: Vector3.clone(spawnPos)
-  })
-  // Bullets need a collider so they trigger zombie TriggerAreas
-  MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
+
+  // Center, left (+right), right (-right) - each bullet follows its own straight line
+  const directions = [
+    baseDirection,
+    Vector3.normalize(Vector3.add(baseDirection, Vector3.scale(right, SHOTGUN_SPREAD_TAN))),
+    Vector3.normalize(Vector3.subtract(baseDirection, Vector3.scale(right, SHOTGUN_SPREAD_TAN)))
+  ]
+
+  for (const direction of directions) {
+    const projectile = engine.addEntity()
+    Transform.create(projectile, {
+      position: Vector3.clone(spawnPos),
+      scale: Vector3.create(0.18, 0.18, 0.18)
+    })
+    MeshRenderer.setSphere(projectile)
+    Material.setPbrMaterial(projectile, {
+      albedoColor: Color4.create(0.55, 0.05, 0.05, 0.95),
+      emissiveColor: Color3.create(0.6, 0.1, 0.1),
+      emissiveIntensity: 0.2,
+      metallic: 0.1,
+      roughness: 0.8
+    })
+    ProjectileComponent.create(projectile, {
+      direction,
+      startPosition: Vector3.clone(spawnPos)
+    })
+    MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
+  }
 }
 
-export function createGun(): Entity {
+export function createShotGun(): Entity {
   const gun = engine.addEntity()
   const startPos =
     Transform.has(engine.PlayerEntity)
@@ -154,67 +150,15 @@ export function createGun(): Entity {
   return gun
 }
 
-export function destroyGun(): void {
+export function destroyShotGun(): void {
   if (gunEntity !== null) {
     engine.removeEntity(gunEntity)
     gunEntity = null
   }
 }
 
-function projectileSystem(dt: number) {
-  for (const [projectile, projData, transform] of engine.getEntitiesWith(
-    ProjectileComponent,
-    Transform
-  )) {
-    const currentPos = transform.position
-    const dir = projData.direction
-    const startPos = projData.startPosition
-
-    // Move bullet straight; hit detection is done by TriggerArea on zombies (collider-based)
-    const newPos = Vector3.add(currentPos, Vector3.scale(dir, PROJECTILE_SPEED * dt))
-
-    // Remove if bullet went out of range (out of scene)
-    const traveled = Vector3.distance(newPos, startPos)
-    if (traveled > BULLET_MAX_DISTANCE) {
-      engine.removeEntity(projectile)
-      continue
-    }
-
-    const mutableTransform = Transform.getMutable(projectile)
-    mutableTransform.position = newPos
-  }
-}
-
-// One-time setup: add a TriggerArea to each zombie so bullets (MeshCollider CL_CUSTOM1) trigger hit
-function zombieBulletTriggerSetupSystem() {
-  for (const [zombie] of engine.getEntitiesWith(ZombieComponent, Transform)) {
-    if (ZombieBulletTriggerTag.has(zombie)) continue
-
-    const triggerChild = engine.addEntity()
-    Transform.create(triggerChild, {
-      parent: zombie,
-      position: Vector3.create(0, ZOMBIE_TARGET_HEIGHT, 0),
-      scale: Vector3.create(2, 2, 2),
-      rotation: Quaternion.Identity()
-    })
-    TriggerArea.setSphere(triggerChild, ColliderLayer.CL_CUSTOM1)
-    triggerAreaEventsSystem.onTriggerEnter(triggerChild, (result) => {
-      const areaEntity = result.triggeredEntity as Entity
-      const bulletEntity = result.trigger?.entity as Entity | undefined
-      if (bulletEntity == null || !ProjectileComponent.has(bulletEntity)) return
-      const zombieEntity = Transform.has(areaEntity) ? (Transform.get(areaEntity).parent as Entity) : null
-      if (zombieEntity == null || !ZombieComponent.has(zombieEntity)) return
-      if (damageZombie(zombieEntity, 1)) {
-        addZombieCoins(COINS_PER_KILL)
-      }
-      engine.removeEntity(bulletEntity)
-    })
-    ZombieBulletTriggerTag.create(zombie)
-  }
-}
-
-export function gunSystem(dt: number) {
-  if (getCurrentWeapon() !== 'gun' || !Transform.has(engine.PlayerEntity) || !gunEntity) return
+export function shotGunSystem(dt: number) {
+  if (getCurrentWeapon() !== 'shotgun' || !Transform.has(engine.PlayerEntity) || !gunEntity) return
 
   if (rotationFreezeRemaining > 0) rotationFreezeRemaining -= dt
 
@@ -261,8 +205,6 @@ export function gunSystem(dt: number) {
   }
 }
 
-export function initGunSystems() {
-  engine.addSystem(zombieBulletTriggerSetupSystem)
-  engine.addSystem(projectileSystem)
-  engine.addSystem(gunSystem, GUN_SYSTEM_PRIORITY_LAST, 'gunSystem')
+export function initShotGunSystems() {
+  engine.addSystem(shotGunSystem, GUN_SYSTEM_PRIORITY_LAST, 'shotGunSystem')
 }

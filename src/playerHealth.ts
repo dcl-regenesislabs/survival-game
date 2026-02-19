@@ -7,6 +7,7 @@ export const MAX_HP = 5
 let currentHp = MAX_HP
 let isDead = false
 let deathTime = 0
+let healGlowEndTime = 0
 
 /** Respawn position in scene (center of play area) */
 const RESPAWN_POSITION = Vector3.create(32, 0, 32)
@@ -42,6 +43,22 @@ export function damagePlayer(amount: number): boolean {
     return true
   }
   return false
+}
+
+/** Restore player health (e.g. health potion). Caps at MAX_HP. No-op if dead. */
+export function healPlayer(amount: number): void {
+  if (isDead) return
+  currentHp = Math.min(MAX_HP, currentHp + amount)
+}
+
+/** Set end time for heal glow on player health bar (call with getGameTime() + duration). */
+export function setHealGlowEndTime(endTime: number): void {
+  healGlowEndTime = endTime
+}
+
+/** Used by health bar to show glow animation after using health potion. */
+export function getHealGlowEndTime(): number {
+  return healGlowEndTime
 }
 
 /** Respawn player: move to spawn, restore HP, clear death state. */
