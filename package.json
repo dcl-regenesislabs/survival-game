@@ -7,11 +7,12 @@
     "deploy": "sdk-commands deploy",
     "build": "sdk-commands build",
     "upgrade-sdk": "npm install --save-dev @dcl/sdk@latest",
-    "upgrade-sdk:next": "npm install --save-dev @dcl/sdk@next"
+    "upgrade-sdk:next": "npm install --save-dev @dcl/sdk@next",
+    "server-logs": "sdk-commands sdk-server-logs"
   },
   "devDependencies": {
-    "@dcl/js-runtime": "7.20.0",
-    "@dcl/sdk": "latest"
+    "@dcl/sdk": "^7.20.2-22169778016.commit-030cbfe",
+    "@dcl/js-runtime": "7.20.2-22169778016.commit-030cbfe"
   },
   "engines": {
     "node": ">=16.0.0",
