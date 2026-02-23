@@ -4,9 +4,12 @@ import { LobbyPhase, LobbyStateComponent, LobbyPlayer } from '../shared/lobbySch
 import { MatchRuntimeStateComponent, WaveCyclePhase } from '../shared/matchRuntimeSchemas'
 import { room } from '../shared/messages'
 import { MATCH_MAX_PLAYERS, WAVE_ACTIVE_SECONDS, WAVE_REST_SECONDS } from '../shared/matchConfig'
+import { createPlayerProgressStore } from './storage/playerProgress'
 
 let lobbyEntity: ReturnType<typeof engine.addEntity> | null = null
 let matchRuntimeEntity: ReturnType<typeof engine.addEntity> | null = null
+const playerProgressStore = createPlayerProgressStore()
+const PLAYER_PROGRESS_AUTOSAVE_SECONDS = 20
 
 function getPlayerDisplayName(address: string): string {
   const normalizedAddress = address.toLowerCase()
@@ -108,12 +111,13 @@ function addPlayerToLobby(address: string): void {
   })
 }
 
-function removePlayerFromLobby(address: string): void {
+async function removePlayerFromLobby(address: string): Promise<void> {
   const normalizedAddress = address.toLowerCase()
   const state = getLobbyState()
   const nextPlayers = state.players.filter((p) => p.address !== normalizedAddress)
   const leavingPlayer = state.players.find((p) => p.address === normalizedAddress)
 
+  await playerProgressStore.saveAndEvict(normalizedAddress)
   setPlayers(nextPlayers)
 
   if (leavingPlayer) {
@@ -171,6 +175,11 @@ function startZombieWaves(address: string): void {
   runtime.cyclePhase = WaveCyclePhase.ACTIVE
   runtime.phaseEndTimeMs = Date.now() + runtime.activeDurationSeconds * 1000
   runtime.startedByAddress = normalizedAddress
+  for (const player of state.players) {
+    playerProgressStore.mutate(player.address, (progress) => {
+      progress.profile.lifetimeStats.matchesPlayed += 1
+    })
+  }
 
   void room.send('lobbyEvent', {
     type: 'waves_started',
@@ -196,6 +205,11 @@ function waveRuntimeSystem(dt: number): void {
   if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
     runtime.cyclePhase = WaveCyclePhase.REST
     runtime.phaseEndTimeMs = now + runtime.restDurationSeconds * 1000
+    for (const player of lobbyState.players) {
+      playerProgressStore.mutate(player.address, (progress) => {
+        progress.profile.lifetimeStats.wavesCleared += 1
+      })
+    }
     void room.send('lobbyEvent', {
       type: 'wave_rest',
       message: `Wave ${runtime.waveNumber} complete. Resting...`
@@ -211,18 +225,33 @@ function waveRuntimeSystem(dt: number): void {
   }
 }
 
+let progressAutosaveAccumulator = 0
+function playerProgressAutosaveSystem(dt: number): void {
+  progressAutosaveAccumulator += dt
+  if (progressAutosaveAccumulator < PLAYER_PROGRESS_AUTOSAVE_SECONDS) return
+  progressAutosaveAccumulator = 0
+  void playerProgressStore.saveDirty()
+}
+
 export function setupLobbyServer(): void {
   getLobbyStateMutable()
   getMatchRuntimeMutable()
 
-  room.onMessage('playerJoinLobby', (_data, context) => {
+  room.onMessage('playerJoinLobby', async (_data, context) => {
     if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    const displayName = getPlayerDisplayName(normalizedAddress)
+    const progress = await playerProgressStore.load(normalizedAddress, displayName)
     addPlayerToLobby(context.from)
+    void room.send('lobbyEvent', {
+      type: 'profile_loaded',
+      message: `${displayName} profile loaded (GOLD ${progress.profile.gold})`
+    })
   })
 
-  room.onMessage('playerLeaveLobby', (_data, context) => {
+  room.onMessage('playerLeaveLobby', async (_data, context) => {
     if (!context) return
-    removePlayerFromLobby(context.from)
+    await removePlayerFromLobby(context.from)
   })
 
   room.onMessage('createMatch', (_data, context) => {
@@ -242,6 +271,7 @@ export function setupLobbyServer(): void {
   })
 
   engine.addSystem(waveRuntimeSystem, undefined, 'match-wave-runtime-system')
+  engine.addSystem(playerProgressAutosaveSystem, undefined, 'player-progress-autosave-system')
 
   console.log('[Server] Lobby server ready')
 }
