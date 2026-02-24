@@ -21,8 +21,9 @@ import {
   getLobbyState,
   getLocalAddress,
   getMatchRuntimeState,
-  sendCreateMatch,
-  sendJoinLobby,
+  isLocalReadyForMatch,
+  markLocalReadyForMatch,
+  sendCreateMatchAndJoin,
   sendLeaveLobby
 } from './multiplayer/lobbyClient'
 
@@ -35,8 +36,9 @@ const BUTTON_Z_OFFSET = -0.22
 const BUTTON_LABEL_Z_OFFSET = -0.28
 
 type LobbyPanelButton = {
-  kind: 'join' | 'leave' | 'create'
+  kind: 'create' | 'leave' | 'ready'
   entity: ReturnType<typeof engine.addEntity>
+  labelEntity: ReturnType<typeof engine.addEntity>
 }
 
 export class LobbyWorldPanel {
@@ -93,14 +95,14 @@ export class LobbyWorldPanel {
   }
 
   private createButtons(): void {
-    this.createButton('join', 'Join', -1.85, () => sendJoinLobby())
+    this.createButton('create', 'Create Match', -1.85, () => sendCreateMatchAndJoin())
     this.createButton('leave', 'Leave', 0, () => sendLeaveLobby())
-    this.createButton('create', 'Create Match', 1.85, () => sendCreateMatch())
+    this.createButton('ready', "I'm Ready", 1.85, () => markLocalReadyForMatch())
     this.updateButtonStyles()
   }
 
   private createButton(
-    kind: 'join' | 'leave' | 'create',
+    kind: 'create' | 'leave' | 'ready',
     label: string,
     xOffset: number,
     onClick: () => void
@@ -161,7 +163,7 @@ export class LobbyWorldPanel {
       textColor: Color4.create(0.95, 0.97, 1, 1)
     })
 
-    this.buttons.push({ kind, entity: buttonEntity })
+    this.buttons.push({ kind, entity: buttonEntity, labelEntity })
   }
 
   private buildPlayersLine(): string {
@@ -207,15 +209,16 @@ export class LobbyWorldPanel {
     const lobby = getLobbyState()
     const localAddress = getLocalAddress()
     const isInLobby = !!localAddress && !!lobby?.players.find((p) => p.address === localAddress)
-    const canCreate = isInLobby && lobby?.phase !== LobbyPhase.MATCH_CREATED
+    const canCreateOrJoin = !isInLobby
+    const canReady = isInLobby && lobby?.phase === LobbyPhase.MATCH_CREATED && !isLocalReadyForMatch()
 
     for (const button of this.buttons) {
       const enabled =
-        button.kind === 'join' ? !isInLobby : button.kind === 'leave' ? isInLobby : canCreate
+        button.kind === 'create' ? canCreateOrJoin : button.kind === 'leave' ? isInLobby : canReady
 
       let activeColor = Color4.create(0.2, 0.2, 0.2, 1)
       let idleColor = Color4.create(0.12, 0.12, 0.12, 1)
-      if (button.kind === 'join') {
+      if (button.kind === 'create') {
         activeColor = Color4.create(0.2, 0.55, 0.28, 1)
         idleColor = Color4.create(0.1, 0.24, 0.14, 1)
       } else if (button.kind === 'leave') {
@@ -224,6 +227,11 @@ export class LobbyWorldPanel {
       } else {
         activeColor = Color4.create(0.2, 0.35, 0.65, 1)
         idleColor = Color4.create(0.1, 0.16, 0.3, 1)
+      }
+
+      if (button.kind === 'create') {
+        const label = lobby?.phase === LobbyPhase.MATCH_CREATED ? 'Join' : 'Create Match'
+        TextShape.getMutable(button.labelEntity).text = label
       }
 
       Material.setPbrMaterial(button.entity, {
