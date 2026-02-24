@@ -47,6 +47,7 @@ export const uiMenu = () => {
   const lobbyPhaseLabel = lobbyState?.phase === LobbyPhase.MATCH_CREATED ? 'Match Created' : 'Lobby'
   const matchRuntime = getMatchRuntimeState()
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInLobby
+  const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const showStartZombiesButton = isInLobby
   const canStartZombies = inMatchContext
   const timerNowMs = getServerTime()
@@ -212,6 +213,42 @@ export const uiMenu = () => {
                 value: `RAGED • ${Math.ceil(getRageTimeLeft(getGameTime()))}s`,
                 fontSize: 20,
                 color: Color4.create(1, 0.7, 0.8, 1),
+                textAlign: 'middle-center'
+              }}
+            />
+          </UiEntity>
+        </UiEntity>
+      )}
+      {inMatchContext && matchRuntime?.isRunning && (
+        <UiEntity
+          uiTransform={{
+            position: { top: 24, left: 0 },
+            positionType: 'absolute',
+            width: '100%',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              minWidth: 380,
+              height: 54,
+              padding: { left: 18, right: 18, top: 8, bottom: 8 }
+            }}
+            uiBackground={{ color: Color4.create(0.08, 0.08, 0.1, 0.86) }}
+          >
+            <UiEntity
+              uiTransform={{
+                width: '100%',
+                height: '100%',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              uiText={{
+                value: `Synced Zombies Left: ${syncedZombiesLeft}`,
+                fontSize: 24,
+                color: Color4.create(1, 0.9, 0.6, 1),
                 textAlign: 'middle-center'
               }}
             />

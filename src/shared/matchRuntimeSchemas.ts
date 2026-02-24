@@ -14,7 +14,9 @@ const MatchRuntimeStateSchema = {
   phaseEndTimeMs: Schemas.Int64,
   activeDurationSeconds: Schemas.Number,
   restDurationSeconds: Schemas.Number,
-  startedByAddress: Schemas.String
+  startedByAddress: Schemas.String,
+  zombiesAlive: Schemas.Number,
+  zombiesPlanned: Schemas.Number
 }
 
 export const MatchRuntimeStateComponent = engine.defineComponent('MatchRuntimeStateComponent', MatchRuntimeStateSchema, {
@@ -25,7 +27,9 @@ export const MatchRuntimeStateComponent = engine.defineComponent('MatchRuntimeSt
   phaseEndTimeMs: 0,
   activeDurationSeconds: WAVE_ACTIVE_SECONDS,
   restDurationSeconds: WAVE_REST_SECONDS,
-  startedByAddress: ''
+  startedByAddress: '',
+  zombiesAlive: 0,
+  zombiesPlanned: 0
 })
 
 export type MatchRuntimeSnapshot = {
@@ -37,4 +41,6 @@ export type MatchRuntimeSnapshot = {
   activeDurationSeconds: number
   restDurationSeconds: number
   startedByAddress: string
+  zombiesAlive: number
+  zombiesPlanned: number
 }

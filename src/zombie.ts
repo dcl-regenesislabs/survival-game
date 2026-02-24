@@ -35,7 +35,8 @@ const ZombieComponentSchema = {
   health: Schemas.Number,
   speed: Schemas.Number,
   walkAnimSpeed: Schemas.Number,
-  spawnUpDuration: Schemas.Number
+  spawnUpDuration: Schemas.Number,
+  networkId: Schemas.String
 }
 
 export const ZombieComponent = engine.defineComponent('ZombieComponent', ZombieComponentSchema, {
@@ -46,7 +47,8 @@ export const ZombieComponent = engine.defineComponent('ZombieComponent', ZombieC
   health: 3,
   speed: 1.5,
   walkAnimSpeed: 1,
-  spawnUpDuration: 1.2
+  spawnUpDuration: 1.2,
+  networkId: ''
 })
 
 // Blood burst particles: fly outward and get removed when endTime is reached
@@ -72,6 +74,16 @@ const ZOMBIE_UP_DURATION = 1.2 // Approximate ZombieUP animation length in secon
 // When a zombie is within this range of a brick, it targets the brick instead of the player
 const BRICK_AGRO_RANGE = 2.5
 
+type SpawnZombieOptions = {
+  position?: Vector3
+  networkId?: string
+}
+
+let reportServerZombieDeath: ((zombieId: string) => void) | null = null
+export function setZombieDeathReporter(reporter: ((zombieId: string) => void) | null): void {
+  reportServerZombieDeath = reporter
+}
+
 function getRandomSpawnPosition(): Vector3 {
   const x = SPAWN_MIN_X + Math.random() * (SPAWN_MAX_X - SPAWN_MIN_X)
   const z = SPAWN_MIN_Z + Math.random() * (SPAWN_MAX_Z - SPAWN_MIN_Z)
@@ -89,10 +101,10 @@ function playZombieAnimation(entity: Entity, clip: string, loop: boolean, clipSp
   }
 }
 
-export function spawnZombie(): Entity {
+export function spawnZombie(options?: SpawnZombieOptions): Entity {
   const zombie = engine.addEntity()
 
-  const spawnPos = getRandomSpawnPosition()
+  const spawnPos = options?.position ? Vector3.clone(options.position) : getRandomSpawnPosition()
 
   Transform.create(zombie, {
     position: spawnPos,
@@ -124,7 +136,8 @@ export function spawnZombie(): Entity {
     health: 3,
     speed: ZOMBIE_SPEED,
     walkAnimSpeed: 1,
-    spawnUpDuration: ZOMBIE_UP_DURATION
+    spawnUpDuration: ZOMBIE_UP_DURATION,
+    networkId: options?.networkId ?? ''
   })
 
   createHealthBarForZombie(zombie, 3) // default height
@@ -132,9 +145,9 @@ export function spawnZombie(): Entity {
 }
 
 /** Quick zombie: ZombieYellow.glb, faster movement, 2 HP. */
-export function spawnQuickZombie(): Entity {
+export function spawnQuickZombie(options?: SpawnZombieOptions): Entity {
   const zombie = engine.addEntity()
-  const spawnPos = getRandomSpawnPosition()
+  const spawnPos = options?.position ? Vector3.clone(options.position) : getRandomSpawnPosition()
 
   Transform.create(zombie, {
     position: spawnPos,
@@ -167,7 +180,8 @@ export function spawnQuickZombie(): Entity {
     health: 2,
     speed: quickSpeed,
     walkAnimSpeed: quickWalkAnimSpeed,
-    spawnUpDuration: ZOMBIE_UP_DURATION
+    spawnUpDuration: ZOMBIE_UP_DURATION,
+    networkId: options?.networkId ?? ''
   })
 
   createHealthBarForZombie(zombie, 2, 1.55) // a bit lower
@@ -175,9 +189,9 @@ export function spawnQuickZombie(): Entity {
 }
 
 /** Tank zombie: ZombiePurple.glb, slower movement, 10 HP. */
-export function spawnTankZombie(): Entity {
+export function spawnTankZombie(options?: SpawnZombieOptions): Entity {
   const zombie = engine.addEntity()
-  const spawnPos = getRandomSpawnPosition()
+  const spawnPos = options?.position ? Vector3.clone(options.position) : getRandomSpawnPosition()
 
   Transform.create(zombie, {
     position: spawnPos,
@@ -210,7 +224,8 @@ export function spawnTankZombie(): Entity {
     health: 10,
     speed: tankSpeed,
     walkAnimSpeed: tankWalkAnimSpeed,
-    spawnUpDuration: ZOMBIE_UP_DURATION
+    spawnUpDuration: ZOMBIE_UP_DURATION,
+    networkId: options?.networkId ?? ''
   })
 
   createHealthBarForZombie(zombie, 10, 2.75) // a bit higher
@@ -276,6 +291,16 @@ export function despawnAllZombies(): void {
   for (const e of toRemove) engine.removeEntity(e)
 }
 
+export function despawnZombieByNetworkId(zombieId: string): boolean {
+  for (const [entity, zombieData] of engine.getEntitiesWith(ZombieComponent)) {
+    if (zombieData.networkId === zombieId) {
+      engine.removeEntity(entity)
+      return true
+    }
+  }
+  return false
+}
+
 /** Apply damage to a zombie. Returns true if zombie died. Spawns blood burst on hit and on death. */
 export function damageZombie(entity: Entity, amount: number): boolean {
   if (!ZombieComponent.has(entity)) return false
@@ -286,6 +311,9 @@ export function damageZombie(entity: Entity, amount: number): boolean {
   const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
 
   if (zombie.health <= 0) {
+    if (zombie.networkId) {
+      reportServerZombieDeath?.(zombie.networkId)
+    }
     spawnBloodBurst(burstCenter, DEATH_BURST_COUNT, DEATH_BURST_SPEED, BLOOD_BURST_DURATION, DEATH_BURST_SCALE)
     tryDropPotions(Vector3.create(pos.x, pos.y, pos.z))
     engine.removeEntity(entity)

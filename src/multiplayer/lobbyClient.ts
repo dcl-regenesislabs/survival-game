@@ -61,7 +61,9 @@ export function getMatchRuntimeState(): MatchRuntimeSnapshot | null {
       phaseEndTimeMs: state.phaseEndTimeMs,
       activeDurationSeconds: state.activeDurationSeconds,
       restDurationSeconds: state.restDurationSeconds,
-      startedByAddress: state.startedByAddress
+      startedByAddress: state.startedByAddress,
+      zombiesAlive: state.zombiesAlive,
+      zombiesPlanned: state.zombiesPlanned
     }
   }
   return null
