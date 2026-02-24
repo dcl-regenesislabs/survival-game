@@ -1,20 +1,31 @@
 import { engine } from '@dcl/sdk/ecs'
+import { Vector3 } from '@dcl/sdk/math'
+import { room } from '../shared/messages'
+import { getServerTime } from '../shared/timeSync'
 import {
-  CLIENT_BASE_GROUP_SIZE,
-  CLIENT_GROUP_GROWTH_EVERY_WAVES,
-  CLIENT_MAX_GROUP_SIZE,
-  CLIENT_SPAWN_INTERVAL_SECONDS,
-  QUICK_ZOMBIE_CHANCE,
-  QUICK_ZOMBIE_UNLOCK_WAVE,
-  TANK_ZOMBIE_CHANCE,
-  TANK_ZOMBIE_UNLOCK_WAVE
-} from '../shared/matchConfig'
-import { WaveCyclePhase } from '../shared/matchRuntimeSchemas'
-import { spawnQuickZombie, spawnTankZombie, spawnZombie } from '../zombie'
-import { getLocalAddress, getLobbyState, getMatchRuntimeState } from './lobbyClient'
+  despawnZombieByNetworkId,
+  setZombieDeathReporter,
+  spawnQuickZombie,
+  spawnTankZombie,
+  spawnZombie
+} from '../zombie'
+import { getLocalAddress, getLobbyState } from './lobbyClient'
 
-let spawnAccumulator = 0
-let lastWaveCycleKey = ''
+type ZombieType = 'basic' | 'quick' | 'tank'
+
+type PlannedSpawn = {
+  zombieId: string
+  zombieType: ZombieType
+  spawnAtMs: number
+  spawnX: number
+  spawnY: number
+  spawnZ: number
+  waveNumber: number
+}
+
+let isWaveSpawnListenerRegistered = false
+let pendingSpawns: PlannedSpawn[] = []
+const spawnedZombieIds = new Set<string>()
 
 function isLocalPlayerInCurrentMatch(): boolean {
   const lobbyState = getLobbyState()
@@ -24,57 +35,97 @@ function isLocalPlayerInCurrentMatch(): boolean {
   return lobbyState.players.some((p) => p.address === localAddress)
 }
 
-function getSpawnGroupSize(waveNumber: number): number {
-  const growth = Math.floor(Math.max(0, waveNumber - 1) / CLIENT_GROUP_GROWTH_EVERY_WAVES)
-  return Math.min(CLIENT_MAX_GROUP_SIZE, CLIENT_BASE_GROUP_SIZE + growth)
+function queueWavePlan(data: {
+  waveNumber: number
+  startAtMs: number
+  intervalMs: number
+  spawns: Array<{
+    zombieId: string
+    zombieType: string
+    spawnX: number
+    spawnY: number
+    spawnZ: number
+    spawnAtMs: number
+  }>
+}): void {
+  if (!isLocalPlayerInCurrentMatch()) return
+
+  pendingSpawns = pendingSpawns.filter((spawn) => spawn.waveNumber !== data.waveNumber)
+
+  for (const spawn of data.spawns) {
+    if (spawnedZombieIds.has(spawn.zombieId)) continue
+    if (spawn.zombieType !== 'basic' && spawn.zombieType !== 'quick' && spawn.zombieType !== 'tank') continue
+    pendingSpawns.push({
+      zombieId: spawn.zombieId,
+      zombieType: spawn.zombieType,
+      spawnAtMs: spawn.spawnAtMs,
+      spawnX: spawn.spawnX,
+      spawnY: spawn.spawnY,
+      spawnZ: spawn.spawnZ,
+      waveNumber: data.waveNumber
+    })
+  }
+
+  pendingSpawns.sort((a, b) => a.spawnAtMs - b.spawnAtMs)
 }
 
-function spawnZombieByWave(waveNumber: number): void {
-  const roll = Math.random()
+function spawnPlannedZombie(spawn: PlannedSpawn): void {
+  if (spawnedZombieIds.has(spawn.zombieId)) return
+  const options = {
+    networkId: spawn.zombieId,
+    position: Vector3.create(spawn.spawnX, spawn.spawnY, spawn.spawnZ)
+  }
 
-  if (waveNumber >= TANK_ZOMBIE_UNLOCK_WAVE && roll < TANK_ZOMBIE_CHANCE) {
-    spawnTankZombie()
+  switch (spawn.zombieType) {
+    case 'quick':
+      spawnQuickZombie(options)
+      break
+    case 'tank':
+      spawnTankZombie(options)
+      break
+    default:
+      spawnZombie(options)
+      break
+  }
+
+  spawnedZombieIds.add(spawn.zombieId)
+}
+
+function plannedSpawnSystem(): void {
+  if (!isLocalPlayerInCurrentMatch()) {
+    pendingSpawns = []
     return
   }
 
-  if (waveNumber >= QUICK_ZOMBIE_UNLOCK_WAVE && roll < QUICK_ZOMBIE_CHANCE) {
-    spawnQuickZombie()
-    return
-  }
-
-  spawnZombie()
-}
-
-function spawnGroupForWave(waveNumber: number): void {
-  const groupSize = getSpawnGroupSize(waveNumber)
-  for (let i = 0; i < groupSize; i++) {
-    spawnZombieByWave(waveNumber)
+  const nowMs = getServerTime()
+  while (pendingSpawns.length > 0 && pendingSpawns[0].spawnAtMs <= nowMs) {
+    const next = pendingSpawns.shift()
+    if (!next) break
+    spawnPlannedZombie(next)
   }
 }
 
-function matchWaveClientSystem(dt: number): void {
-  const runtime = getMatchRuntimeState()
-  if (!runtime || !runtime.isRunning || !isLocalPlayerInCurrentMatch()) {
-    spawnAccumulator = 0
-    lastWaveCycleKey = ''
-    return
-  }
-
-  const waveCycleKey = `${runtime.waveNumber}:${runtime.cyclePhase}`
-  if (waveCycleKey !== lastWaveCycleKey) {
-    spawnAccumulator = 0
-    lastWaveCycleKey = waveCycleKey
-  }
-
-  if (runtime.cyclePhase !== WaveCyclePhase.ACTIVE) return
-
-  spawnAccumulator += dt
-  while (spawnAccumulator >= CLIENT_SPAWN_INTERVAL_SECONDS) {
-    spawnAccumulator -= CLIENT_SPAWN_INTERVAL_SECONDS
-    spawnGroupForWave(runtime.waveNumber)
-  }
+function requestZombieDeathToServer(zombieId: string): void {
+  if (!zombieId) return
+  if (!isLocalPlayerInCurrentMatch()) return
+  void room.send('zombieDieRequest', { zombieId })
 }
 
 export function initMatchWaveClientSystem(): void {
-  engine.addSystem(matchWaveClientSystem, undefined, 'match-wave-client-system')
+  if (isWaveSpawnListenerRegistered) return
+  isWaveSpawnListenerRegistered = true
+
+  setZombieDeathReporter(requestZombieDeathToServer)
+
+  room.onMessage('waveSpawnPlan', (data) => {
+    queueWavePlan(data)
+  })
+
+  room.onMessage('zombieDied', (data) => {
+    pendingSpawns = pendingSpawns.filter((spawn) => spawn.zombieId !== data.zombieId)
+    spawnedZombieIds.delete(data.zombieId)
+    despawnZombieByNetworkId(data.zombieId)
+  })
+
+  engine.addSystem(plannedSpawnSystem, undefined, 'planned-wave-spawn-client-system')
 }

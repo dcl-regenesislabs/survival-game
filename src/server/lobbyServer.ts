@@ -3,13 +3,43 @@ import { syncEntity } from '@dcl/sdk/network'
 import { LobbyPhase, LobbyStateComponent, LobbyPlayer } from '../shared/lobbySchemas'
 import { MatchRuntimeStateComponent, WaveCyclePhase } from '../shared/matchRuntimeSchemas'
 import { room } from '../shared/messages'
-import { MATCH_MAX_PLAYERS, WAVE_ACTIVE_SECONDS, WAVE_REST_SECONDS } from '../shared/matchConfig'
+import {
+  CLIENT_BASE_GROUP_SIZE,
+  CLIENT_GROUP_GROWTH_EVERY_WAVES,
+  CLIENT_MAX_GROUP_SIZE,
+  CLIENT_SPAWN_INTERVAL_SECONDS,
+  MATCH_MAX_PLAYERS,
+  QUICK_ZOMBIE_CHANCE,
+  QUICK_ZOMBIE_UNLOCK_WAVE,
+  TANK_ZOMBIE_CHANCE,
+  TANK_ZOMBIE_UNLOCK_WAVE,
+  WAVE_ACTIVE_SECONDS,
+  WAVE_REST_SECONDS
+} from '../shared/matchConfig'
 import { createPlayerProgressStore } from './storage/playerProgress'
+import { getServerTime } from '../shared/timeSync'
 
 let lobbyEntity: ReturnType<typeof engine.addEntity> | null = null
 let matchRuntimeEntity: ReturnType<typeof engine.addEntity> | null = null
 const playerProgressStore = createPlayerProgressStore()
 const PLAYER_PROGRESS_AUTOSAVE_SECONDS = 20
+const SPAWN_MIN_X = 10
+const SPAWN_MAX_X = 54
+const SPAWN_MIN_Z = 10
+const SPAWN_MAX_Z = 54
+
+type ZombieType = 'basic' | 'quick' | 'tank'
+type WavePlanSpawn = {
+  zombieId: string
+  zombieType: ZombieType
+  spawnX: number
+  spawnY: number
+  spawnZ: number
+  spawnAtMs: number
+}
+
+let nextZombieSequence = 0
+const aliveZombieIds = new Set<string>()
 
 function getPlayerDisplayName(address: string): string {
   const normalizedAddress = address.toLowerCase()
@@ -42,18 +72,28 @@ function getMatchRuntimeMutable() {
       isRunning: false,
       waveNumber: 0,
       cyclePhase: WaveCyclePhase.ACTIVE,
+      serverNowMs: getServerTime(),
       phaseEndTimeMs: 0,
       activeDurationSeconds: WAVE_ACTIVE_SECONDS,
       restDurationSeconds: WAVE_REST_SECONDS,
-      startedByAddress: ''
+      startedByAddress: '',
+      zombiesAlive: 0,
+      zombiesPlanned: 0
     })
     syncEntity(matchRuntimeEntity, [MatchRuntimeStateComponent.componentId])
   }
   return MatchRuntimeStateComponent.getMutable(matchRuntimeEntity)
 }
 
+function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>): void {
+  aliveZombieIds.clear()
+  runtime.zombiesAlive = 0
+  runtime.zombiesPlanned = 0
+}
+
 function resetMatchRuntime() {
   const runtime = getMatchRuntimeMutable()
+  runtime.serverNowMs = getServerTime()
   runtime.isRunning = false
   runtime.waveNumber = 0
   runtime.cyclePhase = WaveCyclePhase.ACTIVE
@@ -61,6 +101,7 @@ function resetMatchRuntime() {
   runtime.activeDurationSeconds = WAVE_ACTIVE_SECONDS
   runtime.restDurationSeconds = WAVE_REST_SECONDS
   runtime.startedByAddress = ''
+  clearZombieTracking(runtime)
 }
 
 function getLobbyState() {
@@ -161,6 +202,68 @@ function returnLobby(address: string): void {
   })
 }
 
+function getSpawnGroupSize(waveNumber: number): number {
+  const growth = Math.floor(Math.max(0, waveNumber - 1) / CLIENT_GROUP_GROWTH_EVERY_WAVES)
+  return Math.min(CLIENT_MAX_GROUP_SIZE, CLIENT_BASE_GROUP_SIZE + growth)
+}
+
+function pickZombieType(waveNumber: number): ZombieType {
+  const roll = Math.random()
+  if (waveNumber >= TANK_ZOMBIE_UNLOCK_WAVE && roll < TANK_ZOMBIE_CHANCE) return 'tank'
+  if (waveNumber >= QUICK_ZOMBIE_UNLOCK_WAVE && roll < QUICK_ZOMBIE_CHANCE) return 'quick'
+  return 'basic'
+}
+
+function randomSpawnPoint() {
+  const spawnX = SPAWN_MIN_X + Math.random() * (SPAWN_MAX_X - SPAWN_MIN_X)
+  const spawnZ = SPAWN_MIN_Z + Math.random() * (SPAWN_MAX_Z - SPAWN_MIN_Z)
+  return { spawnX, spawnY: 0, spawnZ }
+}
+
+function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDurationSeconds: number) {
+  const intervalMs = Math.floor(CLIENT_SPAWN_INTERVAL_SECONDS * 1000)
+  const activeMs = Math.floor(activeDurationSeconds * 1000)
+  const groupSize = getSpawnGroupSize(waveNumber)
+  const spawns: WavePlanSpawn[] = []
+
+  for (let offsetMs = 0; offsetMs < activeMs; offsetMs += intervalMs) {
+    for (let i = 0; i < groupSize; i++) {
+      nextZombieSequence += 1
+      const point = randomSpawnPoint()
+      const zombieId = `w${waveNumber}_z${nextZombieSequence}`
+      spawns.push({
+        zombieId,
+        zombieType: pickZombieType(waveNumber),
+        spawnX: point.spawnX,
+        spawnY: point.spawnY,
+        spawnZ: point.spawnZ,
+        spawnAtMs: startAtMs + offsetMs
+      })
+    }
+  }
+
+  return {
+    waveNumber,
+    startAtMs,
+    intervalMs,
+    spawns
+  }
+}
+
+function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
+  const runtime = getMatchRuntimeMutable()
+  const plan = buildWaveSpawnPlan(waveNumber, startAtMs, runtime.activeDurationSeconds)
+
+  for (const spawn of plan.spawns) {
+    aliveZombieIds.add(spawn.zombieId)
+  }
+
+  runtime.zombiesAlive = aliveZombieIds.size
+  runtime.zombiesPlanned = plan.spawns.length
+
+  void room.send('waveSpawnPlan', plan)
+}
+
 function startZombieWaves(address: string): void {
   const normalizedAddress = address.toLowerCase()
   const state = getLobbyState()
@@ -173,8 +276,12 @@ function startZombieWaves(address: string): void {
   runtime.isRunning = true
   runtime.waveNumber = 1
   runtime.cyclePhase = WaveCyclePhase.ACTIVE
-  runtime.phaseEndTimeMs = Date.now() + runtime.activeDurationSeconds * 1000
+  runtime.serverNowMs = getServerTime()
+  runtime.phaseEndTimeMs = runtime.serverNowMs + runtime.activeDurationSeconds * 1000
   runtime.startedByAddress = normalizedAddress
+  clearZombieTracking(runtime)
+  sendWaveSpawnPlan(runtime.waveNumber, runtime.serverNowMs)
+
   for (const player of state.players) {
     playerProgressStore.mutate(player.address, (progress) => {
       progress.profile.lifetimeStats.matchesPlayed += 1
@@ -197,9 +304,10 @@ function waveRuntimeSystem(dt: number): void {
   if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
 
   const runtime = getMatchRuntimeMutable()
+  const now = getServerTime()
+  runtime.serverNowMs = now
   if (!runtime.isRunning) return
 
-  const now = Date.now()
   if (now < runtime.phaseEndTimeMs) return
 
   if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
@@ -218,6 +326,7 @@ function waveRuntimeSystem(dt: number): void {
     runtime.waveNumber += 1
     runtime.cyclePhase = WaveCyclePhase.ACTIVE
     runtime.phaseEndTimeMs = now + runtime.activeDurationSeconds * 1000
+    sendWaveSpawnPlan(runtime.waveNumber, now)
     void room.send('lobbyEvent', {
       type: 'wave_active',
       message: `Wave ${runtime.waveNumber} started`
@@ -268,6 +377,20 @@ export function setupLobbyServer(): void {
   room.onMessage('startZombieWaves', (_data, context) => {
     if (!context) return
     startZombieWaves(context.from)
+  })
+
+  room.onMessage('zombieDieRequest', (data, context) => {
+    if (!context) return
+    if (!isPlayerInLobby(context.from)) return
+    const lobbyState = getLobbyState()
+    if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+    if (!data.zombieId) return
+    if (!aliveZombieIds.has(data.zombieId)) return
+
+    aliveZombieIds.delete(data.zombieId)
+    const runtime = getMatchRuntimeMutable()
+    runtime.zombiesAlive = aliveZombieIds.size
+    void room.send('zombieDied', { zombieId: data.zombieId })
   })
 
   engine.addSystem(waveRuntimeSystem, undefined, 'match-wave-runtime-system')

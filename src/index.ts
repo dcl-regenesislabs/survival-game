@@ -34,6 +34,8 @@ import { EntityNames } from '../assets/scene/entity-names'
 import { setupLobbyServer } from './server/lobbyServer'
 import { setupLobbyClient } from './multiplayer/lobbyClient'
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
+import { initLobbyWorldPanel } from './lobbyWorldPanel'
+import { initTimeSync } from './shared/timeSync'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
 const CINEMATIC_CAMERA_HEIGHT = 12
@@ -105,11 +107,14 @@ function setActiveCamera(cinematic: boolean) {
 
 export function main() {
   if (isServer()) {
+    initTimeSync({ isServer: true })
     setupLobbyServer()
     return
   }
 
+  initTimeSync({ isServer: false })
   setupLobbyClient()
+  initLobbyWorldPanel()
   setupUi()
 
   // Cinematic camera: follows player position only, fixed world rotation (Diablo-style)
