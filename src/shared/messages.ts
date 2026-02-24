@@ -7,6 +7,12 @@ const LobbyMessages = {
   createMatch: Schemas.Map({}),
   returnToLobby: Schemas.Map({}),
   startZombieWaves: Schemas.Map({}),
+  waveSpawnGroup: Schemas.Map({
+    waveNumber: Schemas.Number,
+    basicCount: Schemas.Number,
+    quickCount: Schemas.Number,
+    tankCount: Schemas.Number
+  }),
   lobbyEvent: Schemas.Map({
     type: Schemas.String,
     message: Schemas.String

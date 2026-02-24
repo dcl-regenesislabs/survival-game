@@ -3,13 +3,27 @@ import { syncEntity } from '@dcl/sdk/network'
 import { LobbyPhase, LobbyStateComponent, LobbyPlayer } from '../shared/lobbySchemas'
 import { MatchRuntimeStateComponent, WaveCyclePhase } from '../shared/matchRuntimeSchemas'
 import { room } from '../shared/messages'
-import { MATCH_MAX_PLAYERS, WAVE_ACTIVE_SECONDS, WAVE_REST_SECONDS } from '../shared/matchConfig'
+import {
+  CLIENT_BASE_GROUP_SIZE,
+  CLIENT_GROUP_GROWTH_EVERY_WAVES,
+  CLIENT_MAX_GROUP_SIZE,
+  CLIENT_SPAWN_INTERVAL_SECONDS,
+  MATCH_MAX_PLAYERS,
+  QUICK_ZOMBIE_CHANCE,
+  QUICK_ZOMBIE_UNLOCK_WAVE,
+  TANK_ZOMBIE_CHANCE,
+  TANK_ZOMBIE_UNLOCK_WAVE,
+  WAVE_ACTIVE_SECONDS,
+  WAVE_REST_SECONDS
+} from '../shared/matchConfig'
 import { createPlayerProgressStore } from './storage/playerProgress'
+import { getServerTime } from '../shared/timeSync'
 
 let lobbyEntity: ReturnType<typeof engine.addEntity> | null = null
 let matchRuntimeEntity: ReturnType<typeof engine.addEntity> | null = null
 const playerProgressStore = createPlayerProgressStore()
 const PLAYER_PROGRESS_AUTOSAVE_SECONDS = 20
+let nextWaveSpawnAtMs = 0
 
 function getPlayerDisplayName(address: string): string {
   const normalizedAddress = address.toLowerCase()
@@ -42,6 +56,7 @@ function getMatchRuntimeMutable() {
       isRunning: false,
       waveNumber: 0,
       cyclePhase: WaveCyclePhase.ACTIVE,
+      serverNowMs: getServerTime(),
       phaseEndTimeMs: 0,
       activeDurationSeconds: WAVE_ACTIVE_SECONDS,
       restDurationSeconds: WAVE_REST_SECONDS,
@@ -54,6 +69,7 @@ function getMatchRuntimeMutable() {
 
 function resetMatchRuntime() {
   const runtime = getMatchRuntimeMutable()
+  runtime.serverNowMs = getServerTime()
   runtime.isRunning = false
   runtime.waveNumber = 0
   runtime.cyclePhase = WaveCyclePhase.ACTIVE
@@ -61,6 +77,7 @@ function resetMatchRuntime() {
   runtime.activeDurationSeconds = WAVE_ACTIVE_SECONDS
   runtime.restDurationSeconds = WAVE_REST_SECONDS
   runtime.startedByAddress = ''
+  nextWaveSpawnAtMs = 0
 }
 
 function getLobbyState() {
@@ -173,8 +190,10 @@ function startZombieWaves(address: string): void {
   runtime.isRunning = true
   runtime.waveNumber = 1
   runtime.cyclePhase = WaveCyclePhase.ACTIVE
-  runtime.phaseEndTimeMs = Date.now() + runtime.activeDurationSeconds * 1000
+  runtime.serverNowMs = getServerTime()
+  runtime.phaseEndTimeMs = runtime.serverNowMs + runtime.activeDurationSeconds * 1000
   runtime.startedByAddress = normalizedAddress
+  nextWaveSpawnAtMs = runtime.serverNowMs
   for (const player of state.players) {
     playerProgressStore.mutate(player.address, (progress) => {
       progress.profile.lifetimeStats.matchesPlayed += 1
@@ -187,6 +206,32 @@ function startZombieWaves(address: string): void {
   })
 }
 
+function getSpawnGroupSize(waveNumber: number): number {
+  const growth = Math.floor(Math.max(0, waveNumber - 1) / CLIENT_GROUP_GROWTH_EVERY_WAVES)
+  return Math.min(CLIENT_MAX_GROUP_SIZE, CLIENT_BASE_GROUP_SIZE + growth)
+}
+
+function getSpawnGroupCounts(waveNumber: number) {
+  const counts = { basicCount: 0, quickCount: 0, tankCount: 0 }
+  const groupSize = getSpawnGroupSize(waveNumber)
+  for (let i = 0; i < groupSize; i++) {
+    const roll = Math.random()
+    if (waveNumber >= TANK_ZOMBIE_UNLOCK_WAVE && roll < TANK_ZOMBIE_CHANCE) {
+      counts.tankCount += 1
+    } else if (waveNumber >= QUICK_ZOMBIE_UNLOCK_WAVE && roll < QUICK_ZOMBIE_CHANCE) {
+      counts.quickCount += 1
+    } else {
+      counts.basicCount += 1
+    }
+  }
+  return counts
+}
+
+function sendSpawnGroupForWave(waveNumber: number): void {
+  const counts = getSpawnGroupCounts(waveNumber)
+  void room.send('waveSpawnGroup', { waveNumber, ...counts })
+}
+
 let waveTickAccumulator = 0
 function waveRuntimeSystem(dt: number): void {
   waveTickAccumulator += dt
@@ -197,14 +242,23 @@ function waveRuntimeSystem(dt: number): void {
   if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
 
   const runtime = getMatchRuntimeMutable()
+  const now = getServerTime()
+  runtime.serverNowMs = now
   if (!runtime.isRunning) return
 
-  const now = Date.now()
+  if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
+    while (nextWaveSpawnAtMs > 0 && now >= nextWaveSpawnAtMs) {
+      sendSpawnGroupForWave(runtime.waveNumber)
+      nextWaveSpawnAtMs += CLIENT_SPAWN_INTERVAL_SECONDS * 1000
+    }
+  }
+
   if (now < runtime.phaseEndTimeMs) return
 
   if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
     runtime.cyclePhase = WaveCyclePhase.REST
     runtime.phaseEndTimeMs = now + runtime.restDurationSeconds * 1000
+    nextWaveSpawnAtMs = 0
     for (const player of lobbyState.players) {
       playerProgressStore.mutate(player.address, (progress) => {
         progress.profile.lifetimeStats.wavesCleared += 1
@@ -218,6 +272,7 @@ function waveRuntimeSystem(dt: number): void {
     runtime.waveNumber += 1
     runtime.cyclePhase = WaveCyclePhase.ACTIVE
     runtime.phaseEndTimeMs = now + runtime.activeDurationSeconds * 1000
+    nextWaveSpawnAtMs = now
     void room.send('lobbyEvent', {
       type: 'wave_active',
       message: `Wave ${runtime.waveNumber} started`

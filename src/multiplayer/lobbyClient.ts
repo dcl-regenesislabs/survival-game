@@ -57,6 +57,7 @@ export function getMatchRuntimeState(): MatchRuntimeSnapshot | null {
       isRunning: state.isRunning,
       waveNumber: state.waveNumber,
       cyclePhase: state.cyclePhase,
+      serverNowMs: state.serverNowMs,
       phaseEndTimeMs: state.phaseEndTimeMs,
       activeDurationSeconds: state.activeDurationSeconds,
       restDurationSeconds: state.restDurationSeconds,

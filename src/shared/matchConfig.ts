@@ -3,7 +3,7 @@ export const MATCH_MAX_PLAYERS = 16
 
 // Wave loop timing
 export const WAVE_ACTIVE_SECONDS = 30
-export const WAVE_REST_SECONDS = 10
+export const WAVE_REST_SECONDS = 30
 
 // Client-side spawn tuning (temporary until full server-authoritative combat entities)
 export const CLIENT_SPAWN_INTERVAL_SECONDS = 2
