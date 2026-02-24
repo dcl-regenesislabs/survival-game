@@ -10,13 +10,14 @@ import {
   MeshCollider,
   ColliderLayer
 } from '@dcl/sdk/ecs'
+import { isServer } from '@dcl/sdk/network'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { setupUi } from './ui'
 import { spawnZombie, spawnQuickZombie, spawnTankZombie, zombieSystem, bloodParticleSystem } from './zombie'
 import { createGun, initGunSystems } from './gun'
 import { initShotGunSystems } from './shotGun'
 import { initMiniGunSystems } from './miniGun'
-import { waveManagerSystem, onStartPressed, resetToIdle } from './waveManager'
+import { resetToIdle } from './waveManager'
 import { initBrickSystem } from './brick'
 import { initHealthBarSystem, createHealthBarForPlayer } from './healthBar'
 import {
@@ -30,6 +31,9 @@ import { rageEffectSystem } from './rageEffect'
 import { initRageAura } from './rageAura'
 import { potionPickupSystem, potionVisualSystem } from './potions'
 import { EntityNames } from '../assets/scene/entity-names'
+import { setupLobbyServer } from './server/lobbyServer'
+import { setupLobbyClient } from './multiplayer/lobbyClient'
+import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
 const CINEMATIC_CAMERA_HEIGHT = 12
@@ -100,6 +104,12 @@ function setActiveCamera(cinematic: boolean) {
 }
 
 export function main() {
+  if (isServer()) {
+    setupLobbyServer()
+    return
+  }
+
+  setupLobbyClient()
   setupUi()
 
   // Cinematic camera: follows player position only, fixed world rotation (Diablo-style)
@@ -125,8 +135,8 @@ export function main() {
   engine.addSystem(potionVisualSystem)
   // Death respawn: after delay, respawn player and reset game
   engine.addSystem(deathRespawnSystem)
-  // Wave manager: countdown, spawn schedule, wave complete
-  engine.addSystem(waveManagerSystem)
+  // Authoritative match waves (30s active / 10s rest)
+  initMatchWaveClientSystem()
 
   // Create starting gun and init all weapon systems (only active weapon runs per frame)
   createGun()
@@ -209,43 +219,6 @@ export function main() {
     )
   }
 
-  // Button3: Start game / wave loop (PMV core loop)
-  const button3Entity = engine.getEntityOrNullByName(EntityNames.Button3)
-  if (button3Entity) {
-    MeshCollider.setBox(button3Entity, ColliderLayer.CL_POINTER)
-    PointerEvents.create(button3Entity, {
-      pointerEvents: [
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_POINTER,
-            hoverText: 'Start',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        },
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_PRIMARY,
-            hoverText: 'Start',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        }
-      ]
-    })
-
-    pointerEventsSystem.onPointerDown(
-      { entity: button3Entity, opts: { button: InputAction.IA_POINTER, hoverText: 'Start' } },
-      () => { onStartPressed() }
-    )
-    pointerEventsSystem.onPointerDown(
-      { entity: button3Entity, opts: { button: InputAction.IA_PRIMARY, hoverText: 'Start' } },
-      () => { onStartPressed() }
-    )
-  }
-
   // ButtonQuick: spawn quick zombie (fast, 2 HP)
   const buttonQuickEntity = engine.getEntityOrNullByName(EntityNames.ButtonQuick)
   if (buttonQuickEntity) {
@@ -318,4 +291,3 @@ export function main() {
     )
   }
 }
-

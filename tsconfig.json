@@ -2,6 +2,10 @@
   "compilerOptions": {
     "allowJs": true,
     "strict": true,
+    "typeRoots": [
+      "node_modules/@dcl/sdk/node_modules",
+      "node_modules/@types"
+    ],
     "baseUrl": ".",
     "paths": {
       "@dcl/asset-packs/*": ["node_modules/@dcl/inspector/node_modules/@dcl/asset-packs/*"]

@@ -14,6 +14,19 @@ import {
   switchTo
 } from './weaponManager'
 import { tryPlaceBrick, BRICK_COST_ZC } from './brick'
+import {
+  getLobbyState,
+  getMatchRuntimeState,
+  getLatestLobbyEvent,
+  getLocalAddress,
+  sendCreateMatch,
+  sendJoinLobby,
+  sendLeaveLobby,
+  sendReturnToLobby,
+  sendStartZombieWaves
+} from './multiplayer/lobbyClient'
+import { LobbyPhase } from './shared/lobbySchemas'
+import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
@@ -21,12 +34,29 @@ export function setupUi() {
 
 export const uiMenu = () => {
   const state = getWaveUiState()
+  const lobbyState = getLobbyState()
+  const localAddress = getLocalAddress()
+  const isInLobby = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
+  const isHost = !!localAddress && lobbyState?.hostAddress === localAddress
+  const lobbyPlayersText = lobbyState?.players.length
+    ? lobbyState.players.map((p) => p.displayName).join(', ')
+    : 'No players'
+  const lobbyPhaseLabel = lobbyState?.phase === LobbyPhase.MATCH_CREATED ? 'Match Created' : 'Lobby'
+  const matchRuntime = getMatchRuntimeState()
+  const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInLobby
+  const nowMs = Date.now()
+  const phaseRemainingSeconds = matchRuntime ? Math.max(0, Math.ceil((matchRuntime.phaseEndTimeMs - nowMs) / 1000)) : 0
+  const wavePhaseLabel =
+    matchRuntime?.cyclePhase === WaveCyclePhase.ACTIVE
+      ? `Wave ${matchRuntime.waveNumber} • ACTIVE (${phaseRemainingSeconds}s)`
+      : `Wave ${matchRuntime?.waveNumber ?? 0} • REST (${phaseRemainingSeconds}s)`
+  const latestLobbyEvent = getLatestLobbyEvent()
   const countdownLabel = getWaveCountdownLabel()
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
-  const showCenteredOverlay = !isIdle || playerDead
+  const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
 
-  const showZcCounter = !isIdle
+  const showZcCounter = !isIdle || inMatchContext
 
   return (
     <UiEntity
@@ -39,6 +69,119 @@ export const uiMenu = () => {
         justifyContent: 'flex-start'
       }}
     >
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: 24, left: 24 },
+          width: 520,
+          minHeight: 250,
+          padding: { top: 12, bottom: 12, left: 12, right: 12 },
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          justifyContent: 'flex-start'
+        }}
+        uiBackground={{ color: Color4.create(0.08, 0.12, 0.18, 0.92) }}
+      >
+        <UiEntity
+          uiTransform={{ width: '100%', height: 34 }}
+          uiText={{
+            value: `State: ${lobbyPhaseLabel}${lobbyState?.matchId ? ` • ${lobbyState.matchId}` : ''}`,
+            fontSize: 20,
+            color: Color4.create(0.75, 0.9, 1, 1),
+            textAlign: 'top-left'
+          }}
+        />
+        <UiEntity
+          uiTransform={{ width: '100%', minHeight: 42 }}
+          uiText={{
+            value: `Players (${lobbyState?.players.length ?? 0}): ${lobbyPlayersText}`,
+            fontSize: 16,
+            color: Color4.create(0.85, 0.9, 0.95, 1),
+            textAlign: 'top-left'
+          }}
+        />
+        <UiEntity
+          uiTransform={{ width: '100%', height: 52 }}
+          uiText={{
+            value: `${matchRuntime?.isRunning ? wavePhaseLabel : 'Waves stopped'}\n${latestLobbyEvent ? `Event: ${latestLobbyEvent}` : 'Event: -'}`,
+            fontSize: 14,
+            color: Color4.create(0.7, 0.8, 0.9, 0.95),
+            textAlign: 'top-left'
+          }}
+        />
+
+        <UiEntity
+          uiTransform={{
+            width: '100%',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            margin: { top: 8 }
+          }}
+        >
+          <UiEntity
+            uiTransform={{ width: 115, height: 36, margin: { right: 8 } }}
+            uiBackground={{ color: Color4.create(isInLobby ? 0.3 : 0.15, 0.55, 0.28, 1) }}
+            onMouseDown={() => {
+              sendJoinLobby()
+            }}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+              uiText={{ value: 'Join', fontSize: 16, color: Color4.create(1, 1, 1, 1), textAlign: 'middle-center' }}
+            />
+          </UiEntity>
+
+          <UiEntity
+            uiTransform={{ width: 115, height: 36, margin: { right: 8 } }}
+            uiBackground={{ color: Color4.create(0.55, 0.2, 0.2, 1) }}
+            onMouseDown={() => {
+              sendLeaveLobby()
+            }}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+              uiText={{ value: 'Leave', fontSize: 16, color: Color4.create(1, 1, 1, 1), textAlign: 'middle-center' }}
+            />
+          </UiEntity>
+
+          <UiEntity
+            uiTransform={{ width: 135, height: 36, margin: { right: 8 } }}
+            uiBackground={{
+              color: Color4.create(
+                isInLobby && lobbyState?.phase !== LobbyPhase.MATCH_CREATED ? 0.15 : 0.35,
+                0.45,
+                0.75,
+                1
+              )
+            }}
+            onMouseDown={() => {
+              if (!isInLobby) return
+              sendCreateMatch()
+            }}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+              uiText={{ value: 'Create Match', fontSize: 16, color: Color4.create(1, 1, 1, 1), textAlign: 'middle-center' }}
+            />
+          </UiEntity>
+
+          <UiEntity
+            uiTransform={{ width: 130, height: 36 }}
+            uiBackground={{ color: Color4.create(isHost ? 0.7 : 0.35, 0.45, 0.15, 1) }}
+            onMouseDown={() => {
+              if (!isHost) return
+              sendReturnToLobby()
+            }}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+              uiText={{ value: 'Back Lobby', fontSize: 16, color: Color4.create(1, 1, 1, 1), textAlign: 'middle-center' }}
+            />
+          </UiEntity>
+        </UiEntity>
+      </UiEntity>
+
       {isRaging() && (
         <UiEntity
           uiTransform={{
@@ -139,7 +282,7 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
-      {isIdle && !playerDead && (
+      {isIdle && !playerDead && !inMatchContext && (
         <UiEntity
           uiTransform={{
             width: '100%',
@@ -159,6 +302,42 @@ export const uiMenu = () => {
               textAlign: 'middle-center'
             }}
           />
+        </UiEntity>
+      )}
+      {inMatchContext && (
+        <UiEntity
+          uiTransform={{
+            width: '100%',
+            position: { bottom: 176, left: 0 },
+            positionType: 'absolute',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{ width: 420, height: 84 }}
+            uiBackground={{ color: Color4.create(0.12, 0.5, 0.18, 0.95) }}
+            onMouseDown={() => {
+              sendStartZombieWaves()
+            }}
+          >
+            <UiEntity
+              uiTransform={{
+                width: '100%',
+                height: '100%',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              uiText={{
+                value: matchRuntime?.isRunning ? wavePhaseLabel : 'Start Zombies',
+                fontSize: 32,
+                color: Color4.create(1, 1, 1, 1),
+                textAlign: 'middle-center'
+              }}
+            />
+          </UiEntity>
         </UiEntity>
       )}
       {playerDead && (
