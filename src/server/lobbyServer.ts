@@ -39,7 +39,8 @@ type WavePlanSpawn = {
 }
 
 let nextZombieSequence = 0
-const aliveZombieIds = new Set<string>()
+const zombieSpawnAtById = new Map<string, number>()
+const deadZombieIds = new Set<string>()
 
 function getPlayerDisplayName(address: string): string {
   const normalizedAddress = address.toLowerCase()
@@ -86,9 +87,20 @@ function getMatchRuntimeMutable() {
 }
 
 function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>): void {
-  aliveZombieIds.clear()
+  zombieSpawnAtById.clear()
+  deadZombieIds.clear()
   runtime.zombiesAlive = 0
   runtime.zombiesPlanned = 0
+}
+
+function recomputeZombiesAlive(runtime: ReturnType<typeof getMatchRuntimeMutable>, nowMs: number): void {
+  let alive = 0
+  for (const [zombieId, spawnAtMs] of zombieSpawnAtById) {
+    if (spawnAtMs > nowMs) continue
+    if (deadZombieIds.has(zombieId)) continue
+    alive += 1
+  }
+  runtime.zombiesAlive = alive
 }
 
 function resetMatchRuntime() {
@@ -255,10 +267,11 @@ function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
   const plan = buildWaveSpawnPlan(waveNumber, startAtMs, runtime.activeDurationSeconds)
 
   for (const spawn of plan.spawns) {
-    aliveZombieIds.add(spawn.zombieId)
+    zombieSpawnAtById.set(spawn.zombieId, spawn.spawnAtMs)
+    deadZombieIds.delete(spawn.zombieId)
   }
 
-  runtime.zombiesAlive = aliveZombieIds.size
+  recomputeZombiesAlive(runtime, runtime.serverNowMs)
   runtime.zombiesPlanned = plan.spawns.length
 
   void room.send('waveSpawnPlan', plan)
@@ -306,6 +319,7 @@ function waveRuntimeSystem(dt: number): void {
   const runtime = getMatchRuntimeMutable()
   const now = getServerTime()
   runtime.serverNowMs = now
+  recomputeZombiesAlive(runtime, now)
   if (!runtime.isRunning) return
 
   if (now < runtime.phaseEndTimeMs) return
@@ -385,11 +399,14 @@ export function setupLobbyServer(): void {
     const lobbyState = getLobbyState()
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
     if (!data.zombieId) return
-    if (!aliveZombieIds.has(data.zombieId)) return
+    const spawnAtMs = zombieSpawnAtById.get(data.zombieId)
+    if (spawnAtMs === undefined) return
+    if (spawnAtMs > getServerTime()) return
+    if (deadZombieIds.has(data.zombieId)) return
 
-    aliveZombieIds.delete(data.zombieId)
+    deadZombieIds.add(data.zombieId)
     const runtime = getMatchRuntimeMutable()
-    runtime.zombiesAlive = aliveZombieIds.size
+    recomputeZombiesAlive(runtime, getServerTime())
     void room.send('zombieDied', { zombieId: data.zombieId })
   })
 
