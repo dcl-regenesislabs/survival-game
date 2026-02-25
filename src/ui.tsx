@@ -18,6 +18,7 @@ import {
   getLobbyState,
   getMatchRuntimeState,
   getLatestLobbyEvent,
+  shouldShowGameOverOverlay,
   getLocalAddress,
   isLocalReadyForMatch,
   sendCreateMatch,
@@ -59,6 +60,7 @@ export const uiMenu = () => {
       ? `Wave ${matchRuntime.waveNumber} • ACTIVE (${phaseRemainingSeconds}s)`
       : `Wave ${matchRuntime?.waveNumber ?? 0} • REST (${phaseRemainingSeconds}s)`
   const latestLobbyEvent = getLatestLobbyEvent()
+  const showGameOverOverlay = shouldShowGameOverOverlay()
   const countdownLabel = getWaveCountdownLabel()
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
@@ -428,6 +430,49 @@ export const uiMenu = () => {
                 value: 'Respawn in 2 seconds...',
                 fontSize: 18,
                 color: Color4.create(0.9, 0.8, 0.8, 0.9),
+                textAlign: 'middle-center'
+              }}
+            />
+          </UiEntity>
+        </UiEntity>
+      )}
+      {showGameOverOverlay && (
+        <UiEntity
+          uiTransform={{
+            width: '100%',
+            height: '100%',
+            positionType: 'absolute',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: 640,
+              minHeight: 160,
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: { top: 28, bottom: 28, left: 28, right: 28 }
+            }}
+            uiBackground={{ color: Color4.create(0.08, 0.02, 0.02, 0.95) }}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', height: 78 }}
+              uiText={{
+                value: 'GAME OVER',
+                fontSize: 58,
+                color: Color4.create(1, 0.2, 0.2, 1),
+                textAlign: 'middle-center'
+              }}
+            />
+            <UiEntity
+              uiTransform={{ width: '100%', height: 34, margin: { top: 8 } }}
+              uiText={{
+                value: 'Returning to lobby...',
+                fontSize: 22,
+                color: Color4.create(0.95, 0.9, 0.9, 1),
                 textAlign: 'middle-center'
               }}
             />
