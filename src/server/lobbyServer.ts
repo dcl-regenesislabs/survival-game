@@ -392,11 +392,13 @@ function grantWaveMilestoneGold(waveNumber: number, players: LobbyPlayer[]): voi
   for (const milestone of reachedMilestones) {
     if (awardedWaveGoldMilestones.has(milestone.wave)) continue
     awardedWaveGoldMilestones.add(milestone.wave)
+
     for (const player of players) {
       playerProgressStore.mutate(player.address, (progress) => {
         progress.profile.gold += milestone.gold
       })
     }
+
     void room.send('lobbyEvent', {
       type: 'gold_reward',
       message: `Wave ${milestone.wave} reached: +${milestone.gold} GOLD`
@@ -421,6 +423,7 @@ function startZombieWaves(address: string): void {
   runtime.startedByAddress = normalizedAddress
   clearZombieTracking(runtime)
   sendWaveSpawnPlan(runtime.waveNumber, runtime.serverNowMs)
+
   for (const player of state.players) {
     resetPlayerCombatState(player.address)
   }
@@ -463,7 +466,6 @@ function waveRuntimeSystem(dt: number): void {
   }
 
   if (!runtime.isRunning) return
-
   if (now < runtime.phaseEndTimeMs) return
 
   if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
