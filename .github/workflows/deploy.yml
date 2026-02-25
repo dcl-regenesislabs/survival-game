@@ -28,7 +28,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install npm packages
-      run: npm ci
+      run: |
+        if [ -f package-lock.json ]; then
+          npm ci
+        else
+          npm install
+        fi
     - name: Build scene
       run: npm run build
     - name: Deploy scene
