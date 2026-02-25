@@ -304,10 +304,14 @@ export const uiMenu = () => {
           </UiEntity>
           <UiEntity
             uiTransform={{
-              width: 140,
-              height: 40
+              width: 301,
+              height: 134
             }}
-            uiBackground={{ color: Color4.create(0.1, 0.1, 0.15, 0.85) }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: 'assets/images/HUD.png', filterMode: 'point', wrapMode: 'clamp' },
+              uvs: [0.765896, 0.72, 0.765896, 0.926154, 0.983382, 0.926154, 0.983382, 0.72]
+            }}
           >
             <UiEntity
               uiTransform={{
@@ -319,8 +323,8 @@ export const uiMenu = () => {
                 padding: { left: 16, right: 16 }
               }}
               uiText={{
-                value: `ZC: ${getZombieCoins()}`,
-                fontSize: 22,
+                value: `${getZombieCoins()}`,
+                fontSize: 44,
                 color: Color4.create(1, 0.85, 0.3, 1),
                 textAlign: 'middle-center'
               }}
