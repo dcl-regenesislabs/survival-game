@@ -10,7 +10,6 @@ import {
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
-import { damagePlayer, setDeathTime } from './playerHealth'
 import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
 import { createHealthBarForZombie } from './healthBar'
 import { tryDropPotions } from './potions'
@@ -83,8 +82,12 @@ type SpawnZombieOptions = {
 
 let reportServerZombieDeath: ((zombieId: string) => void) | null = null
 let zombieDeathSoundEntity: Entity | null = null
+let reportPlayerDamageToServer: ((amount: number) => void) | null = null
 export function setZombieDeathReporter(reporter: ((zombieId: string) => void) | null): void {
   reportServerZombieDeath = reporter
+}
+export function setPlayerDamageReporter(reporter: ((amount: number) => void) | null): void {
+  reportPlayerDamageToServer = reporter
 }
 
 function playZombieDeathSound(): void {
@@ -447,9 +450,7 @@ export function zombieSystem(dt: number) {
         } else {
           const burstCenter = Vector3.create(playerPos.x, playerPos.y + 0.9, playerPos.z)
           spawnBloodAtPosition(burstCenter)
-          if (damagePlayer(1)) {
-            setDeathTime(_gameTime)
-          }
+          reportPlayerDamageToServer?.(1)
         }
       }
       continue

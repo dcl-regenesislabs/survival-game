@@ -6,7 +6,7 @@ export const MAX_HP = 5
 
 let currentHp = MAX_HP
 let isDead = false
-let deathTime = 0
+let respawnAtMs = 0
 let healGlowEndTime = 0
 
 /** Respawn position in scene (center of play area) */
@@ -21,28 +21,12 @@ export function isPlayerDead(): boolean {
   return isDead
 }
 
-export function setDeathTime(time: number): void {
-  deathTime = time
-}
-
-export function getDeathTime(): number {
-  return deathTime
-}
-
 export function getRespawnDelay(): number {
   return RESPAWN_DELAY
 }
 
-/** Deal damage to the player. Caller should spawn blood at player position. Returns true if player died. */
-export function damagePlayer(amount: number): boolean {
-  if (isDead) return false
-  currentHp = Math.max(0, currentHp - amount)
-
-  if (currentHp <= 0) {
-    isDead = true
-    return true
-  }
-  return false
+export function getRespawnAtMs(): number {
+  return respawnAtMs
 }
 
 /** Restore player health (e.g. health potion). Caps at MAX_HP. No-op if dead. */
@@ -69,4 +53,18 @@ export function respawnPlayer(): void {
   })
   currentHp = MAX_HP
   isDead = false
+  respawnAtMs = 0
+}
+
+/** Apply server-authoritative player health snapshot. */
+export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRespawnAtMs: number): void {
+  const wasDead = isDead
+  currentHp = Math.max(0, Math.min(MAX_HP, Math.floor(hp)))
+  isDead = dead
+  respawnAtMs = nextRespawnAtMs
+
+  if (wasDead && !isDead) {
+    // Server-authoritative respawn transition: move player back to the arena spawn.
+    respawnPlayer()
+  }
 }

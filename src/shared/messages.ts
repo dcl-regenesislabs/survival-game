@@ -30,6 +30,15 @@ const LobbyMessages = {
   zombieDied: Schemas.Map({
     zombieId: Schemas.String
   }),
+  playerDamageRequest: Schemas.Map({
+    amount: Schemas.Number
+  }),
+  playerHealthState: Schemas.Map({
+    address: Schemas.String,
+    hp: Schemas.Number,
+    isDead: Schemas.Boolean,
+    respawnAtMs: Schemas.Int64
+  }),
   lobbyEvent: Schemas.Map({
     type: Schemas.String,
     message: Schemas.String
