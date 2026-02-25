@@ -35,6 +35,8 @@ jobs:
           npm install
         fi
     - name: Build scene
-      run: npm run build
+      run: |
+        npm install --no-save @dcl/js-runtime@7.20.2-22169778016.commit-030cbfe
+        npm run build
     - name: Deploy scene
       run: npm run deploy:${{ env.DEPLOY_ENV }}
