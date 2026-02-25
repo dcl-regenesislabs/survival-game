@@ -13,7 +13,7 @@
     "server-logs": "sdk-commands sdk-server-logs"
   },
   "devDependencies": {
-    "@dcl/sdk": "^7.20.2-22169778016.commit-030cbfe",
+    "@dcl/sdk": "7.20.2-22169778016.commit-030cbfe",
     "@dcl/js-runtime": "7.20.2-22169778016.commit-030cbfe"
   },
   "engines": {
