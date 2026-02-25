@@ -27,6 +27,12 @@ const SPAWN_MIN_X = 10
 const SPAWN_MAX_X = 54
 const SPAWN_MIN_Z = 10
 const SPAWN_MAX_Z = 54
+const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
+  { wave: 4, gold: 1 },
+  { wave: 11, gold: 2 },
+  { wave: 21, gold: 3 },
+  { wave: 35, gold: 5 }
+]
 
 type ZombieType = 'basic' | 'quick' | 'tank'
 type WavePlanSpawn = {
@@ -42,6 +48,7 @@ let nextZombieSequence = 0
 const zombieSpawnAtById = new Map<string, number>()
 const deadZombieIds = new Set<string>()
 const loadedProfileAddresses = new Set<string>()
+const awardedWaveGoldMilestones = new Set<number>()
 
 function getPlayerDisplayName(address: string): string {
   const normalizedAddress = address.toLowerCase()
@@ -92,6 +99,7 @@ function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>)
   deadZombieIds.clear()
   runtime.zombiesAlive = 0
   runtime.zombiesPlanned = 0
+  awardedWaveGoldMilestones.clear()
 }
 
 function recomputeZombiesAlive(runtime: ReturnType<typeof getMatchRuntimeMutable>, nowMs: number): void {
@@ -298,6 +306,25 @@ function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
   void room.send('waveSpawnPlan', plan)
 }
 
+function grantWaveMilestoneGold(waveNumber: number, players: LobbyPlayer[]): void {
+  const reachedMilestones = GOLD_WAVE_MILESTONES.filter((milestone) => milestone.wave <= waveNumber)
+  for (const milestone of reachedMilestones) {
+    if (awardedWaveGoldMilestones.has(milestone.wave)) continue
+    awardedWaveGoldMilestones.add(milestone.wave)
+
+    for (const player of players) {
+      playerProgressStore.mutate(player.address, (progress) => {
+        progress.profile.gold += milestone.gold
+      })
+    }
+
+    void room.send('lobbyEvent', {
+      type: 'gold_reward',
+      message: `Wave ${milestone.wave} reached: +${milestone.gold} GOLD`
+    })
+  }
+}
+
 function startZombieWaves(address: string): void {
   const normalizedAddress = address.toLowerCase()
   const state = getLobbyState()
@@ -348,6 +375,7 @@ function waveRuntimeSystem(dt: number): void {
   if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
     runtime.cyclePhase = WaveCyclePhase.REST
     runtime.phaseEndTimeMs = now + runtime.restDurationSeconds * 1000
+    grantWaveMilestoneGold(runtime.waveNumber, lobbyState.players)
     for (const player of lobbyState.players) {
       playerProgressStore.mutate(player.address, (progress) => {
         progress.profile.lifetimeStats.wavesCleared += 1
