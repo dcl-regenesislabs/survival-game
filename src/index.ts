@@ -8,7 +8,8 @@ import {
   MainCamera,
   VirtualCamera,
   MeshCollider,
-  ColliderLayer
+  ColliderLayer,
+  SkyboxTime
 } from '@dcl/sdk/ecs'
 import { isServer } from '@dcl/sdk/network'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
@@ -32,10 +33,11 @@ import { initRageAura } from './rageAura'
 import { potionPickupSystem, potionVisualSystem } from './potions'
 import { EntityNames } from '../assets/scene/entity-names'
 import { setupLobbyServer } from './server/lobbyServer'
-import { setupLobbyClient } from './multiplayer/lobbyClient'
+import { getMatchRuntimeState, setupLobbyClient } from './multiplayer/lobbyClient'
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
 import { initTimeSync } from './shared/timeSync'
+import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
 const CINEMATIC_CAMERA_HEIGHT = 12
@@ -45,11 +47,14 @@ const CINEMATIC_CAMERA_TILT_DEG = 55 // Look down at the scene
 const CINEMATIC_TARGET_SMOOTH_SPEED = 4   // How fast smoothed target follows player (lower = less jitter)
 const CINEMATIC_CAMERA_SMOOTH_SPEED = 6   // How fast camera follows smoothed target
 const CINEMATIC_DT_MAX = 1 / 30            // Cap dt to avoid spikes from hitches (treat as ~30fps min)
+const SKYBOX_DAY_TIME_SECONDS = 12 * 60 * 60 // 12:00
+const SKYBOX_NIGHT_TIME_SECONDS = 0 // 00:00
 
 let useCinematicCamera = false
 let cinematicCameraEntity: ReturnType<typeof engine.addEntity> | null = null
 let cinematicSmoothedTarget = Vector3.create(0, 0, 0)
 let cinematicSmoothedTargetReady = false
+let appliedSkyboxTime: number | null = null
 
 // Fixed world offset: camera sits here relative to player; rotation never changes
 const CINEMATIC_OFFSET = Vector3.create(0, CINEMATIC_CAMERA_HEIGHT, -CINEMATIC_CAMERA_DISTANCE)
@@ -97,6 +102,22 @@ function deathRespawnSystem(_dt: number) {
   }
 }
 
+function setSkyboxFixedTime(seconds: number): void {
+  if (appliedSkyboxTime === seconds) return
+  appliedSkyboxTime = seconds
+  if (SkyboxTime.has(engine.RootEntity)) {
+    SkyboxTime.getMutable(engine.RootEntity).fixedTime = seconds
+    return
+  }
+  SkyboxTime.create(engine.RootEntity, { fixedTime: seconds })
+}
+
+function waveSkyboxSystem(): void {
+  const runtime = getMatchRuntimeState()
+  const isWaveActive = !!runtime?.isRunning && runtime.cyclePhase === WaveCyclePhase.ACTIVE
+  setSkyboxFixedTime(isWaveActive ? SKYBOX_NIGHT_TIME_SECONDS : SKYBOX_DAY_TIME_SECONDS)
+}
+
 function setActiveCamera(cinematic: boolean) {
   useCinematicCamera = cinematic
   if (cinematic) cinematicSmoothedTargetReady = false // Re-init smoothed target when entering cinematic
@@ -116,6 +137,7 @@ export function main() {
   setupLobbyClient()
   initLobbyWorldPanel()
   setupUi()
+  engine.addSystem(waveSkyboxSystem, undefined, 'wave-skybox-system')
 
   // Cinematic camera: follows player position only, fixed world rotation (Diablo-style)
   cinematicCameraEntity = createCinematicCamera()

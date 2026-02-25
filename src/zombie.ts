@@ -2,6 +2,7 @@ import {
   engine,
   Entity,
   Transform,
+  AudioSource,
   GltfContainer,
   Animator,
   MeshRenderer,
@@ -73,6 +74,7 @@ const ZOMBIE_SPEED = 1.5
 const ZOMBIE_UP_DURATION = 1.2 // Approximate ZombieUP animation length in seconds
 // When a zombie is within this range of a brick, it targets the brick instead of the player
 const BRICK_AGRO_RANGE = 2.5
+const ZOMBIE_DEATH_SOUND_URL = 'assets/sounds/alex_jauk-zombie-screaming-207590.mp3'
 
 type SpawnZombieOptions = {
   position?: Vector3
@@ -80,8 +82,37 @@ type SpawnZombieOptions = {
 }
 
 let reportServerZombieDeath: ((zombieId: string) => void) | null = null
+let zombieDeathSoundEntity: Entity | null = null
 export function setZombieDeathReporter(reporter: ((zombieId: string) => void) | null): void {
   reportServerZombieDeath = reporter
+}
+
+function playZombieDeathSound(): void {
+  if (zombieDeathSoundEntity === null) {
+    zombieDeathSoundEntity = engine.addEntity()
+    Transform.create(zombieDeathSoundEntity, {
+      position: Vector3.create(0, 0, 0),
+      rotation: Quaternion.Identity(),
+      scale: Vector3.One()
+    })
+    AudioSource.create(zombieDeathSoundEntity, {
+      audioClipUrl: ZOMBIE_DEATH_SOUND_URL,
+      loop: false,
+      volume: 0.8,
+      global: true,
+      currentTime: 0,
+      playing: true
+    })
+    return
+  }
+
+  const audio = AudioSource.getMutable(zombieDeathSoundEntity)
+  audio.audioClipUrl = ZOMBIE_DEATH_SOUND_URL
+  audio.loop = false
+  audio.global = true
+  audio.volume = 0.8
+  audio.currentTime = 0
+  audio.playing = true
 }
 
 function getRandomSpawnPosition(): Vector3 {
@@ -294,6 +325,7 @@ export function despawnAllZombies(): void {
 export function despawnZombieByNetworkId(zombieId: string): boolean {
   for (const [entity, zombieData] of engine.getEntitiesWith(ZombieComponent)) {
     if (zombieData.networkId === zombieId) {
+      playZombieDeathSound()
       engine.removeEntity(entity)
       return true
     }
@@ -311,6 +343,7 @@ export function damageZombie(entity: Entity, amount: number): boolean {
   const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
 
   if (zombie.health <= 0) {
+    playZombieDeathSound()
     if (zombie.networkId) {
       reportServerZombieDeath?.(zombie.networkId)
     }

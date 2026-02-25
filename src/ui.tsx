@@ -19,6 +19,7 @@ import {
   getMatchRuntimeState,
   getLatestLobbyEvent,
   getLocalAddress,
+  isLocalReadyForMatch,
   sendCreateMatch,
   sendJoinLobby,
   sendLeaveLobby,
@@ -48,7 +49,8 @@ export const uiMenu = () => {
   const matchRuntime = getMatchRuntimeState()
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInLobby
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
-  const showStartZombiesButton = isInLobby
+  const localReadyForMatch = isLocalReadyForMatch()
+  const showStartZombiesButton = isInLobby && localReadyForMatch
   const canStartZombies = inMatchContext
   const timerNowMs = getServerTime()
   const phaseRemainingSeconds = matchRuntime ? Math.max(0, Math.ceil((matchRuntime.phaseEndTimeMs - timerNowMs) / 1000)) : 0
@@ -505,11 +507,11 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
-      {/* Weapon selection bar at bottom */}
+      {/* Action bar: lobby placeholders on top, weapon selection in match at bottom */}
       <UiEntity
         uiTransform={{
           width: '100%',
-          position: { bottom: 24, left: 0 },
+          position: inMatchContext ? { bottom: 24, left: 0 } : { top: 24, left: 0 },
           positionType: 'absolute',
           flexDirection: 'row',
           alignItems: 'center',
@@ -524,52 +526,80 @@ export const uiMenu = () => {
             justifyContent: 'center'
           }}
         >
-          {(['gun', 'shotgun', 'minigun'] as const).map((weapon) => {
-            const current = getCurrentWeapon() === weapon
-            const canUse =
-              weapon === 'gun' ||
-              (weapon === 'shotgun' && (isShotgunUnlocked() || canAffordShotgun())) ||
-              (weapon === 'minigun' && (isMinigunUnlocked() || canAffordMinigun()))
-            const label = weapon === 'gun' ? 'Gun' : weapon === 'shotgun' ? 'Shotgun' : 'Minigun'
-            const bgColor = canUse
-              ? current
-                ? Color4.create(0.15, 0.65, 0.25, 1)
-                : Color4.create(0.2, 0.75, 0.35, 1)
-              : Color4.create(0.35, 0.35, 0.35, 0.7)
-            const textColor = canUse
-              ? Color4.create(1, 1, 1, 1)
-              : Color4.create(0.6, 0.6, 0.6, 0.8)
-            return (
-              <UiEntity
-                key={weapon}
-                uiTransform={{
-                  width: 360,
-                  height: 132,
-                  margin: { left: 24, right: 24 }
-                }}
-                uiBackground={{ color: bgColor }}
-                onMouseDown={() => {
-                  if (canUse) switchTo(weapon)
-                }}
-              >
+          {inMatchContext
+            ? (['gun', 'shotgun', 'minigun'] as const).map((weapon) => {
+                const current = getCurrentWeapon() === weapon
+                const canUse =
+                  weapon === 'gun' ||
+                  (weapon === 'shotgun' && (isShotgunUnlocked() || canAffordShotgun())) ||
+                  (weapon === 'minigun' && (isMinigunUnlocked() || canAffordMinigun()))
+                const label = weapon === 'gun' ? 'Gun' : weapon === 'shotgun' ? 'Shotgun' : 'Minigun'
+                const bgColor = canUse
+                  ? current
+                    ? Color4.create(0.15, 0.65, 0.25, 1)
+                    : Color4.create(0.2, 0.75, 0.35, 1)
+                  : Color4.create(0.35, 0.35, 0.35, 0.7)
+                const textColor = canUse
+                  ? Color4.create(1, 1, 1, 1)
+                  : Color4.create(0.6, 0.6, 0.6, 0.8)
+                return (
+                  <UiEntity
+                    key={weapon}
+                    uiTransform={{
+                      width: 360,
+                      height: 132,
+                      margin: { left: 24, right: 24 }
+                    }}
+                    uiBackground={{ color: bgColor }}
+                    onMouseDown={() => {
+                      if (canUse) switchTo(weapon)
+                    }}
+                  >
+                    <UiEntity
+                      uiTransform={{
+                        width: '100%',
+                        height: '100%',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      uiText={{
+                        value: label,
+                        fontSize: 54,
+                        color: textColor,
+                        textAlign: 'middle-center'
+                      }}
+                    />
+                  </UiEntity>
+                )
+              })
+            : (['Load', 'Upgrade'] as const).map((label) => (
                 <UiEntity
+                  key={label}
                   uiTransform={{
-                    width: '100%',
-                    height: '100%',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    width: 360,
+                    height: 132,
+                    margin: { left: 24, right: 24 }
                   }}
-                  uiText={{
-                    value: label,
-                    fontSize: 54,
-                    color: textColor,
-                    textAlign: 'middle-center'
-                  }}
-                />
-              </UiEntity>
-            )
-          })}
+                  uiBackground={{ color: Color4.create(0.2, 0.75, 0.35, 1) }}
+                >
+                  <UiEntity
+                    uiTransform={{
+                      width: '100%',
+                      height: '100%',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    uiText={{
+                      value: label,
+                      fontSize: 54,
+                      color: Color4.create(1, 1, 1, 1),
+                      textAlign: 'middle-center'
+                    }}
+                  />
+                </UiEntity>
+              ))}
         </UiEntity>
       </UiEntity>
     </UiEntity>

@@ -39,7 +39,9 @@ type WavePlanSpawn = {
 }
 
 let nextZombieSequence = 0
-const aliveZombieIds = new Set<string>()
+const zombieSpawnAtById = new Map<string, number>()
+const deadZombieIds = new Set<string>()
+const loadedProfileAddresses = new Set<string>()
 
 function getPlayerDisplayName(address: string): string {
   const normalizedAddress = address.toLowerCase()
@@ -86,9 +88,20 @@ function getMatchRuntimeMutable() {
 }
 
 function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>): void {
-  aliveZombieIds.clear()
+  zombieSpawnAtById.clear()
+  deadZombieIds.clear()
   runtime.zombiesAlive = 0
   runtime.zombiesPlanned = 0
+}
+
+function recomputeZombiesAlive(runtime: ReturnType<typeof getMatchRuntimeMutable>, nowMs: number): void {
+  let alive = 0
+  for (const [zombieId, spawnAtMs] of zombieSpawnAtById) {
+    if (spawnAtMs > nowMs) continue
+    if (deadZombieIds.has(zombieId)) continue
+    alive += 1
+  }
+  runtime.zombiesAlive = alive
 }
 
 function resetMatchRuntime() {
@@ -132,6 +145,24 @@ function isPlayerInLobby(address: string): boolean {
   return state.players.some((p) => p.address === address.toLowerCase())
 }
 
+async function ensurePlayerLoadedAndInLobby(address: string): Promise<void> {
+  const normalizedAddress = address.toLowerCase()
+  await ensurePlayerProfileLoaded(normalizedAddress)
+  addPlayerToLobby(normalizedAddress)
+}
+
+async function ensurePlayerProfileLoaded(address: string): Promise<void> {
+  const normalizedAddress = address.toLowerCase()
+  if (loadedProfileAddresses.has(normalizedAddress)) return
+  const displayName = getPlayerDisplayName(normalizedAddress)
+  const progress = await playerProgressStore.load(normalizedAddress, displayName)
+  loadedProfileAddresses.add(normalizedAddress)
+  void room.send('lobbyEvent', {
+    type: 'profile_loaded',
+    message: `${displayName} profile loaded (GOLD ${progress.profile.gold})`
+  })
+}
+
 function addPlayerToLobby(address: string): void {
   const state = getLobbyState()
   const normalizedAddress = address.toLowerCase()
@@ -159,6 +190,7 @@ async function removePlayerFromLobby(address: string): Promise<void> {
   const leavingPlayer = state.players.find((p) => p.address === normalizedAddress)
 
   await playerProgressStore.saveAndEvict(normalizedAddress)
+  loadedProfileAddresses.delete(normalizedAddress)
   setPlayers(nextPlayers)
 
   if (leavingPlayer) {
@@ -172,6 +204,7 @@ async function removePlayerFromLobby(address: string): Promise<void> {
 function createMatch(address: string): void {
   const normalizedAddress = address.toLowerCase()
   const state = getLobbyState()
+  if (state.phase === LobbyPhase.MATCH_CREATED) return
   if (!state.players.length) return
   if (!state.players.some((p) => p.address === normalizedAddress)) return
 
@@ -255,10 +288,11 @@ function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
   const plan = buildWaveSpawnPlan(waveNumber, startAtMs, runtime.activeDurationSeconds)
 
   for (const spawn of plan.spawns) {
-    aliveZombieIds.add(spawn.zombieId)
+    zombieSpawnAtById.set(spawn.zombieId, spawn.spawnAtMs)
+    deadZombieIds.delete(spawn.zombieId)
   }
 
-  runtime.zombiesAlive = aliveZombieIds.size
+  recomputeZombiesAlive(runtime, runtime.serverNowMs)
   runtime.zombiesPlanned = plan.spawns.length
 
   void room.send('waveSpawnPlan', plan)
@@ -306,6 +340,7 @@ function waveRuntimeSystem(dt: number): void {
   const runtime = getMatchRuntimeMutable()
   const now = getServerTime()
   runtime.serverNowMs = now
+  recomputeZombiesAlive(runtime, now)
   if (!runtime.isRunning) return
 
   if (now < runtime.phaseEndTimeMs) return
@@ -346,16 +381,14 @@ export function setupLobbyServer(): void {
   getLobbyStateMutable()
   getMatchRuntimeMutable()
 
+  room.onMessage('playerLoadProfile', async (_data, context) => {
+    if (!context) return
+    await ensurePlayerProfileLoaded(context.from)
+  })
+
   room.onMessage('playerJoinLobby', async (_data, context) => {
     if (!context) return
-    const normalizedAddress = context.from.toLowerCase()
-    const displayName = getPlayerDisplayName(normalizedAddress)
-    const progress = await playerProgressStore.load(normalizedAddress, displayName)
-    addPlayerToLobby(context.from)
-    void room.send('lobbyEvent', {
-      type: 'profile_loaded',
-      message: `${displayName} profile loaded (GOLD ${progress.profile.gold})`
-    })
+    await ensurePlayerLoadedAndInLobby(context.from)
   })
 
   room.onMessage('playerLeaveLobby', async (_data, context) => {
@@ -366,7 +399,18 @@ export function setupLobbyServer(): void {
   room.onMessage('createMatch', (_data, context) => {
     if (!context) return
     if (!isPlayerInLobby(context.from)) return
+    const state = getLobbyState()
+    if (state.phase === LobbyPhase.MATCH_CREATED) return
     createMatch(context.from)
+  })
+
+  room.onMessage('createMatchAndJoin', async (_data, context) => {
+    if (!context) return
+    await ensurePlayerLoadedAndInLobby(context.from)
+    const state = getLobbyState()
+    if (state.phase !== LobbyPhase.MATCH_CREATED) {
+      createMatch(context.from)
+    }
   })
 
   room.onMessage('returnToLobby', (_data, context) => {
@@ -385,11 +429,14 @@ export function setupLobbyServer(): void {
     const lobbyState = getLobbyState()
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
     if (!data.zombieId) return
-    if (!aliveZombieIds.has(data.zombieId)) return
+    const spawnAtMs = zombieSpawnAtById.get(data.zombieId)
+    if (spawnAtMs === undefined) return
+    if (spawnAtMs > getServerTime()) return
+    if (deadZombieIds.has(data.zombieId)) return
 
-    aliveZombieIds.delete(data.zombieId)
+    deadZombieIds.add(data.zombieId)
     const runtime = getMatchRuntimeMutable()
-    runtime.zombiesAlive = aliveZombieIds.size
+    recomputeZombiesAlive(runtime, getServerTime())
     void room.send('zombieDied', { zombieId: data.zombieId })
   })
 

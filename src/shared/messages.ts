@@ -2,9 +2,11 @@ import { Schemas } from '@dcl/sdk/ecs'
 import { registerMessages } from '@dcl/sdk/network'
 
 const LobbyMessages = {
+  playerLoadProfile: Schemas.Map({}),
   playerJoinLobby: Schemas.Map({}),
   playerLeaveLobby: Schemas.Map({}),
   createMatch: Schemas.Map({}),
+  createMatchAndJoin: Schemas.Map({}),
   returnToLobby: Schemas.Map({}),
   startZombieWaves: Schemas.Map({}),
   waveSpawnPlan: Schemas.Map({
