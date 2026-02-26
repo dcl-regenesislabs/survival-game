@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-const fs = require('fs')
 const { execSync } = require('child_process')
 
 const envName = process.argv[2]
@@ -8,42 +7,17 @@ if (envName !== 'testing' && envName !== 'production') {
   process.exit(1)
 }
 
-const scenePath = './scene.json'
-const scene = JSON.parse(fs.readFileSync(scenePath, 'utf8'))
-const currentWorld = scene?.worldConfiguration?.name || ''
-if (!currentWorld) {
-  console.error('scene.json is missing worldConfiguration.name')
-  process.exit(1)
-}
+const defaultTarget =
+  envName === 'production'
+    ? 'https://worlds-content-server.decentraland.org'
+    : 'https://worlds-content-server.decentraland.zone'
 
-const envOverrideKey = envName === 'production' ? 'DCL_WORLD_PRODUCTION' : 'DCL_WORLD_TESTING'
-const overrideWorld = process.env[envOverrideKey] || ''
+const envKey = envName === 'production' ? 'DCL_TARGET_CONTENT_PRODUCTION' : 'DCL_TARGET_CONTENT_TESTING'
+const targetContent = process.env[envKey] || defaultTarget
 
-let targetWorld = ''
-if (overrideWorld) {
-  targetWorld = overrideWorld
-} else if (envName === 'production') {
-  if (currentWorld.endsWith('.zone')) targetWorld = `${currentWorld.slice(0, -5)}.org`
-  else if (currentWorld.endsWith('.org')) targetWorld = currentWorld
-  else {
-    console.error(`Cannot derive production world from "${currentWorld}". Set ${envOverrideKey}.`)
-    process.exit(1)
-  }
-} else {
-  if (currentWorld.endsWith('.org')) targetWorld = `${currentWorld.slice(0, -4)}.zone`
-  else if (currentWorld.endsWith('.zone')) targetWorld = currentWorld
-  else {
-    console.error(`Cannot derive testing world from "${currentWorld}". Set ${envOverrideKey}.`)
-    process.exit(1)
-  }
-}
+console.log(`Deploy env: ${envName} -> target-content: ${targetContent}`)
 
-scene.worldConfiguration = scene.worldConfiguration || {}
-scene.worldConfiguration.name = targetWorld
-fs.writeFileSync(scenePath, JSON.stringify(scene, null, 2) + '\n')
-console.log(`Deploy env: ${envName} -> world: ${targetWorld}`)
-
-execSync('npm run deploy -- --skip-build --skip-validations --programmatic', {
+execSync(`npm run deploy -- --skip-build --skip-validations --programmatic --target-content ${targetContent}`, {
   stdio: 'inherit',
   env: process.env
 })
