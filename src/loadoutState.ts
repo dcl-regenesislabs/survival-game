@@ -1,10 +1,4 @@
-import {
-  ArenaWeaponType,
-  LoadoutWeaponId,
-  LOADOUT_WEAPON_DEFINITIONS,
-  getLoadoutWeaponDefinition
-} from './shared/loadoutCatalog'
-import { setAllowedLoadoutWeapons } from './weaponManager'
+import { LoadoutWeaponId, LOADOUT_WEAPON_DEFINITIONS, getLoadoutWeaponDefinition } from './shared/loadoutCatalog'
 
 export type PlayerLoadoutSnapshot = {
   gold: number
@@ -33,17 +27,6 @@ function uniqueWeaponIds(weaponIds: string[]): LoadoutWeaponId[] {
   return filtered
 }
 
-function syncAllowedArenaWeapons(): void {
-  const allowedWeapons: ArenaWeaponType[] = ['gun']
-  for (const weaponId of playerLoadoutSnapshot.equippedWeaponIds) {
-    const weapon = getLoadoutWeaponDefinition(weaponId)
-    if (!weapon) continue
-    if (allowedWeapons.includes(weapon.arenaWeaponType)) continue
-    allowedWeapons.push(weapon.arenaWeaponType)
-  }
-  setAllowedLoadoutWeapons(allowedWeapons)
-}
-
 export function applyPlayerLoadoutSnapshot(snapshot: {
   gold: number
   ownedWeaponIds: string[]
@@ -62,8 +45,6 @@ export function applyPlayerLoadoutSnapshot(snapshot: {
     ownedWeaponIds,
     equippedWeaponIds
   }
-
-  syncAllowedArenaWeapons()
 }
 
 export function getPlayerLoadoutSnapshot(): PlayerLoadoutSnapshot {
@@ -84,18 +65,6 @@ export function isLoadoutWeaponOwned(weaponId: LoadoutWeaponId): boolean {
 
 export function isLoadoutWeaponEquipped(weaponId: LoadoutWeaponId): boolean {
   return playerLoadoutSnapshot.equippedWeaponIds.includes(weaponId)
-}
-
-export function getEquippedArenaWeapons(): ArenaWeaponType[] {
-  const result: ArenaWeaponType[] = []
-  for (const weaponId of playerLoadoutSnapshot.equippedWeaponIds) {
-    const weapon = getLoadoutWeaponDefinition(weaponId)
-    if (!weapon) continue
-    if (result.includes(weapon.arenaWeaponType)) continue
-    result.push(weapon.arenaWeaponType)
-  }
-  if (!result.includes('gun')) result.unshift('gun')
-  return result
 }
 
 export function getDefaultSelectedLoadoutWeaponId(): LoadoutWeaponId {

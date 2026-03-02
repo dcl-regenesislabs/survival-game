@@ -12,7 +12,6 @@ const MINIGUN_COST = 300
 let currentWeapon: WeaponType = 'gun'
 let shotgunUnlocked = false
 let minigunUnlocked = false
-let allowedLoadoutWeapons: WeaponType[] = ['gun']
 
 export function getCurrentWeapon(): WeaponType {
   return currentWeapon
@@ -24,20 +23,6 @@ export function isShotgunUnlocked(): boolean {
 
 export function isMinigunUnlocked(): boolean {
   return minigunUnlocked
-}
-
-export function isWeaponAllowedInLoadout(type: WeaponType): boolean {
-  return allowedLoadoutWeapons.includes(type)
-}
-
-export function setAllowedLoadoutWeapons(weapons: WeaponType[]): void {
-  const nextAllowed: WeaponType[] = ['gun']
-  for (const weapon of weapons) {
-    if (weapon === 'gun') continue
-    if (nextAllowed.includes(weapon)) continue
-    nextAllowed.push(weapon)
-  }
-  allowedLoadoutWeapons = nextAllowed
 }
 
 export function canAffordShotgun(): boolean {
