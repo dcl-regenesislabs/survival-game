@@ -28,9 +28,11 @@ import {
 } from './multiplayer/lobbyClient'
 
 // Place the panel in the new outer parcels (z = -1 row), away from the arena center.
-const PANEL_WORLD_POSITION = Vector3.create(24, 2.8, -8)
+const PANEL_WORLD_POSITION = Vector3.create(76.2, 3, 36)
+const ROOT_ROTATION = Quaternion.fromEulerDegrees(0, -90, 0)
 const PANEL_WORLD_SCALE = Vector3.create(6.4, 3.8, 0.2)
 const PANEL_UPDATE_INTERVAL_SECONDS = 0.2
+const TEXT_LOCAL_POSITION = Vector3.create(-1.85, 0.35, -0.25)
 const BUTTON_Y_OFFSET = -1.35
 const BUTTON_Z_OFFSET = -0.22
 const BUTTON_LABEL_Z_OFFSET = -0.28
@@ -42,6 +44,7 @@ type LobbyPanelButton = {
 }
 
 export class LobbyWorldPanel {
+  private rootEntity = engine.addEntity()
   private panelEntity = engine.addEntity()
   private textEntity = engine.addEntity()
   private buttons: LobbyPanelButton[] = []
@@ -55,8 +58,15 @@ export class LobbyWorldPanel {
   }
 
   private createPanel(): void {
-    Transform.create(this.panelEntity, {
+    Transform.create(this.rootEntity, {
       position: PANEL_WORLD_POSITION,
+      rotation: ROOT_ROTATION,
+      scale: Vector3.One()
+    })
+
+    Transform.create(this.panelEntity, {
+      parent: this.rootEntity,
+      position: Vector3.Zero(),
       rotation: Quaternion.Identity(),
       scale: PANEL_WORLD_SCALE
     })
@@ -69,7 +79,8 @@ export class LobbyWorldPanel {
       roughness: 0.9
     })
     Transform.create(this.textEntity, {
-      position: Vector3.create(PANEL_WORLD_POSITION.x - 1.85, PANEL_WORLD_POSITION.y + 0.35, PANEL_WORLD_POSITION.z - 0.25),
+      parent: this.rootEntity,
+      position: TEXT_LOCAL_POSITION,
       rotation: Quaternion.Identity(),
       scale: Vector3.create(0.3, 0.3, 0.3)
     })
@@ -109,11 +120,8 @@ export class LobbyWorldPanel {
   ): void {
     const buttonEntity = engine.addEntity()
     Transform.create(buttonEntity, {
-      position: Vector3.create(
-        PANEL_WORLD_POSITION.x + xOffset,
-        PANEL_WORLD_POSITION.y + BUTTON_Y_OFFSET,
-        PANEL_WORLD_POSITION.z + BUTTON_Z_OFFSET
-      ),
+      parent: this.rootEntity,
+      position: Vector3.create(xOffset, BUTTON_Y_OFFSET, BUTTON_Z_OFFSET),
       rotation: Quaternion.Identity(),
       scale: Vector3.create(1.55, 0.42, 0.08)
     })
@@ -146,11 +154,8 @@ export class LobbyWorldPanel {
 
     const labelEntity = engine.addEntity()
     Transform.create(labelEntity, {
-      position: Vector3.create(
-        PANEL_WORLD_POSITION.x + xOffset,
-        PANEL_WORLD_POSITION.y + BUTTON_Y_OFFSET,
-        PANEL_WORLD_POSITION.z + BUTTON_LABEL_Z_OFFSET
-      ),
+      parent: this.rootEntity,
+      position: Vector3.create(xOffset, BUTTON_Y_OFFSET, BUTTON_LABEL_Z_OFFSET),
       rotation: Quaternion.Identity(),
       scale: Vector3.create(0.11, 0.11, 0.11)
     })

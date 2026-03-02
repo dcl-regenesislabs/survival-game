@@ -6,7 +6,6 @@ import { getPlayerHp, isPlayerDead, MAX_HP } from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
 import { getGameTime } from './zombie'
 import { isRaging, getRageTimeLeft } from './rageEffect'
-import { getEquippedArenaWeapons } from './loadoutState'
 import {
   getCurrentWeapon,
   isShotgunUnlocked,
@@ -576,7 +575,7 @@ export const uiMenu = () => {
           }}
         >
           {inMatchContext
-            ? getEquippedArenaWeapons().map((weapon) => {
+            ? (['gun', 'shotgun', 'minigun'] as const).map((weapon) => {
                 const current = getCurrentWeapon() === weapon
                 const canUse =
                   weapon === 'gun' ||
