@@ -59,6 +59,7 @@ const BloodParticleSchema = {
 }
 const BloodParticleComponent = engine.defineComponent('BloodParticleComponent', BloodParticleSchema)
 const RewardTextComponent = engine.defineComponent('RewardTextComponent', {
+  active: Schemas.Boolean,
   endTime: Schemas.Number,
   riseSpeed: Schemas.Number
 })
@@ -85,19 +86,11 @@ const REWARD_TEXT_BASE_COLOR = Color4.create(0.0, 1.0, 0.92, 1)
 const REWARD_TEXT_Y_OFFSET = 2.7
 const REWARD_TEXT_SCALE = 0.9
 const REWARD_TEXT_FACING_FIX = Quaternion.fromEulerDegrees(0, 180, 0)
-const REWARD_TEXT_SPAWN_INTERVAL = 0.08
-const REWARD_TEXT_LANE_X_STEP = 0.32
-const REWARD_TEXT_LANE_Z_STEP = 0.08
-const REWARD_TEXT_MAX_LANES = 3
+const REWARD_TEXT_POOL_SIZE = 24
 
-type RewardTextSpawnRequest = {
-  center: Vector3
-  amount: number
-}
-
-const rewardTextSpawnQueue: RewardTextSpawnRequest[] = []
-let rewardTextSpawnCooldown = 0
-let rewardTextLaneCursor = 0
+const rewardTextPool: Entity[] = []
+let rewardTextPoolInitialized = false
+let nextRewardTextPoolIndex = 0
 
 type SpawnZombieOptions = {
   position?: Vector3
@@ -313,41 +306,54 @@ export function spawnBloodAtPosition(center: Vector3): void {
 }
 
 export function spawnZcRewardTextAtPosition(center: Vector3, amount: number): void {
-  rewardTextSpawnQueue.push({
-    center: Vector3.create(center.x, center.y, center.z),
-    amount
-  })
-}
-
-function spawnZcRewardTextNow(center: Vector3, amount: number): void {
-  const lane = rewardTextLaneCursor
-  rewardTextLaneCursor = (rewardTextLaneCursor + 1) % REWARD_TEXT_MAX_LANES
-  const laneOffset = lane - (REWARD_TEXT_MAX_LANES - 1) / 2
+  ensureRewardTextPool()
   const xJitter = (Math.random() - 0.5) * 0.45
   const zJitter = (Math.random() - 0.5) * 0.35
-  const entity = engine.addEntity()
-  Transform.create(entity, {
-    position: Vector3.create(
-      center.x + xJitter + laneOffset * REWARD_TEXT_LANE_X_STEP,
-      center.y + REWARD_TEXT_Y_OFFSET,
-      center.z + zJitter + laneOffset * REWARD_TEXT_LANE_Z_STEP
-    ),
-    rotation: Quaternion.Identity(),
-    scale: Vector3.create(REWARD_TEXT_SCALE, REWARD_TEXT_SCALE, REWARD_TEXT_SCALE)
-  })
-  TextShape.create(entity, {
-    text: `+${Math.max(0, Math.floor(amount))}`,
-    fontSize: 7.4,
-    width: 6.5,
-    height: 2,
-    textColor: REWARD_TEXT_BASE_COLOR,
-    outlineWidth: 0.32,
-    outlineColor: Color3.create(0, 0, 0)
-  })
-  RewardTextComponent.create(entity, {
-    endTime: _gameTime + REWARD_TEXT_DURATION,
-    riseSpeed: REWARD_TEXT_RISE_SPEED
-  })
+  const entity = rewardTextPool[nextRewardTextPoolIndex]
+  nextRewardTextPoolIndex = (nextRewardTextPoolIndex + 1) % rewardTextPool.length
+
+  const transform = Transform.getMutable(entity)
+  transform.position = Vector3.create(center.x + xJitter, center.y + REWARD_TEXT_Y_OFFSET, center.z + zJitter)
+  transform.rotation = Quaternion.Identity()
+  transform.scale = Vector3.create(REWARD_TEXT_SCALE, REWARD_TEXT_SCALE, REWARD_TEXT_SCALE)
+
+  const textShape = TextShape.getMutable(entity)
+  textShape.text = `+${Math.max(0, Math.floor(amount))}`
+  textShape.textColor = REWARD_TEXT_BASE_COLOR
+
+  const reward = RewardTextComponent.getMutable(entity)
+  reward.active = true
+  reward.endTime = _gameTime + REWARD_TEXT_DURATION
+  reward.riseSpeed = REWARD_TEXT_RISE_SPEED
+}
+
+function ensureRewardTextPool(): void {
+  if (rewardTextPoolInitialized) return
+  rewardTextPoolInitialized = true
+
+  for (let i = 0; i < REWARD_TEXT_POOL_SIZE; i++) {
+    const entity = engine.addEntity()
+    Transform.create(entity, {
+      position: Vector3.create(0, -1000, 0),
+      rotation: Quaternion.Identity(),
+      scale: Vector3.Zero()
+    })
+    TextShape.create(entity, {
+      text: '',
+      fontSize: 7.4,
+      width: 6.5,
+      height: 2,
+      textColor: Color4.create(REWARD_TEXT_BASE_COLOR.r, REWARD_TEXT_BASE_COLOR.g, REWARD_TEXT_BASE_COLOR.b, 0),
+      outlineWidth: 0.32,
+      outlineColor: Color3.create(0, 0, 0)
+    })
+    RewardTextComponent.create(entity, {
+      active: false,
+      endTime: 0,
+      riseSpeed: REWARD_TEXT_RISE_SPEED
+    })
+    rewardTextPool.push(entity)
+  }
 }
 
 function spawnBloodBurst(
@@ -446,19 +452,18 @@ export function bloodParticleSystem(dt: number) {
 }
 
 export function rewardTextSystem(dt: number) {
-  rewardTextSpawnCooldown -= dt
-  while (rewardTextSpawnQueue.length > 0 && rewardTextSpawnCooldown <= 0) {
-    const next = rewardTextSpawnQueue.shift()
-    if (!next) break
-    spawnZcRewardTextNow(next.center, next.amount)
-    rewardTextSpawnCooldown += REWARD_TEXT_SPAWN_INTERVAL
-  }
-
-  const toRemove: Entity[] = []
   const cameraPos = Transform.has(engine.CameraEntity) ? Transform.get(engine.CameraEntity).position : null
   for (const [entity, reward, transform] of engine.getEntitiesWith(RewardTextComponent, Transform, TextShape)) {
+    if (!reward.active) continue
+
     if (_gameTime >= reward.endTime) {
-      toRemove.push(entity)
+      const mutableReward = RewardTextComponent.getMutable(entity)
+      mutableReward.active = false
+      const mutableTransform = Transform.getMutable(entity)
+      mutableTransform.position = Vector3.create(0, -1000, 0)
+      mutableTransform.scale = Vector3.Zero()
+      const textShape = TextShape.getMutable(entity)
+      textShape.textColor = Color4.create(REWARD_TEXT_BASE_COLOR.r, REWARD_TEXT_BASE_COLOR.g, REWARD_TEXT_BASE_COLOR.b, 0)
       continue
     }
 
@@ -467,7 +472,9 @@ export function rewardTextSystem(dt: number) {
     mutableTransform.position = Vector3.create(pos.x, pos.y + reward.riseSpeed * dt, pos.z)
     if (cameraPos) {
       const toCam = Vector3.subtract(cameraPos, mutableTransform.position)
-      if (Vector3.length(toCam) > 0.001) {
+      toCam.y = 0
+      const lenXZ = Math.sqrt(toCam.x * toCam.x + toCam.z * toCam.z)
+      if (lenXZ > 0.001) {
         const faceCam = Quaternion.lookRotation(Vector3.normalize(toCam))
         mutableTransform.rotation = Quaternion.multiply(REWARD_TEXT_FACING_FIX, faceCam)
       }
@@ -478,7 +485,6 @@ export function rewardTextSystem(dt: number) {
     const textShape = TextShape.getMutable(entity)
     textShape.textColor = Color4.create(REWARD_TEXT_BASE_COLOR.r, REWARD_TEXT_BASE_COLOR.g, REWARD_TEXT_BASE_COLOR.b, alpha)
   }
-  for (const e of toRemove) engine.removeEntity(e)
 }
 
 function distanceXZ(a: Vector3, b: Vector3): number {

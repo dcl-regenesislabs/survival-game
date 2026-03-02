@@ -204,11 +204,9 @@ function zombieBulletTriggerSetupSystem() {
       if (bulletEntity == null || !ProjectileComponent.has(bulletEntity)) return
       const zombieEntity = Transform.has(areaEntity) ? (Transform.get(areaEntity).parent as Entity) : null
       if (zombieEntity == null || !ZombieComponent.has(zombieEntity)) return
+      const rewardAnchor = Vector3.clone(Transform.get(zombieEntity).position)
       if (damageZombie(zombieEntity, 1)) {
         addZombieCoins(COINS_PER_KILL)
-        const rewardAnchor = Transform.has(engine.PlayerEntity)
-          ? Transform.get(engine.PlayerEntity).position
-          : Transform.get(zombieEntity).position
         spawnZcRewardTextAtPosition(rewardAnchor, COINS_PER_KILL)
       }
       engine.removeEntity(bulletEntity)
