@@ -13,6 +13,7 @@ export enum EntityNames {
   Button3 = "Button3",
   ButtonQuick = "ButtonQuick",
   ButtonTank = "ButtonTank",
+  LobbyBase_glb = "LobbyBase.glb",
   Text = "Text",
   Text_2 = "Text_2",
   Text_3 = "Text_3",

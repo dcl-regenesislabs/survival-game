@@ -216,6 +216,27 @@
             "parent": 0
           }
         },
+        "518": {
+          "json": {
+            "position": {
+              "x": 106.75,
+              "y": 0,
+              "z": 15.75
+            },
+            "rotation": {
+              "x": 0,
+              "y": -0.7071067690849304,
+              "z": 0,
+              "w": 0.7071067690849304
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "parent": 0
+          }
+        },
         "519": {
           "json": {
             "position": {
@@ -516,6 +537,13 @@
             "invisibleMeshesCollisionMask": 3
           }
         },
+        "518": {
+          "json": {
+            "src": "assets/scene/Models/LobbyBase/LobbyBase.glb",
+            "visibleMeshesCollisionMask": 0,
+            "invisibleMeshesCollisionMask": 3
+          }
+        },
         "519": {
           "json": {
             "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
@@ -608,6 +636,11 @@
         "517": {
           "json": {
             "value": "Button3"
+          }
+        },
+        "518": {
+          "json": {
+            "value": "LobbyBase.glb"
           }
         },
         "519": {
@@ -862,9 +895,9 @@
         "serializationType": "map"
       },
       "data": {
-        "0": {
+        "518": {
           "json": {
-            "gizmo": 0
+            "gizmo": 1
           }
         }
       }
@@ -1197,12 +1230,14 @@
           "json": {
             "name": "Survival",
             "description": "Empty Scene Template",
-            "thumbnail": "",
             "categories": [],
             "author": "SDK",
-            "email": "",
             "tags": [],
             "layout": {
+              "base": {
+                "x": 0,
+                "y": 0
+              },
               "parcels": [
                 {
                   "x": 0,
@@ -1221,6 +1256,18 @@
                   "y": 3
                 },
                 {
+                  "x": 4,
+                  "y": 3
+                },
+                {
+                  "x": 5,
+                  "y": 3
+                },
+                {
+                  "x": 6,
+                  "y": 3
+                },
+                {
                   "x": 0,
                   "y": 2
                 },
@@ -1237,6 +1284,18 @@
                   "y": 2
                 },
                 {
+                  "x": 4,
+                  "y": 2
+                },
+                {
+                  "x": 5,
+                  "y": 2
+                },
+                {
+                  "x": 6,
+                  "y": 2
+                },
+                {
                   "x": 0,
                   "y": 1
                 },
@@ -1253,6 +1312,18 @@
                   "y": 1
                 },
                 {
+                  "x": 4,
+                  "y": 1
+                },
+                {
+                  "x": 5,
+                  "y": 1
+                },
+                {
+                  "x": 6,
+                  "y": 1
+                },
+                {
                   "x": 0,
                   "y": 0
                 },
@@ -1267,15 +1338,49 @@
                 {
                   "x": 3,
                   "y": 0
+                },
+                {
+                  "x": 4,
+                  "y": 0
+                },
+                {
+                  "x": 5,
+                  "y": 0
+                },
+                {
+                  "x": 6,
+                  "y": 0
+                },
+                {
+                  "x": 0,
+                  "y": -1
+                },
+                {
+                  "x": 1,
+                  "y": -1
+                },
+                {
+                  "x": 2,
+                  "y": -1
+                },
+                {
+                  "x": 3,
+                  "y": -1
+                },
+                {
+                  "x": 4,
+                  "y": -1
+                },
+                {
+                  "x": 5,
+                  "y": -1
+                },
+                {
+                  "x": 6,
+                  "y": -1
                 }
-              ],
-              "base": {
-                "x": 0,
-                "y": 0
-              }
+              ]
             },
-            "silenceVoiceChat": false,
-            "disablePortableExperiences": false,
             "spawnPoints": [
               {
                 "name": "spawn1",
@@ -1310,8 +1415,7 @@
                 }
               }
             ],
-            "skyboxConfig": {},
-            "creator": ""
+            "skyboxConfig": {}
           }
         }
       }
@@ -1374,7 +1478,8 @@
                   526,
                   528,
                   538,
-                  539
+                  539,
+                  518
                 ]
               },
               {
@@ -1453,6 +1558,10 @@
               },
               {
                 "entity": 539,
+                "children": []
+              },
+              {
+                "entity": 518,
                 "children": []
               }
             ]
@@ -1905,6 +2014,9 @@
           "json": {}
         },
         "517": {
+          "json": {}
+        },
+        "518": {
           "json": {}
         },
         "519": {
