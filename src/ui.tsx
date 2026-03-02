@@ -30,8 +30,8 @@ import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 import { getServerTime } from './shared/timeSync'
 
 const ENABLE_LEGACY_LOBBY_ROUND_UI = false
-const PLAYER_HP_FRAME_WIDTH = 774
-const PLAYER_HP_FRAME_HEIGHT = 114
+const PLAYER_HP_FRAME_WIDTH = 581
+const PLAYER_HP_FRAME_HEIGHT = 86
 const PLAYER_HP_FRAME_UVS = [0.033237, 0.709231, 0.033237, 0.929231, 0.732659, 0.929231, 0.732659, 0.709231]
 const PLAYER_HP_FILL_SOURCE_W = 770
 const PLAYER_HP_FILL_SOURCE_H = 76
@@ -42,6 +42,7 @@ const WAVE_ZOMBIES_PANEL_WIDTH = 992
 const WAVE_ZOMBIES_PANEL_HEIGHT = 152
 const WAVE_ZOMBIES_PANEL_UVS = [0.032514, 0.358462, 0.032514, 0.650769, 0.928468, 0.650769, 0.928468, 0.358462]
 const WEAPONS_SHEET_SRC = 'assets/images/WEAPONS.png'
+const WEAPONS_LOCK_SHEET_SRC = 'assets/images/WEAPONS_LOCK.png'
 const GUN_BUTTON_WIDTH = 180
 const GUN_BUTTON_HEIGHT = 139
 const GUN_BUTTON_UVS = [0.010417, 0.416016, 0.010417, 0.6875, 0.244141, 0.6875, 0.244141, 0.416016]
@@ -256,7 +257,7 @@ export const uiMenu = () => {
       {showZcCounter && (
         <UiEntity
           uiTransform={{
-            position: { left: 64, top: 176 },
+            position: { left: 64, top: 206 },
             positionType: 'absolute',
             flexDirection: 'row',
             alignItems: 'flex-start',
@@ -322,7 +323,8 @@ export const uiMenu = () => {
           <UiEntity
             uiTransform={{
               width: WAVE_ZOMBIES_PANEL_WIDTH,
-              height: WAVE_ZOMBIES_PANEL_HEIGHT
+              height: WAVE_ZOMBIES_PANEL_HEIGHT,
+              positionType: 'relative'
             }}
             uiBackground={{
               textureMode: 'stretch',
@@ -332,40 +334,55 @@ export const uiMenu = () => {
           >
             <UiEntity
               uiTransform={{
-                width: '100%',
-                height: '100%',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: { left: 88, right: 30 }
+                width: 150,
+                height: 40,
+                positionType: 'absolute',
+                position: { left: 52, top: 54 },
+                alignItems: 'flex-start',
+                justifyContent: 'center'
               }}
-            >
-              <UiEntity
-                uiTransform={{ width: 176, height: 70, margin: { left: 80 } }}
-                uiText={{
-                  value: `${state.currentWave}`,
-                  fontSize: 58,
-                  color: Color4.create(0.7, 1, 0.45, 1),
-                  textAlign: 'middle-center'
-                }}
-              />
-              <UiEntity
-                uiTransform={{ width: 176, height: 70, margin: { left: 26 } }}
-                uiText={{
-                  value: `${syncedZombiesLeft}`,
-                  fontSize: 58,
-                  color: Color4.create(1, 0.85, 0.35, 1),
-                  textAlign: 'middle-center'
-                }}
-              />
-            </UiEntity>
+              uiText={{
+                value: `${phaseRemainingSeconds}s`,
+                fontSize: 36,
+                color: Color4.create(1, 0.9, 0.5, 1),
+                textAlign: 'middle-left'
+              }}
+            />
+            <UiEntity
+              uiTransform={{
+                width: 176,
+                height: 70,
+                positionType: 'absolute',
+                position: { left: 158, top: 28 }
+              }}
+              uiText={{
+                value: `${matchRuntime?.waveNumber ?? state.currentWave}`,
+                fontSize: 58,
+                color: Color4.create(0.7, 1, 0.45, 1),
+                textAlign: 'middle-center'
+              }}
+            />
+            <UiEntity
+              uiTransform={{
+                width: 176,
+                height: 70,
+                positionType: 'absolute',
+                position: { right: 24, top: 40 }
+              }}
+              uiText={{
+                value: `${syncedZombiesLeft}`,
+                fontSize: 58,
+                color: Color4.create(1, 0.85, 0.35, 1),
+                textAlign: 'middle-center'
+              }}
+            />
           </UiEntity>
         </UiEntity>
       )}
       {showZcCounter && (
         <UiEntity
           uiTransform={{
-            position: { top: 176, right: 24 },
+            position: { top: 206, right: 24 },
             positionType: 'absolute',
             flexDirection: 'row',
             alignItems: 'flex-start',
@@ -390,7 +407,7 @@ export const uiMenu = () => {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: { left: 18, right: 10 }
+                margin: {left: 30}
               }}
               uiText={{
                 value: `${getZombieCoins()}`,
@@ -454,7 +471,7 @@ export const uiMenu = () => {
               uiText={{
                 value: canStartZombies
                   ? matchRuntime?.isRunning
-                    ? wavePhaseLabel
+                    ? 'Zombies Running'
                     : 'Start Zombies'
                   : 'Create Match first',
                 fontSize: 32,
@@ -607,6 +624,15 @@ export const uiMenu = () => {
                   (weapon === 'shotgun' && (isShotgunUnlocked() || canAffordShotgun())) ||
                   (weapon === 'minigun' && (isMinigunUnlocked() || canAffordMinigun())) ||
                   (weapon === 'brick' && getZombieCoins() >= BRICK_COST_ZC)
+                const isLockedVisual =
+                  weapon === 'gun'
+                    ? false
+                    : weapon === 'shotgun'
+                      ? !isShotgunUnlocked()
+                      : weapon === 'minigun'
+                        ? !isMinigunUnlocked()
+                        : getZombieCoins() < BRICK_COST_ZC
+                const spriteSheetSrc = isLockedVisual ? WEAPONS_LOCK_SHEET_SRC : WEAPONS_SHEET_SRC
                 return (
                   <UiEntity
                     key={weapon}
@@ -638,25 +664,25 @@ export const uiMenu = () => {
                       weapon === 'gun'
                         ? {
                             textureMode: 'stretch',
-                            texture: { src: WEAPONS_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                            texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
                             uvs: GUN_BUTTON_UVS
                           }
                         : weapon === 'shotgun'
                           ? {
                               textureMode: 'stretch',
-                              texture: { src: WEAPONS_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                              texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
                               uvs: SHOTGUN_BUTTON_UVS
                             }
                         : weapon === 'minigun'
                           ? {
                               textureMode: 'stretch',
-                              texture: { src: WEAPONS_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                              texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
                               uvs: MINIGUN_BUTTON_UVS
                             }
                         : weapon === 'brick'
                           ? {
                               textureMode: 'stretch',
-                              texture: { src: WEAPONS_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                              texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
                               uvs: BRICK_BUTTON_UVS
                             }
                         : { color: Color4.create(0.2, 0.75, 0.35, 1) }
