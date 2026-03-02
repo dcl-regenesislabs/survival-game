@@ -20,7 +20,7 @@ import { initShotGunSystems } from './shotGun'
 import { initMiniGunSystems } from './miniGun'
 import { resetToIdle } from './waveManager'
 import { initBrickSystem } from './brick'
-import { initHealthBarSystem, createHealthBarForPlayer } from './healthBar'
+import { initHealthBarSystem } from './healthBar'
 import {
   isPlayerDead,
   getDeathTime,
@@ -152,9 +152,8 @@ export function main() {
   initRageAura()
   // Deferred brick placement (spawn from game loop, not from UI callback)
   initBrickSystem()
-  // Health bar billboards above zombies and player
+  // Health bar billboards above zombies
   initHealthBarSystem()
-  createHealthBarForPlayer()
   // Add zombie behavior system
   engine.addSystem(zombieSystem)
   // Potion pickup and visual (tilt + spin)
