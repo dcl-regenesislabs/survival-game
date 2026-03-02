@@ -13,7 +13,7 @@ import {
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
-import { ZombieComponent, damageZombie } from './zombie'
+import { ZombieComponent, damageZombie, spawnZcRewardTextAtPosition } from './zombie'
 import { addZombieCoins, COINS_PER_KILL } from './zombieCoins'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
@@ -206,6 +206,10 @@ function zombieBulletTriggerSetupSystem() {
       if (zombieEntity == null || !ZombieComponent.has(zombieEntity)) return
       if (damageZombie(zombieEntity, 1)) {
         addZombieCoins(COINS_PER_KILL)
+        const rewardAnchor = Transform.has(engine.PlayerEntity)
+          ? Transform.get(engine.PlayerEntity).position
+          : Transform.get(zombieEntity).position
+        spawnZcRewardTextAtPosition(rewardAnchor, COINS_PER_KILL)
       }
       engine.removeEntity(bulletEntity)
     })
