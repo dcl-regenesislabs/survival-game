@@ -5,8 +5,9 @@ import { createMiniGun, destroyMiniGun } from './miniGun'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
 
-const SHOTGUN_COST = 50
-const MINIGUN_COST = 150
+// Rebalanced unlock costs for a longer in-run progression curve.
+const SHOTGUN_COST = 100
+const MINIGUN_COST = 300
 
 let currentWeapon: WeaponType = 'gun'
 let shotgunUnlocked = false

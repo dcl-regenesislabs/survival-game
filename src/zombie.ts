@@ -3,6 +3,7 @@ import {
   Entity,
   Transform,
   AudioSource,
+  TextShape,
   GltfContainer,
   Animator,
   MeshRenderer,
@@ -57,6 +58,10 @@ const BloodParticleSchema = {
   endTime: Schemas.Number
 }
 const BloodParticleComponent = engine.defineComponent('BloodParticleComponent', BloodParticleSchema)
+const RewardTextComponent = engine.defineComponent('RewardTextComponent', {
+  endTime: Schemas.Number,
+  riseSpeed: Schemas.Number
+})
 
 let _gameTime = 0
 export function getGameTime(): number {
@@ -74,6 +79,25 @@ const ZOMBIE_UP_DURATION = 1.2 // Approximate ZombieUP animation length in secon
 // When a zombie is within this range of a brick, it targets the brick instead of the player
 const BRICK_AGRO_RANGE = 2.5
 const ZOMBIE_DEATH_SOUND_URL = 'assets/sounds/alex_jauk-zombie-screaming-207590.mp3'
+const REWARD_TEXT_DURATION = 0.9
+const REWARD_TEXT_RISE_SPEED = 1.15
+const REWARD_TEXT_BASE_COLOR = Color4.create(0.0, 1.0, 0.92, 1)
+const REWARD_TEXT_Y_OFFSET = 2.7
+const REWARD_TEXT_SCALE = 0.9
+const REWARD_TEXT_FACING_FIX = Quaternion.fromEulerDegrees(0, 180, 0)
+const REWARD_TEXT_SPAWN_INTERVAL = 0.08
+const REWARD_TEXT_LANE_X_STEP = 0.32
+const REWARD_TEXT_LANE_Z_STEP = 0.08
+const REWARD_TEXT_MAX_LANES = 3
+
+type RewardTextSpawnRequest = {
+  center: Vector3
+  amount: number
+}
+
+const rewardTextSpawnQueue: RewardTextSpawnRequest[] = []
+let rewardTextSpawnCooldown = 0
+let rewardTextLaneCursor = 0
 
 type SpawnZombieOptions = {
   position?: Vector3
@@ -288,6 +312,44 @@ export function spawnBloodAtPosition(center: Vector3): void {
   spawnBloodBurst(center, HIT_BURST_COUNT, HIT_BURST_SPEED, BLOOD_BURST_DURATION, HIT_BURST_SCALE)
 }
 
+export function spawnZcRewardTextAtPosition(center: Vector3, amount: number): void {
+  rewardTextSpawnQueue.push({
+    center: Vector3.create(center.x, center.y, center.z),
+    amount
+  })
+}
+
+function spawnZcRewardTextNow(center: Vector3, amount: number): void {
+  const lane = rewardTextLaneCursor
+  rewardTextLaneCursor = (rewardTextLaneCursor + 1) % REWARD_TEXT_MAX_LANES
+  const laneOffset = lane - (REWARD_TEXT_MAX_LANES - 1) / 2
+  const xJitter = (Math.random() - 0.5) * 0.45
+  const zJitter = (Math.random() - 0.5) * 0.35
+  const entity = engine.addEntity()
+  Transform.create(entity, {
+    position: Vector3.create(
+      center.x + xJitter + laneOffset * REWARD_TEXT_LANE_X_STEP,
+      center.y + REWARD_TEXT_Y_OFFSET,
+      center.z + zJitter + laneOffset * REWARD_TEXT_LANE_Z_STEP
+    ),
+    rotation: Quaternion.Identity(),
+    scale: Vector3.create(REWARD_TEXT_SCALE, REWARD_TEXT_SCALE, REWARD_TEXT_SCALE)
+  })
+  TextShape.create(entity, {
+    text: `+${Math.max(0, Math.floor(amount))}`,
+    fontSize: 7.4,
+    width: 6.5,
+    height: 2,
+    textColor: REWARD_TEXT_BASE_COLOR,
+    outlineWidth: 0.32,
+    outlineColor: Color3.create(0, 0, 0)
+  })
+  RewardTextComponent.create(entity, {
+    endTime: _gameTime + REWARD_TEXT_DURATION,
+    riseSpeed: REWARD_TEXT_RISE_SPEED
+  })
+}
+
 function spawnBloodBurst(
   center: Vector3,
   count: number,
@@ -379,6 +441,42 @@ export function bloodParticleSystem(dt: number) {
       pos.y + vel.y * dt,
       pos.z + vel.z * dt
     )
+  }
+  for (const e of toRemove) engine.removeEntity(e)
+}
+
+export function rewardTextSystem(dt: number) {
+  rewardTextSpawnCooldown -= dt
+  while (rewardTextSpawnQueue.length > 0 && rewardTextSpawnCooldown <= 0) {
+    const next = rewardTextSpawnQueue.shift()
+    if (!next) break
+    spawnZcRewardTextNow(next.center, next.amount)
+    rewardTextSpawnCooldown += REWARD_TEXT_SPAWN_INTERVAL
+  }
+
+  const toRemove: Entity[] = []
+  const cameraPos = Transform.has(engine.CameraEntity) ? Transform.get(engine.CameraEntity).position : null
+  for (const [entity, reward, transform] of engine.getEntitiesWith(RewardTextComponent, Transform, TextShape)) {
+    if (_gameTime >= reward.endTime) {
+      toRemove.push(entity)
+      continue
+    }
+
+    const mutableTransform = Transform.getMutable(entity)
+    const pos = transform.position
+    mutableTransform.position = Vector3.create(pos.x, pos.y + reward.riseSpeed * dt, pos.z)
+    if (cameraPos) {
+      const toCam = Vector3.subtract(cameraPos, mutableTransform.position)
+      if (Vector3.length(toCam) > 0.001) {
+        const faceCam = Quaternion.lookRotation(Vector3.normalize(toCam))
+        mutableTransform.rotation = Quaternion.multiply(REWARD_TEXT_FACING_FIX, faceCam)
+      }
+    }
+
+    const remaining = reward.endTime - _gameTime
+    const alpha = Math.max(0, Math.min(1, remaining / REWARD_TEXT_DURATION))
+    const textShape = TextShape.getMutable(entity)
+    textShape.textColor = Color4.create(REWARD_TEXT_BASE_COLOR.r, REWARD_TEXT_BASE_COLOR.g, REWARD_TEXT_BASE_COLOR.b, alpha)
   }
   for (const e of toRemove) engine.removeEntity(e)
 }

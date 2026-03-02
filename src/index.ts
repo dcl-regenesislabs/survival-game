@@ -20,6 +20,7 @@ import {
   spawnTankZombie,
   zombieSystem,
   bloodParticleSystem,
+  rewardTextSystem,
   setPlayerDamageReporter
 } from './zombie'
 import { createGun, initGunSystems } from './gun'
@@ -142,6 +143,8 @@ export function main() {
 
   // Blood burst particles (must run every frame to advance _gameTime)
   engine.addSystem(bloodParticleSystem)
+  // Floating +ZC text on zombie kills
+  engine.addSystem(rewardTextSystem)
   // Rage potion duration decay
   engine.addSystem(() => rageEffectSystem(getGameTime()))
   // Red aura around player when enraged
