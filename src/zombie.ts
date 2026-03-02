@@ -3,6 +3,7 @@ import {
   Entity,
   Transform,
   AudioSource,
+  TextShape,
   GltfContainer,
   Animator,
   MeshRenderer,
@@ -10,7 +11,6 @@ import {
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
-import { damagePlayer, setDeathTime } from './playerHealth'
 import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
 import { createHealthBarForZombie } from './healthBar'
 import { tryDropPotions } from './potions'
@@ -58,6 +58,11 @@ const BloodParticleSchema = {
   endTime: Schemas.Number
 }
 const BloodParticleComponent = engine.defineComponent('BloodParticleComponent', BloodParticleSchema)
+const RewardTextComponent = engine.defineComponent('RewardTextComponent', {
+  active: Schemas.Boolean,
+  endTime: Schemas.Number,
+  riseSpeed: Schemas.Number
+})
 
 let _gameTime = 0
 export function getGameTime(): number {
@@ -75,6 +80,17 @@ const ZOMBIE_UP_DURATION = 1.2 // Approximate ZombieUP animation length in secon
 // When a zombie is within this range of a brick, it targets the brick instead of the player
 const BRICK_AGRO_RANGE = 2.5
 const ZOMBIE_DEATH_SOUND_URL = 'assets/sounds/alex_jauk-zombie-screaming-207590.mp3'
+const REWARD_TEXT_DURATION = 0.9
+const REWARD_TEXT_RISE_SPEED = 1.15
+const REWARD_TEXT_BASE_COLOR = Color4.create(0.0, 1.0, 0.92, 1)
+const REWARD_TEXT_Y_OFFSET = 2.7
+const REWARD_TEXT_SCALE = 0.9
+const REWARD_TEXT_FACING_FIX = Quaternion.fromEulerDegrees(0, 180, 0)
+const REWARD_TEXT_POOL_SIZE = 24
+
+const rewardTextPool: Entity[] = []
+let rewardTextPoolInitialized = false
+let nextRewardTextPoolIndex = 0
 
 type SpawnZombieOptions = {
   position?: Vector3
@@ -83,8 +99,12 @@ type SpawnZombieOptions = {
 
 let reportServerZombieDeath: ((zombieId: string) => void) | null = null
 let zombieDeathSoundEntity: Entity | null = null
+let reportPlayerDamageToServer: ((amount: number) => void) | null = null
 export function setZombieDeathReporter(reporter: ((zombieId: string) => void) | null): void {
   reportServerZombieDeath = reporter
+}
+export function setPlayerDamageReporter(reporter: ((amount: number) => void) | null): void {
+  reportPlayerDamageToServer = reporter
 }
 
 function playZombieDeathSound(): void {
@@ -285,6 +305,57 @@ export function spawnBloodAtPosition(center: Vector3): void {
   spawnBloodBurst(center, HIT_BURST_COUNT, HIT_BURST_SPEED, BLOOD_BURST_DURATION, HIT_BURST_SCALE)
 }
 
+export function spawnZcRewardTextAtPosition(center: Vector3, amount: number): void {
+  ensureRewardTextPool()
+  const xJitter = (Math.random() - 0.5) * 0.45
+  const zJitter = (Math.random() - 0.5) * 0.35
+  const entity = rewardTextPool[nextRewardTextPoolIndex]
+  nextRewardTextPoolIndex = (nextRewardTextPoolIndex + 1) % rewardTextPool.length
+
+  const transform = Transform.getMutable(entity)
+  transform.position = Vector3.create(center.x + xJitter, center.y + REWARD_TEXT_Y_OFFSET, center.z + zJitter)
+  transform.rotation = Quaternion.Identity()
+  transform.scale = Vector3.create(REWARD_TEXT_SCALE, REWARD_TEXT_SCALE, REWARD_TEXT_SCALE)
+
+  const textShape = TextShape.getMutable(entity)
+  textShape.text = `+${Math.max(0, Math.floor(amount))}`
+  textShape.textColor = REWARD_TEXT_BASE_COLOR
+
+  const reward = RewardTextComponent.getMutable(entity)
+  reward.active = true
+  reward.endTime = _gameTime + REWARD_TEXT_DURATION
+  reward.riseSpeed = REWARD_TEXT_RISE_SPEED
+}
+
+function ensureRewardTextPool(): void {
+  if (rewardTextPoolInitialized) return
+  rewardTextPoolInitialized = true
+
+  for (let i = 0; i < REWARD_TEXT_POOL_SIZE; i++) {
+    const entity = engine.addEntity()
+    Transform.create(entity, {
+      position: Vector3.create(0, -1000, 0),
+      rotation: Quaternion.Identity(),
+      scale: Vector3.Zero()
+    })
+    TextShape.create(entity, {
+      text: '',
+      fontSize: 7.4,
+      width: 6.5,
+      height: 2,
+      textColor: Color4.create(REWARD_TEXT_BASE_COLOR.r, REWARD_TEXT_BASE_COLOR.g, REWARD_TEXT_BASE_COLOR.b, 0),
+      outlineWidth: 0.32,
+      outlineColor: Color3.create(0, 0, 0)
+    })
+    RewardTextComponent.create(entity, {
+      active: false,
+      endTime: 0,
+      riseSpeed: REWARD_TEXT_RISE_SPEED
+    })
+    rewardTextPool.push(entity)
+  }
+}
+
 function spawnBloodBurst(
   center: Vector3,
   count: number,
@@ -380,6 +451,42 @@ export function bloodParticleSystem(dt: number) {
   for (const e of toRemove) engine.removeEntity(e)
 }
 
+export function rewardTextSystem(dt: number) {
+  const cameraPos = Transform.has(engine.CameraEntity) ? Transform.get(engine.CameraEntity).position : null
+  for (const [entity, reward, transform] of engine.getEntitiesWith(RewardTextComponent, Transform, TextShape)) {
+    if (!reward.active) continue
+
+    if (_gameTime >= reward.endTime) {
+      const mutableReward = RewardTextComponent.getMutable(entity)
+      mutableReward.active = false
+      const mutableTransform = Transform.getMutable(entity)
+      mutableTransform.position = Vector3.create(0, -1000, 0)
+      mutableTransform.scale = Vector3.Zero()
+      const textShape = TextShape.getMutable(entity)
+      textShape.textColor = Color4.create(REWARD_TEXT_BASE_COLOR.r, REWARD_TEXT_BASE_COLOR.g, REWARD_TEXT_BASE_COLOR.b, 0)
+      continue
+    }
+
+    const mutableTransform = Transform.getMutable(entity)
+    const pos = transform.position
+    mutableTransform.position = Vector3.create(pos.x, pos.y + reward.riseSpeed * dt, pos.z)
+    if (cameraPos) {
+      const toCam = Vector3.subtract(cameraPos, mutableTransform.position)
+      toCam.y = 0
+      const lenXZ = Math.sqrt(toCam.x * toCam.x + toCam.z * toCam.z)
+      if (lenXZ > 0.001) {
+        const faceCam = Quaternion.lookRotation(Vector3.normalize(toCam))
+        mutableTransform.rotation = Quaternion.multiply(REWARD_TEXT_FACING_FIX, faceCam)
+      }
+    }
+
+    const remaining = reward.endTime - _gameTime
+    const alpha = Math.max(0, Math.min(1, remaining / REWARD_TEXT_DURATION))
+    const textShape = TextShape.getMutable(entity)
+    textShape.textColor = Color4.create(REWARD_TEXT_BASE_COLOR.r, REWARD_TEXT_BASE_COLOR.g, REWARD_TEXT_BASE_COLOR.b, alpha)
+  }
+}
+
 function distanceXZ(a: Vector3, b: Vector3): number {
   const dx = a.x - b.x
   const dz = a.z - b.z
@@ -447,9 +554,7 @@ export function zombieSystem(dt: number) {
         } else {
           const burstCenter = Vector3.create(playerPos.x, playerPos.y + 0.9, playerPos.z)
           spawnBloodAtPosition(burstCenter)
-          if (damagePlayer(1)) {
-            setDeathTime(_gameTime)
-          }
+          reportPlayerDamageToServer?.(1)
         }
       }
       continue

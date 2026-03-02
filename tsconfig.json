@@ -3,6 +3,7 @@
     "allowJs": true,
     "strict": true,
     "typeRoots": [
+      "node_modules",
       "node_modules/@dcl/sdk/node_modules",
       "node_modules/@types"
     ],

@@ -14,16 +14,22 @@ import {
 import { isServer } from '@dcl/sdk/network'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { setupUi } from './ui'
-import { spawnZombie, spawnQuickZombie, spawnTankZombie, zombieSystem, bloodParticleSystem } from './zombie'
+import {
+  spawnZombie,
+  spawnQuickZombie,
+  spawnTankZombie,
+  zombieSystem,
+  bloodParticleSystem,
+  rewardTextSystem,
+  setPlayerDamageReporter
+} from './zombie'
 import { createGun, initGunSystems } from './gun'
 import { initShotGunSystems } from './shotGun'
 import { initMiniGunSystems } from './miniGun'
-import { resetToIdle } from './waveManager'
 import { initBrickSystem } from './brick'
 import { initHealthBarSystem } from './healthBar'
 import {
   isPlayerDead,
-  getDeathTime,
   getRespawnDelay,
   respawnPlayer
 } from './playerHealth'
@@ -33,9 +39,10 @@ import { initRageAura } from './rageAura'
 import { potionPickupSystem, potionVisualSystem } from './potions'
 import { EntityNames } from '../assets/scene/entity-names'
 import { setupLobbyServer } from './server/lobbyServer'
-import { getMatchRuntimeState, setupLobbyClient } from './multiplayer/lobbyClient'
+import { getMatchRuntimeState, sendPlayerDamageRequest, setupLobbyClient } from './multiplayer/lobbyClient'
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
+import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 
@@ -93,15 +100,6 @@ function cinematicCameraFollowSystem(dt: number) {
   camTransform.position = Vector3.lerp(currentPos, cinematicSmoothedTarget, cameraFactor)
 }
 
-function deathRespawnSystem(_dt: number) {
-  if (!isPlayerDead()) return
-  const now = getGameTime()
-  if (now - getDeathTime() >= getRespawnDelay()) {
-    respawnPlayer()
-    resetToIdle()
-  }
-}
-
 function setSkyboxFixedTime(seconds: number): void {
   if (appliedSkyboxTime === seconds) return
   appliedSkyboxTime = seconds
@@ -135,7 +133,12 @@ export function main() {
 
   initTimeSync({ isServer: false })
   setupLobbyClient()
+  setPlayerDamageReporter((amount) => {
+    if (isPlayerDead()) return
+    sendPlayerDamageRequest(amount)
+  })
   initLobbyWorldPanel()
+  initLoadoutWorldPanel()
   setupUi()
   engine.addSystem(waveSkyboxSystem, undefined, 'wave-skybox-system')
 
@@ -146,6 +149,8 @@ export function main() {
 
   // Blood burst particles (must run every frame to advance _gameTime)
   engine.addSystem(bloodParticleSystem)
+  // Floating +ZC text on zombie kills
+  engine.addSystem(rewardTextSystem)
   // Rage potion duration decay
   engine.addSystem(() => rageEffectSystem(getGameTime()))
   // Red aura around player when enraged
@@ -159,8 +164,6 @@ export function main() {
   // Potion pickup and visual (tilt + spin)
   engine.addSystem(potionPickupSystem)
   engine.addSystem(potionVisualSystem)
-  // Death respawn: after delay, respawn player and reset game
-  engine.addSystem(deathRespawnSystem)
   // Authoritative match waves (30s active / 10s rest)
   initMatchWaveClientSystem()
 

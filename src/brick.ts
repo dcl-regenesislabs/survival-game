@@ -9,6 +9,7 @@ import {
   ColliderLayer,
   Schemas
 } from '@dcl/sdk/ecs'
+import { syncEntity } from '@dcl/sdk/network'
 import { Vector3, Quaternion, Color3, Color4 } from '@dcl/sdk/math'
 import { spendZombieCoins } from './zombieCoins'
 
@@ -36,6 +37,15 @@ const BRICK_BOX_MATERIAL = {
   roughness: 0.85
 }
 
+const BRICK_SYNC_COMPONENT_IDS = [
+  Transform.componentId,
+  GltfContainer.componentId,
+  MeshRenderer.componentId,
+  Material.componentId,
+  MeshCollider.componentId,
+  BrickComponent.componentId
+]
+
 /** Spawn a brick at world position (y=0). Tries brick_red.glb, falls back to red box. */
 export function spawnBrickAt(position: Vector3): Entity | null {
   const entity = engine.addEntity()
@@ -57,6 +67,7 @@ export function spawnBrickAt(position: Vector3): Entity | null {
   }
   MeshCollider.setBox(entity, ColliderLayer.CL_PHYSICS)
   BrickComponent.create(entity, { health: BRICK_HP, position: pos })
+  syncEntity(entity, BRICK_SYNC_COMPONENT_IDS)
   return entity
 }
 

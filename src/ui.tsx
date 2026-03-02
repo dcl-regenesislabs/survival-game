@@ -1,5 +1,6 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
+import { movePlayerTo } from '~system/RestrictedActions'
 import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
 import { getPlayerHp, isPlayerDead, MAX_HP } from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
@@ -17,6 +18,7 @@ import {
   getLobbyState,
   getMatchRuntimeState,
   getLatestLobbyEvent,
+  shouldShowGameOverOverlay,
   getLocalAddress,
   isLocalReadyForMatch,
   sendCreateMatch,
@@ -55,6 +57,8 @@ const MINIGUN_BUTTON_UVS = [0.748698, 0.416992, 0.748698, 0.6875, 0.992188, 0.68
 const BRICK_BUTTON_WIDTH = 180
 const BRICK_BUTTON_HEIGHT = 137
 const BRICK_BUTTON_UVS = [0.503906, 0.418945, 0.503906, 0.686523, 0.73763, 0.686523, 0.73763, 0.418945]
+const LOADOUT_TELEPORT_POSITION = { x: 81.4, y: 3, z: 21.5 }
+const LOADOUT_LOOK_TARGET = { x: 76, y: 3, z: 21.5 }
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
@@ -83,6 +87,7 @@ export const uiMenu = () => {
       ? `Wave ${matchRuntime.waveNumber} • ACTIVE (${phaseRemainingSeconds}s)`
       : `Wave ${matchRuntime?.waveNumber ?? 0} • REST (${phaseRemainingSeconds}s)`
   const latestLobbyEvent = getLatestLobbyEvent()
+  const showGameOverOverlay = shouldShowGameOverOverlay()
   const countdownLabel = getWaveCountdownLabel()
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
@@ -525,6 +530,49 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
+      {showGameOverOverlay && (
+        <UiEntity
+          uiTransform={{
+            width: '100%',
+            height: '100%',
+            positionType: 'absolute',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: 640,
+              minHeight: 160,
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: { top: 28, bottom: 28, left: 28, right: 28 }
+            }}
+            uiBackground={{ color: Color4.create(0.08, 0.02, 0.02, 0.95) }}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', height: 78 }}
+              uiText={{
+                value: 'GAME OVER',
+                fontSize: 58,
+                color: Color4.create(1, 0.2, 0.2, 1),
+                textAlign: 'middle-center'
+              }}
+            />
+            <UiEntity
+              uiTransform={{ width: '100%', height: 34, margin: { top: 8 } }}
+              uiText={{
+                value: 'Returning to lobby...',
+                fontSize: 22,
+                color: Color4.create(0.95, 0.9, 0.9, 1),
+                textAlign: 'middle-center'
+              }}
+            />
+          </UiEntity>
+        </UiEntity>
+      )}
       {showCenteredOverlay && !playerDead && (
         <UiEntity
           uiTransform={{
@@ -698,7 +746,7 @@ export const uiMenu = () => {
                   />
                 )
               })
-            : (['Load', 'Upgrade'] as const).map((label) => (
+            : (['Loadout', 'Upgrade'] as const).map((label) => (
                 <UiEntity
                   key={label}
                   uiTransform={{
@@ -707,6 +755,13 @@ export const uiMenu = () => {
                     margin: { left: 19, right: 19 }
                   }}
                   uiBackground={{ color: Color4.create(0.2, 0.75, 0.35, 1) }}
+                  onMouseDown={() => {
+                    if (label !== 'Loadout') return
+                    movePlayerTo({
+                      newRelativePosition: LOADOUT_TELEPORT_POSITION,
+                      cameraTarget: LOADOUT_LOOK_TARGET
+                    })
+                  }}
                 >
                   <UiEntity
                     uiTransform={{

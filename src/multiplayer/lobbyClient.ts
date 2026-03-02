@@ -3,8 +3,14 @@ import { room } from '../shared/messages'
 import { LobbyStateComponent, LobbyStateSnapshot } from '../shared/lobbySchemas'
 import { MatchRuntimeSnapshot, MatchRuntimeStateComponent } from '../shared/matchRuntimeSchemas'
 import { movePlayerTo } from '~system/RestrictedActions'
+import { applyAuthoritativeHealthState } from '../playerHealth'
+import { applyPlayerLoadoutSnapshot } from '../loadoutState'
+import { resetArenaWeaponProgress } from '../weaponManager'
+import { resetToIdle } from '../waveManager'
 
 let latestLobbyEvent = ''
+let latestLobbyEventType = ''
+let latestLobbyEventAtMs = 0
 let hasProfileLoadSent = false
 let localReadyForMatch = false
 const READY_POSITION = { x: 32, y: 0, z: 32 }
@@ -12,7 +18,26 @@ const READY_POSITION = { x: 32, y: 0, z: 32 }
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
     latestLobbyEvent = data.message
+    latestLobbyEventType = data.type
+    latestLobbyEventAtMs = Date.now()
+    if (data.type === 'team_wipe' || data.type === 'lobby') {
+      resetToIdle()
+      resetArenaWeaponProgress()
+    }
+    if (data.type === 'waves_started') {
+      resetArenaWeaponProgress()
+    }
     console.log(`[Lobby] ${data.type}: ${data.message}`)
+  })
+  room.onMessage('playerHealthState', (data) => {
+    const localAddress = getLocalAddress()
+    if (!localAddress || data.address !== localAddress) return
+    applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs)
+  })
+  room.onMessage('playerLoadoutState', (data) => {
+    const localAddress = getLocalAddress()
+    if (!localAddress || data.address !== localAddress) return
+    applyPlayerLoadoutSnapshot(data)
   })
 
   engine.addSystem(autoJoinLobbySystem, undefined, 'auto-join-lobby-client-system')
@@ -30,6 +55,14 @@ export function sendLeaveLobby(): void {
   void room.send('playerLeaveLobby', {})
 }
 
+export function sendBuyLoadoutWeapon(weaponId: string): void {
+  void room.send('buyLoadoutWeapon', { weaponId })
+}
+
+export function sendEquipLoadoutWeapon(weaponId: string): void {
+  void room.send('equipLoadoutWeapon', { weaponId })
+}
+
 export function sendCreateMatch(): void {
   void room.send('createMatch', {})
 }
@@ -44,6 +77,10 @@ export function sendReturnToLobby(): void {
 
 export function sendStartZombieWaves(): void {
   void room.send('startZombieWaves', {})
+}
+
+export function sendPlayerDamageRequest(amount: number): void {
+  void room.send('playerDamageRequest', { amount })
 }
 
 export function getLocalAddress(): string {
@@ -102,6 +139,11 @@ export function getMatchRuntimeState(): MatchRuntimeSnapshot | null {
 
 export function getLatestLobbyEvent(): string {
   return latestLobbyEvent
+}
+
+export function shouldShowGameOverOverlay(windowMs: number = 3000): boolean {
+  if (latestLobbyEventType !== 'team_wipe') return false
+  return Date.now() - latestLobbyEventAtMs <= windowMs
 }
 
 export function markLocalReadyForMatch(): void {

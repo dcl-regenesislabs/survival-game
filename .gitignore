@@ -1,5 +1,6 @@
 package-lock.json
 *.js
+!scripts/deploy-env.js
 node_modules
 bin/
 .DS_Store

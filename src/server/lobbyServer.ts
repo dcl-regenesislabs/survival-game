@@ -16,6 +16,7 @@ import {
   WAVE_ACTIVE_SECONDS,
   WAVE_REST_SECONDS
 } from '../shared/matchConfig'
+import { LoadoutWeaponId, getLoadoutWeaponDefinition } from '../shared/loadoutCatalog'
 import { createPlayerProgressStore } from './storage/playerProgress'
 import { getServerTime } from '../shared/timeSync'
 
@@ -27,6 +28,15 @@ const SPAWN_MIN_X = 10
 const SPAWN_MAX_X = 54
 const SPAWN_MIN_Z = 10
 const SPAWN_MAX_Z = 54
+const PLAYER_MAX_HP = 5
+const PLAYER_RESPAWN_SECONDS = 2
+const PLAYER_DAMAGE_REQUEST_COOLDOWN_MS = 250
+const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
+  { wave: 4, gold: 1 },
+  { wave: 11, gold: 2 },
+  { wave: 21, gold: 3 },
+  { wave: 35, gold: 5 }
+]
 
 type ZombieType = 'basic' | 'quick' | 'tank'
 type WavePlanSpawn = {
@@ -37,11 +47,56 @@ type WavePlanSpawn = {
   spawnZ: number
   spawnAtMs: number
 }
+type PlayerCombatState = {
+  hp: number
+  isDead: boolean
+  respawnAtMs: number
+  lastDamageRequestAtMs: number
+}
 
 let nextZombieSequence = 0
 const zombieSpawnAtById = new Map<string, number>()
 const deadZombieIds = new Set<string>()
 const loadedProfileAddresses = new Set<string>()
+const awardedWaveGoldMilestones = new Set<number>()
+const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
+
+function getOwnedWeaponIds(address: string): LoadoutWeaponId[] {
+  const progress = playerProgressStore.get(address)
+  if (!progress) return ['gun_basic']
+
+  const ownedWeaponIds: LoadoutWeaponId[] = ['gun_basic']
+  for (const weaponId of progress.weapons.ownedByTier.tier2) {
+    if (weaponId === 'shotgun_pump' && !ownedWeaponIds.includes(weaponId)) ownedWeaponIds.push(weaponId)
+  }
+  for (const weaponId of progress.weapons.ownedByTier.tier4) {
+    if (weaponId === 'minigun_heavy' && !ownedWeaponIds.includes(weaponId)) ownedWeaponIds.push(weaponId)
+  }
+  return ownedWeaponIds
+}
+
+function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
+  const progress = playerProgressStore.get(address)
+  if (!progress) return ['gun_basic']
+
+  const equippedWeaponIds: LoadoutWeaponId[] = ['gun_basic']
+  if (progress.weapons.equippedByTier.tier2 === 'shotgun_pump') equippedWeaponIds.push('shotgun_pump')
+  if (progress.weapons.equippedByTier.tier4 === 'minigun_heavy') equippedWeaponIds.push('minigun_heavy')
+  return equippedWeaponIds
+}
+
+function sendPlayerLoadoutState(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const progress = playerProgressStore.get(normalizedAddress)
+  if (!progress) return
+
+  void room.send('playerLoadoutState', {
+    address: normalizedAddress,
+    gold: progress.profile.gold,
+    ownedWeaponIds: getOwnedWeaponIds(normalizedAddress),
+    equippedWeaponIds: getEquippedWeaponIds(normalizedAddress)
+  })
+}
 
 function getPlayerDisplayName(address: string): string {
   const normalizedAddress = address.toLowerCase()
@@ -92,6 +147,77 @@ function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>)
   deadZombieIds.clear()
   runtime.zombiesAlive = 0
   runtime.zombiesPlanned = 0
+  awardedWaveGoldMilestones.clear()
+}
+
+function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
+  const normalizedAddress = address.toLowerCase()
+  const cached = playerCombatStateByAddress.get(normalizedAddress)
+  if (cached) return cached
+  const created: PlayerCombatState = {
+    hp: PLAYER_MAX_HP,
+    isDead: false,
+    respawnAtMs: 0,
+    lastDamageRequestAtMs: 0
+  }
+  playerCombatStateByAddress.set(normalizedAddress, created)
+  return created
+}
+
+function resetPlayerCombatState(address: string): void {
+  const state = getOrCreatePlayerCombatState(address)
+  state.hp = PLAYER_MAX_HP
+  state.isDead = false
+  state.respawnAtMs = 0
+  state.lastDamageRequestAtMs = 0
+}
+
+function removePlayerCombatState(address: string): void {
+  playerCombatStateByAddress.delete(address.toLowerCase())
+}
+
+function sendPlayerHealthState(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const state = getOrCreatePlayerCombatState(normalizedAddress)
+  void room.send('playerHealthState', {
+    address: normalizedAddress,
+    hp: state.hp,
+    isDead: state.isDead,
+    respawnAtMs: state.respawnAtMs
+  })
+}
+
+function sendPlayerHealthStatesForLobbyPlayers(players: LobbyPlayer[]): void {
+  for (const player of players) {
+    sendPlayerHealthState(player.address)
+  }
+}
+
+function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
+  if (!players.length) return false
+  for (const player of players) {
+    const state = getOrCreatePlayerCombatState(player.address)
+    if (!state.isDead) return false
+  }
+  return true
+}
+
+function endMatchAndReturnToLobby(message: string): void {
+  const lobby = getLobbyStateMutable()
+  const players = [...lobby.players]
+  lobby.phase = LobbyPhase.LOBBY
+  lobby.matchId = ''
+  resetMatchRuntime()
+
+  for (const player of players) {
+    resetPlayerCombatState(player.address)
+    sendPlayerHealthState(player.address)
+  }
+
+  void room.send('lobbyEvent', {
+    type: 'team_wipe',
+    message
+  })
 }
 
 function recomputeZombiesAlive(runtime: ReturnType<typeof getMatchRuntimeMutable>, nowMs: number): void {
@@ -157,6 +283,7 @@ async function ensurePlayerProfileLoaded(address: string): Promise<void> {
   const displayName = getPlayerDisplayName(normalizedAddress)
   const progress = await playerProgressStore.load(normalizedAddress, displayName)
   loadedProfileAddresses.add(normalizedAddress)
+  sendPlayerLoadoutState(normalizedAddress)
   void room.send('lobbyEvent', {
     type: 'profile_loaded',
     message: `${displayName} profile loaded (GOLD ${progress.profile.gold})`
@@ -191,6 +318,7 @@ async function removePlayerFromLobby(address: string): Promise<void> {
 
   await playerProgressStore.saveAndEvict(normalizedAddress)
   loadedProfileAddresses.delete(normalizedAddress)
+  removePlayerCombatState(normalizedAddress)
   setPlayers(nextPlayers)
 
   if (leavingPlayer) {
@@ -298,6 +426,26 @@ function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
   void room.send('waveSpawnPlan', plan)
 }
 
+function grantWaveMilestoneGold(waveNumber: number, players: LobbyPlayer[]): void {
+  const reachedMilestones = GOLD_WAVE_MILESTONES.filter((milestone) => milestone.wave <= waveNumber)
+  for (const milestone of reachedMilestones) {
+    if (awardedWaveGoldMilestones.has(milestone.wave)) continue
+    awardedWaveGoldMilestones.add(milestone.wave)
+
+    for (const player of players) {
+      playerProgressStore.mutate(player.address, (progress) => {
+        progress.profile.gold += milestone.gold
+      })
+      sendPlayerLoadoutState(player.address)
+    }
+
+    void room.send('lobbyEvent', {
+      type: 'gold_reward',
+      message: `Wave ${milestone.wave} reached: +${milestone.gold} GOLD`
+    })
+  }
+}
+
 function startZombieWaves(address: string): void {
   const normalizedAddress = address.toLowerCase()
   const state = getLobbyState()
@@ -315,6 +463,11 @@ function startZombieWaves(address: string): void {
   runtime.startedByAddress = normalizedAddress
   clearZombieTracking(runtime)
   sendWaveSpawnPlan(runtime.waveNumber, runtime.serverNowMs)
+
+  for (const player of state.players) {
+    resetPlayerCombatState(player.address)
+  }
+  sendPlayerHealthStatesForLobbyPlayers(state.players)
 
   for (const player of state.players) {
     playerProgressStore.mutate(player.address, (progress) => {
@@ -341,13 +494,24 @@ function waveRuntimeSystem(dt: number): void {
   const now = getServerTime()
   runtime.serverNowMs = now
   recomputeZombiesAlive(runtime, now)
-  if (!runtime.isRunning) return
 
+  for (const player of lobbyState.players) {
+    const combat = getOrCreatePlayerCombatState(player.address)
+    if (!combat.isDead) continue
+    if (combat.respawnAtMs <= 0 || now < combat.respawnAtMs) continue
+    combat.hp = PLAYER_MAX_HP
+    combat.isDead = false
+    combat.respawnAtMs = 0
+    sendPlayerHealthState(player.address)
+  }
+
+  if (!runtime.isRunning) return
   if (now < runtime.phaseEndTimeMs) return
 
   if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
     runtime.cyclePhase = WaveCyclePhase.REST
     runtime.phaseEndTimeMs = now + runtime.restDurationSeconds * 1000
+    grantWaveMilestoneGold(runtime.waveNumber, lobbyState.players)
     for (const player of lobbyState.players) {
       playerProgressStore.mutate(player.address, (progress) => {
         progress.profile.lifetimeStats.wavesCleared += 1
@@ -389,11 +553,84 @@ export function setupLobbyServer(): void {
   room.onMessage('playerJoinLobby', async (_data, context) => {
     if (!context) return
     await ensurePlayerLoadedAndInLobby(context.from)
+    sendPlayerHealthState(context.from)
   })
 
   room.onMessage('playerLeaveLobby', async (_data, context) => {
     if (!context) return
     await removePlayerFromLobby(context.from)
+  })
+
+  room.onMessage('buyLoadoutWeapon', async (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    await ensurePlayerProfileLoaded(normalizedAddress)
+
+    const weapon = getLoadoutWeaponDefinition(data.weaponId)
+    if (!weapon || weapon.id === 'gun_basic') return
+
+    const progress = playerProgressStore.get(normalizedAddress)
+    if (!progress) return
+
+    const alreadyOwned = progress.weapons.ownedByTier[weapon.tierKey].includes(weapon.id)
+    if (alreadyOwned) {
+      sendPlayerLoadoutState(normalizedAddress)
+      return
+    }
+    if (progress.profile.gold < weapon.priceGold) {
+      void room.send('lobbyEvent', {
+        type: 'loadout_error',
+        message: `Not enough GOLD for ${weapon.label}`
+      })
+      return
+    }
+
+    playerProgressStore.mutate(normalizedAddress, (state) => {
+      state.profile.gold -= weapon.priceGold
+      state.weapons.ownedByTier[weapon.tierKey] = [...state.weapons.ownedByTier[weapon.tierKey], weapon.id]
+    })
+    await playerProgressStore.save(normalizedAddress)
+    sendPlayerLoadoutState(normalizedAddress)
+
+    void room.send('lobbyEvent', {
+      type: 'loadout_purchase',
+      message: `${weapon.label} purchased for ${weapon.priceGold} GOLD`
+    })
+  })
+
+  room.onMessage('equipLoadoutWeapon', async (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    await ensurePlayerProfileLoaded(normalizedAddress)
+
+    const weapon = getLoadoutWeaponDefinition(data.weaponId)
+    if (!weapon) return
+
+    const progress = playerProgressStore.get(normalizedAddress)
+    if (!progress) return
+
+    const ownedWeaponIds =
+      weapon.id === 'gun_basic'
+        ? ['gun_basic']
+        : progress.weapons.ownedByTier[weapon.tierKey]
+    if (!ownedWeaponIds.includes(weapon.id)) {
+      void room.send('lobbyEvent', {
+        type: 'loadout_error',
+        message: `${weapon.label} is not owned yet`
+      })
+      return
+    }
+
+    playerProgressStore.mutate(normalizedAddress, (state) => {
+      state.weapons.equippedByTier[weapon.tierKey] = weapon.id
+    })
+    await playerProgressStore.save(normalizedAddress)
+    sendPlayerLoadoutState(normalizedAddress)
+
+    void room.send('lobbyEvent', {
+      type: 'loadout_equipped',
+      message: `${weapon.label} equipped`
+    })
   })
 
   room.onMessage('createMatch', (_data, context) => {
@@ -411,6 +648,7 @@ export function setupLobbyServer(): void {
     if (state.phase !== LobbyPhase.MATCH_CREATED) {
       createMatch(context.from)
     }
+    sendPlayerHealthState(context.from)
   })
 
   room.onMessage('returnToLobby', (_data, context) => {
@@ -438,6 +676,37 @@ export function setupLobbyServer(): void {
     const runtime = getMatchRuntimeMutable()
     recomputeZombiesAlive(runtime, getServerTime())
     void room.send('zombieDied', { zombieId: data.zombieId })
+  })
+
+  room.onMessage('playerDamageRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInLobby(normalizedAddress)) return
+
+    const lobbyState = getLobbyState()
+    if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning || runtime.cyclePhase !== WaveCyclePhase.ACTIVE) return
+
+    const now = getServerTime()
+    const state = getOrCreatePlayerCombatState(normalizedAddress)
+    if (state.isDead) return
+    if (now - state.lastDamageRequestAtMs < PLAYER_DAMAGE_REQUEST_COOLDOWN_MS) return
+
+    const requestedAmount = Number.isFinite(data.amount) ? Math.floor(data.amount) : 1
+    const amount = Math.max(1, Math.min(3, requestedAmount))
+    state.lastDamageRequestAtMs = now
+    state.hp = Math.max(0, state.hp - amount)
+    if (state.hp <= 0) {
+      state.isDead = true
+      state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
+    }
+    sendPlayerHealthState(normalizedAddress)
+
+    if (areAllLobbyPlayersDead(lobbyState.players)) {
+      endMatchAndReturnToLobby('All players died. Returning to lobby.')
+    }
   })
 
   engine.addSystem(waveRuntimeSystem, undefined, 'match-wave-runtime-system')
