@@ -5,6 +5,12 @@ const LobbyMessages = {
   playerLoadProfile: Schemas.Map({}),
   playerJoinLobby: Schemas.Map({}),
   playerLeaveLobby: Schemas.Map({}),
+  buyLoadoutWeapon: Schemas.Map({
+    weaponId: Schemas.String
+  }),
+  equipLoadoutWeapon: Schemas.Map({
+    weaponId: Schemas.String
+  }),
   createMatch: Schemas.Map({}),
   createMatchAndJoin: Schemas.Map({}),
   returnToLobby: Schemas.Map({}),
@@ -38,6 +44,12 @@ const LobbyMessages = {
     hp: Schemas.Number,
     isDead: Schemas.Boolean,
     respawnAtMs: Schemas.Int64
+  }),
+  playerLoadoutState: Schemas.Map({
+    address: Schemas.String,
+    gold: Schemas.Number,
+    ownedWeaponIds: Schemas.Array(Schemas.String),
+    equippedWeaponIds: Schemas.Array(Schemas.String)
   }),
   lobbyEvent: Schemas.Map({
     type: Schemas.String,

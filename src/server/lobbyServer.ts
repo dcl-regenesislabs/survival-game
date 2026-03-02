@@ -16,6 +16,7 @@ import {
   WAVE_ACTIVE_SECONDS,
   WAVE_REST_SECONDS
 } from '../shared/matchConfig'
+import { LoadoutWeaponId, getLoadoutWeaponDefinition } from '../shared/loadoutCatalog'
 import { createPlayerProgressStore } from './storage/playerProgress'
 import { getServerTime } from '../shared/timeSync'
 
@@ -59,6 +60,43 @@ const deadZombieIds = new Set<string>()
 const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
+
+function getOwnedWeaponIds(address: string): LoadoutWeaponId[] {
+  const progress = playerProgressStore.get(address)
+  if (!progress) return ['gun_basic']
+
+  const ownedWeaponIds: LoadoutWeaponId[] = ['gun_basic']
+  for (const weaponId of progress.weapons.ownedByTier.tier2) {
+    if (weaponId === 'shotgun_pump' && !ownedWeaponIds.includes(weaponId)) ownedWeaponIds.push(weaponId)
+  }
+  for (const weaponId of progress.weapons.ownedByTier.tier4) {
+    if (weaponId === 'minigun_heavy' && !ownedWeaponIds.includes(weaponId)) ownedWeaponIds.push(weaponId)
+  }
+  return ownedWeaponIds
+}
+
+function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
+  const progress = playerProgressStore.get(address)
+  if (!progress) return ['gun_basic']
+
+  const equippedWeaponIds: LoadoutWeaponId[] = ['gun_basic']
+  if (progress.weapons.equippedByTier.tier2 === 'shotgun_pump') equippedWeaponIds.push('shotgun_pump')
+  if (progress.weapons.equippedByTier.tier4 === 'minigun_heavy') equippedWeaponIds.push('minigun_heavy')
+  return equippedWeaponIds
+}
+
+function sendPlayerLoadoutState(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const progress = playerProgressStore.get(normalizedAddress)
+  if (!progress) return
+
+  void room.send('playerLoadoutState', {
+    address: normalizedAddress,
+    gold: progress.profile.gold,
+    ownedWeaponIds: getOwnedWeaponIds(normalizedAddress),
+    equippedWeaponIds: getEquippedWeaponIds(normalizedAddress)
+  })
+}
 
 function getPlayerDisplayName(address: string): string {
   const normalizedAddress = address.toLowerCase()
@@ -245,6 +283,7 @@ async function ensurePlayerProfileLoaded(address: string): Promise<void> {
   const displayName = getPlayerDisplayName(normalizedAddress)
   const progress = await playerProgressStore.load(normalizedAddress, displayName)
   loadedProfileAddresses.add(normalizedAddress)
+  sendPlayerLoadoutState(normalizedAddress)
   void room.send('lobbyEvent', {
     type: 'profile_loaded',
     message: `${displayName} profile loaded (GOLD ${progress.profile.gold})`
@@ -397,6 +436,7 @@ function grantWaveMilestoneGold(waveNumber: number, players: LobbyPlayer[]): voi
       playerProgressStore.mutate(player.address, (progress) => {
         progress.profile.gold += milestone.gold
       })
+      sendPlayerLoadoutState(player.address)
     }
 
     void room.send('lobbyEvent', {
@@ -519,6 +559,78 @@ export function setupLobbyServer(): void {
   room.onMessage('playerLeaveLobby', async (_data, context) => {
     if (!context) return
     await removePlayerFromLobby(context.from)
+  })
+
+  room.onMessage('buyLoadoutWeapon', async (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    await ensurePlayerProfileLoaded(normalizedAddress)
+
+    const weapon = getLoadoutWeaponDefinition(data.weaponId)
+    if (!weapon || weapon.id === 'gun_basic') return
+
+    const progress = playerProgressStore.get(normalizedAddress)
+    if (!progress) return
+
+    const alreadyOwned = progress.weapons.ownedByTier[weapon.tierKey].includes(weapon.id)
+    if (alreadyOwned) {
+      sendPlayerLoadoutState(normalizedAddress)
+      return
+    }
+    if (progress.profile.gold < weapon.priceGold) {
+      void room.send('lobbyEvent', {
+        type: 'loadout_error',
+        message: `Not enough GOLD for ${weapon.label}`
+      })
+      return
+    }
+
+    playerProgressStore.mutate(normalizedAddress, (state) => {
+      state.profile.gold -= weapon.priceGold
+      state.weapons.ownedByTier[weapon.tierKey] = [...state.weapons.ownedByTier[weapon.tierKey], weapon.id]
+    })
+    await playerProgressStore.save(normalizedAddress)
+    sendPlayerLoadoutState(normalizedAddress)
+
+    void room.send('lobbyEvent', {
+      type: 'loadout_purchase',
+      message: `${weapon.label} purchased for ${weapon.priceGold} GOLD`
+    })
+  })
+
+  room.onMessage('equipLoadoutWeapon', async (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    await ensurePlayerProfileLoaded(normalizedAddress)
+
+    const weapon = getLoadoutWeaponDefinition(data.weaponId)
+    if (!weapon) return
+
+    const progress = playerProgressStore.get(normalizedAddress)
+    if (!progress) return
+
+    const ownedWeaponIds =
+      weapon.id === 'gun_basic'
+        ? ['gun_basic']
+        : progress.weapons.ownedByTier[weapon.tierKey]
+    if (!ownedWeaponIds.includes(weapon.id)) {
+      void room.send('lobbyEvent', {
+        type: 'loadout_error',
+        message: `${weapon.label} is not owned yet`
+      })
+      return
+    }
+
+    playerProgressStore.mutate(normalizedAddress, (state) => {
+      state.weapons.equippedByTier[weapon.tierKey] = weapon.id
+    })
+    await playerProgressStore.save(normalizedAddress)
+    sendPlayerLoadoutState(normalizedAddress)
+
+    void room.send('lobbyEvent', {
+      type: 'loadout_equipped',
+      message: `${weapon.label} equipped`
+    })
   })
 
   room.onMessage('createMatch', (_data, context) => {
