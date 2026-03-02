@@ -38,6 +38,7 @@ import { setupLobbyServer } from './server/lobbyServer'
 import { getMatchRuntimeState, sendPlayerDamageRequest, setupLobbyClient } from './multiplayer/lobbyClient'
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
+import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 
@@ -133,6 +134,7 @@ export function main() {
     sendPlayerDamageRequest(amount)
   })
   initLobbyWorldPanel()
+  initLoadoutWorldPanel()
   setupUi()
   engine.addSystem(waveSkyboxSystem, undefined, 'wave-skybox-system')
 

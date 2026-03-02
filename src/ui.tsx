@@ -1,10 +1,12 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
+import { movePlayerTo } from '~system/RestrictedActions'
 import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
 import { getPlayerHp, isPlayerDead, MAX_HP } from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
 import { getGameTime } from './zombie'
 import { isRaging, getRageTimeLeft } from './rageEffect'
+import { getEquippedArenaWeapons } from './loadoutState'
 import {
   getCurrentWeapon,
   isShotgunUnlocked,
@@ -32,6 +34,8 @@ import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 import { getServerTime } from './shared/timeSync'
 
 const ENABLE_LEGACY_LOBBY_ROUND_UI = false
+const LOADOUT_TELEPORT_POSITION = { x: 81.4, y: 3, z: 21.5 }
+const LOADOUT_LOOK_TARGET = { x: 76, y: 3, z: 21.5 }
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
@@ -572,7 +576,7 @@ export const uiMenu = () => {
           }}
         >
           {inMatchContext
-            ? (['gun', 'shotgun', 'minigun'] as const).map((weapon) => {
+            ? getEquippedArenaWeapons().map((weapon) => {
                 const current = getCurrentWeapon() === weapon
                 const canUse =
                   weapon === 'gun' ||
@@ -618,7 +622,7 @@ export const uiMenu = () => {
                   </UiEntity>
                 )
               })
-            : (['Load', 'Upgrade'] as const).map((label) => (
+            : (['Loadout', 'Upgrade'] as const).map((label) => (
                 <UiEntity
                   key={label}
                   uiTransform={{
@@ -627,6 +631,13 @@ export const uiMenu = () => {
                     margin: { left: 24, right: 24 }
                   }}
                   uiBackground={{ color: Color4.create(0.2, 0.75, 0.35, 1) }}
+                  onMouseDown={() => {
+                    if (label !== 'Loadout') return
+                    movePlayerTo({
+                      newRelativePosition: LOADOUT_TELEPORT_POSITION,
+                      cameraTarget: LOADOUT_LOOK_TARGET
+                    })
+                  }}
                 >
                   <UiEntity
                     uiTransform={{
