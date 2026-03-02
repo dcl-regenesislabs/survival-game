@@ -12,7 +12,6 @@ const MINIGUN_COST = 300
 let currentWeapon: WeaponType = 'gun'
 let shotgunUnlocked = false
 let minigunUnlocked = false
-let allowedLoadoutWeapons: WeaponType[] = ['gun']
 
 export function getCurrentWeapon(): WeaponType {
   return currentWeapon
@@ -26,39 +25,13 @@ export function isMinigunUnlocked(): boolean {
   return minigunUnlocked
 }
 
-export function isWeaponAllowedInLoadout(type: WeaponType): boolean {
-  return allowedLoadoutWeapons.includes(type)
-}
-
-export function setAllowedLoadoutWeapons(weapons: WeaponType[]): void {
-  const nextAllowed: WeaponType[] = ['gun']
-  for (const weapon of weapons) {
-    if (weapon === 'gun') continue
-    if (nextAllowed.includes(weapon)) continue
-    nextAllowed.push(weapon)
-  }
-  allowedLoadoutWeapons = nextAllowed
-
-  if (!isWeaponAllowedInLoadout('shotgun')) {
-    shotgunUnlocked = false
-  }
-  if (!isWeaponAllowedInLoadout('minigun')) {
-    minigunUnlocked = false
-  }
-  if (!isWeaponAllowedInLoadout(currentWeapon)) {
-    destroyCurrentWeapon()
-    createWeapon('gun')
-    currentWeapon = 'gun'
-  }
-}
-
 export function canAffordShotgun(): boolean {
-  return isWeaponAllowedInLoadout('shotgun') && getZombieCoins() >= SHOTGUN_COST
+  return getZombieCoins() >= SHOTGUN_COST
 }
 
 /** Minigun requires shotgun unlocked first, then 150 ZC. */
 export function canAffordMinigun(): boolean {
-  return isWeaponAllowedInLoadout('minigun') && shotgunUnlocked && getZombieCoins() >= MINIGUN_COST
+  return shotgunUnlocked && getZombieCoins() >= MINIGUN_COST
 }
 
 function destroyCurrentWeapon(): void {
@@ -87,7 +60,6 @@ export function switchTo(type: WeaponType): boolean {
   }
 
   if (type === 'shotgun') {
-    if (!isWeaponAllowedInLoadout('shotgun')) return false
     if (!shotgunUnlocked) {
       if (!spendZombieCoins(SHOTGUN_COST)) return false
       shotgunUnlocked = true
@@ -99,7 +71,6 @@ export function switchTo(type: WeaponType): boolean {
   }
 
   if (type === 'minigun') {
-    if (!isWeaponAllowedInLoadout('minigun')) return false
     if (!shotgunUnlocked) return false
     if (!minigunUnlocked) {
       if (!spendZombieCoins(MINIGUN_COST)) return false
