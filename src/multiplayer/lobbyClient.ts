@@ -39,6 +39,23 @@ export function setupLobbyClient(): void {
     if (!localAddress || data.address !== localAddress) return
     applyPlayerLoadoutSnapshot(data)
   })
+  room.onMessage('matchAutoTeleport', (data) => {
+    const localAddress = getLocalAddress()
+    if (!localAddress || !data.addresses.includes(localAddress)) return
+    localReadyForMatch = true
+    movePlayerTo({
+      newRelativePosition: {
+        x: data.positionX,
+        y: data.positionY,
+        z: data.positionZ
+      },
+      cameraTarget: {
+        x: data.lookAtX,
+        y: data.lookAtY,
+        z: data.lookAtZ
+      }
+    })
+  })
 
   engine.addSystem(autoJoinLobbySystem, undefined, 'auto-join-lobby-client-system')
 }
