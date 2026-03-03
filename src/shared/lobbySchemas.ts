@@ -14,14 +14,18 @@ const LobbyStateSchema = {
   phase: Schemas.EnumString<LobbyPhase>(LobbyPhase, LobbyPhase.LOBBY),
   matchId: Schemas.String,
   hostAddress: Schemas.String,
-  players: Schemas.Array(LobbyPlayerSchema)
+  players: Schemas.Array(LobbyPlayerSchema),
+  countdownEndTimeMs: Schemas.Int64,
+  arenaIntroEndTimeMs: Schemas.Int64
 }
 
 export const LobbyStateComponent = engine.defineComponent('LobbyStateComponent', LobbyStateSchema, {
   phase: LobbyPhase.LOBBY,
   matchId: '',
   hostAddress: '',
-  players: []
+  players: [],
+  countdownEndTimeMs: 0,
+  arenaIntroEndTimeMs: 0
 })
 
 export type LobbyPlayer = {
@@ -34,4 +38,6 @@ export type LobbyStateSnapshot = {
   matchId: string
   hostAddress: string
   players: LobbyPlayer[]
+  countdownEndTimeMs: number
+  arenaIntroEndTimeMs: number
 }

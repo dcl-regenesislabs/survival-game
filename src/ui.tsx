@@ -23,9 +23,7 @@ import {
   isLocalReadyForMatch,
   sendCreateMatch,
   sendJoinLobby,
-  sendLeaveLobby,
-  sendReturnToLobby,
-  sendStartZombieWaves
+  sendLeaveLobby
 } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
@@ -59,6 +57,8 @@ const BRICK_BUTTON_HEIGHT = 137
 const BRICK_BUTTON_UVS = [0.503906, 0.418945, 0.503906, 0.686523, 0.73763, 0.686523, 0.73763, 0.418945]
 const LOADOUT_TELEPORT_POSITION = { x: 94, y: 3, z: 36.5 }
 const LOADOUT_LOOK_TARGET = { x: 94, y: 3, z: 41.5 }
+const LOBBY_RETURN_POSITION = { x: 78.4, y: 3, z: 31.5 }
+const LOBBY_RETURN_LOOK_TARGET = { x: 76.2, y: 3, z: 31 }
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
@@ -78,9 +78,12 @@ export const uiMenu = () => {
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInLobby
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
-  const showStartZombiesButton = isInLobby && localReadyForMatch
-  const canStartZombies = inMatchContext
+  const showBackToLobbyButton = isInLobby && localReadyForMatch
   const timerNowMs = getServerTime()
+  const arenaIntroSeconds =
+    lobbyState?.arenaIntroEndTimeMs && lobbyState.arenaIntroEndTimeMs > timerNowMs
+      ? Math.max(0, Math.ceil((lobbyState.arenaIntroEndTimeMs - timerNowMs) / 1000))
+      : 0
   const phaseRemainingSeconds = matchRuntime ? Math.max(0, Math.ceil((matchRuntime.phaseEndTimeMs - timerNowMs) / 1000)) : 0
   const wavePhaseLabel =
     matchRuntime?.cyclePhase === WaveCyclePhase.ACTIVE
@@ -92,6 +95,7 @@ export const uiMenu = () => {
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
   const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
+  const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
 
   const showZcCounter = !isIdle || inMatchContext
   const playerHpRatio = Math.max(0, Math.min(1, getPlayerHp() / MAX_HP))
@@ -213,19 +217,6 @@ export const uiMenu = () => {
               />
             </UiEntity>
 
-            <UiEntity
-              uiTransform={{ width: 130, height: 36 }}
-              uiBackground={{ color: Color4.create(isHost ? 0.7 : 0.35, 0.45, 0.15, 1) }}
-              onMouseDown={() => {
-                if (!isHost) return
-                sendReturnToLobby()
-              }}
-            >
-              <UiEntity
-                uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
-                uiText={{ value: 'Back Lobby', fontSize: 16, color: Color4.create(1, 1, 1, 1), textAlign: 'middle-center' }}
-              />
-            </UiEntity>
           </UiEntity>
         </UiEntity>
       )}
@@ -446,7 +437,43 @@ export const uiMenu = () => {
           />
         </UiEntity>
       )}
-      {showStartZombiesButton && (
+      {showArenaIntroOverlay && (
+        <UiEntity
+          uiTransform={{
+            width: '100%',
+            height: '100%',
+            positionType: 'absolute',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: 780,
+              minHeight: 180,
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: { top: 28, bottom: 28, left: 32, right: 32 }
+            }}
+            uiBackground={{ color: Color4.create(0.04, 0.04, 0.06, 0.92) }}
+          >
+            {arenaIntroSeconds > 0 && (
+              <UiEntity
+                uiTransform={{ width: '100%', height: 88 }}
+                uiText={{
+                  value: `${arenaIntroSeconds}`,
+                  fontSize: 60,
+                  color: Color4.create(1, 0.92, 0.35, 1),
+                  textAlign: 'middle-center'
+                }}
+              />
+            )}
+          </UiEntity>
+        </UiEntity>
+      )}
+      {showBackToLobbyButton && (
         <UiEntity
           uiTransform={{
             width: '100%',
@@ -459,10 +486,13 @@ export const uiMenu = () => {
         >
           <UiEntity
             uiTransform={{ width: 420, height: 84 }}
-            uiBackground={{ color: canStartZombies ? Color4.create(0.12, 0.5, 0.18, 0.95) : Color4.create(0.2, 0.2, 0.2, 0.9) }}
+            uiBackground={{ color: Color4.create(0.55, 0.18, 0.16, 0.95) }}
             onMouseDown={() => {
-              if (!canStartZombies) return
-              sendStartZombieWaves()
+              sendLeaveLobby()
+              movePlayerTo({
+                newRelativePosition: LOBBY_RETURN_POSITION,
+                cameraTarget: LOBBY_RETURN_LOOK_TARGET
+              })
             }}
           >
             <UiEntity
@@ -474,11 +504,7 @@ export const uiMenu = () => {
                 justifyContent: 'center'
               }}
               uiText={{
-                value: canStartZombies
-                  ? matchRuntime?.isRunning
-                    ? 'Zombies Running'
-                    : 'Start Zombies'
-                  : 'Create Match first',
+                value: 'Back to Lobby',
                 fontSize: 32,
                 color: Color4.create(1, 1, 1, 1),
                 textAlign: 'middle-center'

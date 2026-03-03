@@ -13,8 +13,6 @@ const LobbyMessages = {
   }),
   createMatch: Schemas.Map({}),
   createMatchAndJoin: Schemas.Map({}),
-  returnToLobby: Schemas.Map({}),
-  startZombieWaves: Schemas.Map({}),
   waveSpawnPlan: Schemas.Map({
     waveNumber: Schemas.Number,
     startAtMs: Schemas.Int64,

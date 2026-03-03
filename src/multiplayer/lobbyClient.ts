@@ -13,7 +13,6 @@ let latestLobbyEventType = ''
 let latestLobbyEventAtMs = 0
 let hasProfileLoadSent = false
 let localReadyForMatch = false
-const READY_POSITION = { x: 32, y: 0, z: 32 }
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
@@ -88,14 +87,6 @@ export function sendCreateMatchAndJoin(): void {
   void room.send('createMatchAndJoin', {})
 }
 
-export function sendReturnToLobby(): void {
-  void room.send('returnToLobby', {})
-}
-
-export function sendStartZombieWaves(): void {
-  void room.send('startZombieWaves', {})
-}
-
 export function sendPlayerDamageRequest(amount: number): void {
   void room.send('playerDamageRequest', { amount })
 }
@@ -129,7 +120,9 @@ export function getLobbyState(): LobbyStateSnapshot | null {
       phase: state.phase,
       matchId: state.matchId,
       hostAddress: state.hostAddress,
-      players: [...state.players]
+      players: [...state.players],
+      countdownEndTimeMs: state.countdownEndTimeMs,
+      arenaIntroEndTimeMs: state.arenaIntroEndTimeMs
     }
   }
   return null
@@ -161,14 +154,6 @@ export function getLatestLobbyEvent(): string {
 export function shouldShowGameOverOverlay(windowMs: number = 3000): boolean {
   if (latestLobbyEventType !== 'team_wipe') return false
   return Date.now() - latestLobbyEventAtMs <= windowMs
-}
-
-export function markLocalReadyForMatch(): void {
-  localReadyForMatch = true
-  movePlayerTo({
-    newRelativePosition: READY_POSITION,
-    cameraTarget: { x: READY_POSITION.x, y: 1, z: READY_POSITION.z + 1 }
-  })
 }
 
 export function isLocalReadyForMatch(): boolean {

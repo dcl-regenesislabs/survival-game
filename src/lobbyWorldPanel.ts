@@ -12,12 +12,14 @@ import { syncEntity } from '@dcl/sdk/network'
 import { Color4, Color3, Vector3, Quaternion } from '@dcl/sdk/math'
 import { MATCH_MAX_PLAYERS } from './shared/matchConfig'
 import { getLobbyState, getLocalAddress, sendCreateMatchAndJoin } from './multiplayer/lobbyClient'
+import { getServerTime } from './shared/timeSync'
 
 const PANEL_WORLD_POSITION = Vector3.create(76.2, 3, 36)
 const ROOT_ROTATION = Quaternion.fromEulerDegrees(0, -90, 0)
 const PANEL_WORLD_SCALE = Vector3.create(6.4, 3.8, 0.2)
 const PANEL_UPDATE_INTERVAL_SECONDS = 0.2
-const TEXT_LOCAL_POSITION = Vector3.create(-1.85, 0.35, -0.25)
+const TEXT_LOCAL_POSITION = Vector3.create(0, 0.82, -0.25)
+const COUNTDOWN_TEXT_LOCAL_POSITION = Vector3.create(0, -0.25, -0.25)
 const TRIGGER_LOCAL_POSITION = Vector3.create(0, -3, -2.2)
 const TRIGGER_SCALE = Vector3.create(5.4, 2.6, 4.6)
 const TRIGGER_SHADOW_SCALE_VISIBLE = Vector3.create(1.9, 0.06, 1.9)
@@ -32,10 +34,12 @@ export class LobbyWorldPanel {
   private rootEntity = engine.addEntity()
   private panelEntity = engine.addEntity()
   private textEntity = engine.addEntity()
+  private countdownTextEntity = engine.addEntity()
   private triggerEntity = engine.addEntity()
   private triggerShadowEntity = engine.addEntity()
   private updateAccumulator = 0
-  private lastRenderedText = ''
+  private lastRenderedPlayersText = ''
+  private lastRenderedCountdownText = ''
   private isLocalPlayerInsideTrigger = false
 
   constructor() {
@@ -76,19 +80,39 @@ export class LobbyWorldPanel {
       text: 'Players Joined: 0/5',
       width: 6.0,
       height: 2.4,
-      fontSize: 6,
+      fontSize: 8.3,
       fontAutoSize: false,
-      lineCount: 3,
-      textWrapping: true,
-      textAlign: TextAlignMode.TAM_TOP_LEFT,
-      textColor: Color4.create(0.9, 0.95, 1, 1),
+      lineCount: 1,
+      textWrapping: false,
+      textAlign: TextAlignMode.TAM_TOP_CENTER,
+      textColor: Color4.create(0.98, 0.9, 0.62, 1),
       paddingTop: 0.12,
-      paddingRight: 0.12,
+      paddingRight: 0.18,
       paddingBottom: 0.12,
-      paddingLeft: 0.26,
+      paddingLeft: 0.18,
       shadowColor: Color3.create(0, 0, 0),
       shadowOffsetX: 0.05,
       shadowOffsetY: -0.05
+    })
+
+    Transform.create(this.countdownTextEntity, {
+      parent: this.rootEntity,
+      position: COUNTDOWN_TEXT_LOCAL_POSITION,
+      rotation: Quaternion.Identity(),
+      scale: Vector3.create(0.22, 0.22, 0.22)
+    })
+    TextShape.create(this.countdownTextEntity, {
+      text: '',
+      width: 4.5,
+      height: 2.5,
+      fontSize: 16,
+      fontAutoSize: false,
+      lineCount: 1,
+      textWrapping: false,
+      textAlign: TextAlignMode.TAM_MIDDLE_CENTER,
+      textColor: Color4.create(1, 0.86, 0.18, 1),
+      outlineWidth: 0.26,
+      outlineColor: Color3.create(0, 0, 0)
     })
 
     Transform.create(this.triggerEntity, {
@@ -125,18 +149,27 @@ export class LobbyWorldPanel {
     })
     MeshRenderer.setSphere(this.triggerShadowEntity)
     Material.setPbrMaterial(this.triggerShadowEntity, {
-      albedoColor: Color4.create(0.18, 0.95, 0.35, 0.45),
-      emissiveColor: Color3.create(0.12, 0.85, 0.28),
-      emissiveIntensity: 0.4,
+      albedoColor: Color4.create(0.04, 0.32, 0.1, 0.72),
+      emissiveColor: Color3.create(0.02, 0.12, 0.04),
+      emissiveIntensity: 0.08,
       metallic: 0,
       roughness: 1
     })
     syncEntity(this.triggerShadowEntity, TRIGGER_SHADOW_SYNC_COMPONENT_IDS)
   }
 
-  private buildStatusText(): string {
-    const joinedCount = getLobbyState()?.players.length ?? 0
+  private buildPlayersText(): string {
+    const lobby = getLobbyState()
+    const joinedCount = lobby?.players.length ?? 0
     return `Players Joined: ${joinedCount}/${MATCH_MAX_PLAYERS}`
+  }
+
+  private buildCountdownText(): string {
+    const lobby = getLobbyState()
+    if (lobby?.countdownEndTimeMs && lobby.countdownEndTimeMs > 0) {
+      return `${Math.max(0, Math.ceil((lobby.countdownEndTimeMs - getServerTime()) / 1000))}`
+    }
+    return ''
   }
 
   private updateSystem(dt: number): void {
@@ -146,11 +179,17 @@ export class LobbyWorldPanel {
     if (this.updateAccumulator < PANEL_UPDATE_INTERVAL_SECONDS) return
     this.updateAccumulator = 0
 
-    const nextText = this.buildStatusText()
-    if (nextText === this.lastRenderedText) return
+    const nextPlayersText = this.buildPlayersText()
+    if (nextPlayersText !== this.lastRenderedPlayersText) {
+      this.lastRenderedPlayersText = nextPlayersText
+      TextShape.getMutable(this.textEntity).text = nextPlayersText
+    }
 
-    this.lastRenderedText = nextText
-    TextShape.getMutable(this.textEntity).text = nextText
+    const nextCountdownText = this.buildCountdownText()
+    if (nextCountdownText !== this.lastRenderedCountdownText) {
+      this.lastRenderedCountdownText = nextCountdownText
+      TextShape.getMutable(this.countdownTextEntity).text = nextCountdownText
+    }
   }
 
   private updateTriggerShadow(): void {
