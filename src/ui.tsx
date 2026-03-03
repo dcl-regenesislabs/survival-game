@@ -13,7 +13,12 @@ import {
   canAffordMinigun,
   switchTo
 } from './weaponManager'
-import { tryPlaceBrick, BRICK_COST_ZC } from './brick'
+import {
+  BRICK_COST_ZC,
+  activateBrickTargetMode,
+  confirmBrickPlacementFromTargetMode,
+  isBrickTargetModeActive
+} from './brick'
 import {
   getLobbyState,
   getMatchRuntimeState,
@@ -55,10 +60,14 @@ const MINIGUN_BUTTON_UVS = [0.748698, 0.416992, 0.748698, 0.6875, 0.992188, 0.68
 const BRICK_BUTTON_WIDTH = 180
 const BRICK_BUTTON_HEIGHT = 137
 const BRICK_BUTTON_UVS = [0.503906, 0.418945, 0.503906, 0.686523, 0.73763, 0.686523, 0.73763, 0.418945]
-const LOADOUT_TELEPORT_POSITION = { x: 94, y: 3, z: 36.5 }
-const LOADOUT_LOOK_TARGET = { x: 94, y: 3, z: 41.5 }
 const LOBBY_RETURN_POSITION = { x: 78.4, y: 3, z: 31.5 }
 const LOBBY_RETURN_LOOK_TARGET = { x: 76.2, y: 3, z: 31 }
+const BRICK_TARGET_RETICLE_WIDTH = 106
+const BRICK_TARGET_RETICLE_HEIGHT = 98
+// WEAPONS_LOCK.png region: x=853, y=92, w=213, h=196 (1536x1024 atlas, V axis bottom-up in UI UVs)
+const BRICK_TARGET_RETICLE_UVS = [0.555339, 0.71875, 0.555339, 0.910156, 0.69401, 0.910156, 0.69401, 0.71875]
+const LOADOUT_TELEPORT_POSITION = { x: 81.4, y: 3, z: 21.5 }
+const LOADOUT_LOOK_TARGET = { x: 76, y: 3, z: 21.5 }
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
@@ -98,6 +107,7 @@ export const uiMenu = () => {
   const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
 
   const showZcCounter = !isIdle || inMatchContext
+  const brickTargetModeActive = isBrickTargetModeActive()
   const playerHpRatio = Math.max(0, Math.min(1, getPlayerHp() / MAX_HP))
   const hpFrameScale = PLAYER_HP_FRAME_WIDTH / 968
   const playerHpFillWidth = Math.round(PLAYER_HP_FILL_SOURCE_W * hpFrameScale)
@@ -403,7 +413,7 @@ export const uiMenu = () => {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: {left: 30}
+                margin: {left: 50}
               }}
               uiText={{
                 value: `${getZombieCoins()}`,
@@ -706,70 +716,101 @@ export const uiMenu = () => {
                       : weapon === 'minigun'
                         ? !isMinigunUnlocked()
                         : getZombieCoins() < BRICK_COST_ZC
+                const buttonWidth =
+                  weapon === 'gun'
+                    ? GUN_BUTTON_WIDTH
+                    : weapon === 'shotgun'
+                      ? SHOTGUN_BUTTON_WIDTH
+                      : weapon === 'minigun'
+                        ? MINIGUN_BUTTON_WIDTH
+                        : weapon === 'brick'
+                          ? BRICK_BUTTON_WIDTH
+                          : 288
+                const buttonHeight =
+                  weapon === 'gun'
+                    ? GUN_BUTTON_HEIGHT
+                    : weapon === 'shotgun'
+                      ? SHOTGUN_BUTTON_HEIGHT
+                      : weapon === 'minigun'
+                        ? MINIGUN_BUTTON_HEIGHT
+                        : weapon === 'brick'
+                          ? BRICK_BUTTON_HEIGHT
+                          : 106
                 const spriteSheetSrc = isLockedVisual ? WEAPONS_LOCK_SHEET_SRC : WEAPONS_SHEET_SRC
                 return (
                   <UiEntity
                     key={weapon}
                     uiTransform={{
-                      width:
-                        weapon === 'gun'
-                          ? GUN_BUTTON_WIDTH
-                          : weapon === 'shotgun'
-                            ? SHOTGUN_BUTTON_WIDTH
-                            : weapon === 'minigun'
-                              ? MINIGUN_BUTTON_WIDTH
-                              : weapon === 'brick'
-                                ? BRICK_BUTTON_WIDTH
-                              : 288,
-                      height:
-                        weapon === 'gun'
-                          ? GUN_BUTTON_HEIGHT
-                          : weapon === 'shotgun'
-                            ? SHOTGUN_BUTTON_HEIGHT
-                            : weapon === 'minigun'
-                              ? MINIGUN_BUTTON_HEIGHT
-                              : weapon === 'brick'
-                                ? BRICK_BUTTON_HEIGHT
-                              : 106,
+                      width: buttonWidth,
+                      height: buttonHeight + BRICK_TARGET_RETICLE_HEIGHT + 12,
                       positionType: 'relative',
-                      margin: { left: 19, right: 19, bottom: 14 }
+                      margin: { left: 19, right: 19, bottom: 14 },
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end'
                     }}
-                    uiBackground={
-                      weapon === 'gun'
-                        ? {
-                            textureMode: 'stretch',
-                            texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
-                            uvs: GUN_BUTTON_UVS
-                          }
-                        : weapon === 'shotgun'
+                  >
+                    {weapon === 'brick' && brickTargetModeActive && (
+                      <UiEntity
+                        uiTransform={{
+                          width: BRICK_TARGET_RETICLE_WIDTH,
+                          height: BRICK_TARGET_RETICLE_HEIGHT,
+                          margin: { bottom: 12 }
+                        }}
+                        uiBackground={{
+                          textureMode: 'stretch',
+                          texture: { src: WEAPONS_LOCK_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                          uvs: BRICK_TARGET_RETICLE_UVS
+                        }}
+                      />
+                    )}
+                    <UiEntity
+                      uiTransform={{
+                        width: buttonWidth,
+                        height: buttonHeight,
+                        positionType: 'relative'
+                      }}
+                      uiBackground={
+                        weapon === 'gun'
                           ? {
                               textureMode: 'stretch',
                               texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
-                              uvs: SHOTGUN_BUTTON_UVS
+                              uvs: GUN_BUTTON_UVS
                             }
-                        : weapon === 'minigun'
-                          ? {
-                              textureMode: 'stretch',
-                              texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
-                              uvs: MINIGUN_BUTTON_UVS
-                            }
-                        : weapon === 'brick'
-                          ? {
-                              textureMode: 'stretch',
-                              texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
-                              uvs: BRICK_BUTTON_UVS
-                            }
-                        : { color: Color4.create(0.2, 0.75, 0.35, 1) }
-                    }
-                    onMouseDown={() => {
-                      if (!canUse) return
-                      if (weapon === 'brick') {
-                        tryPlaceBrick()
-                      } else {
-                        switchTo(weapon)
+                          : weapon === 'shotgun'
+                            ? {
+                                textureMode: 'stretch',
+                                texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                                uvs: SHOTGUN_BUTTON_UVS
+                              }
+                            : weapon === 'minigun'
+                              ? {
+                                  textureMode: 'stretch',
+                                  texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                                  uvs: MINIGUN_BUTTON_UVS
+                                }
+                              : weapon === 'brick'
+                                ? {
+                                    textureMode: 'stretch',
+                                    texture: { src: spriteSheetSrc, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                                    uvs: BRICK_BUTTON_UVS
+                                  }
+                                : { color: Color4.create(0.2, 0.75, 0.35, 1) }
                       }
-                    }}
-                  />
+                      onMouseDown={() => {
+                        if (!canUse) return
+                        if (weapon === 'brick') {
+                          if (brickTargetModeActive) {
+                            confirmBrickPlacementFromTargetMode()
+                          } else {
+                            activateBrickTargetMode()
+                          }
+                        } else {
+                          switchTo(weapon)
+                        }
+                      }}
+                    />
+                  </UiEntity>
                 )
               })
             : (['Loadout', 'Upgrade'] as const).map((label) => (
