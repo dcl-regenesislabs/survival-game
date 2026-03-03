@@ -66,8 +66,8 @@ const BRICK_TARGET_RETICLE_WIDTH = 106
 const BRICK_TARGET_RETICLE_HEIGHT = 98
 // WEAPONS_LOCK.png region: x=853, y=92, w=213, h=196 (1536x1024 atlas, V axis bottom-up in UI UVs)
 const BRICK_TARGET_RETICLE_UVS = [0.555339, 0.71875, 0.555339, 0.910156, 0.69401, 0.910156, 0.69401, 0.71875]
-const LOADOUT_TELEPORT_POSITION = { x: 81.4, y: 3, z: 21.5 }
-const LOADOUT_LOOK_TARGET = { x: 76, y: 3, z: 21.5 }
+const LOADOUT_TELEPORT_POSITION = { x: 94, y: 3, z: 38.5 }
+const LOADOUT_LOOK_TARGET = { x: 94, y: 3, z: 41.5 }
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })

@@ -35,6 +35,8 @@ const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
 const ARENA_TELEPORT_POSITION = { x: 32, y: 0, z: 32 }
 const ARENA_TELEPORT_LOOK_AT = { x: 32, y: 1, z: 33 }
+const LOBBY_RETURN_POSITION = { x: 78.4, y: 3, z: 31.5 }
+const LOBBY_RETURN_LOOK_AT = { x: 76.2, y: 3, z: 31 }
 const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
   { wave: 4, gold: 1 },
   { wave: 11, gold: 2 },
@@ -215,16 +217,14 @@ function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
 function endMatchAndReturnToLobby(message: string): void {
   const lobby = getLobbyStateMutable()
   const players = [...lobby.players]
-  lobby.phase = LobbyPhase.LOBBY
-  lobby.matchId = ''
-  lobby.countdownEndTimeMs = 0
-  lobby.arenaIntroEndTimeMs = 0
-  resetMatchRuntime()
+  setPlayers([])
 
   for (const player of players) {
     resetPlayerCombatState(player.address)
     sendPlayerHealthState(player.address)
   }
+
+  sendLobbyReturnTeleport(players)
 
   void room.send('lobbyEvent', {
     type: 'team_wipe',
@@ -342,6 +342,20 @@ function sendArenaAutoTeleport(players: LobbyPlayer[]): void {
     lookAtX: ARENA_TELEPORT_LOOK_AT.x,
     lookAtY: ARENA_TELEPORT_LOOK_AT.y,
     lookAtZ: ARENA_TELEPORT_LOOK_AT.z
+  })
+}
+
+function sendLobbyReturnTeleport(players: LobbyPlayer[]): void {
+  if (!players.length) return
+  logLobbyServerEvent(`LobbyReturnTeleport ${players.length}`)
+  void room.send('lobbyReturnTeleport', {
+    addresses: players.map((player) => player.address),
+    positionX: LOBBY_RETURN_POSITION.x,
+    positionY: LOBBY_RETURN_POSITION.y,
+    positionZ: LOBBY_RETURN_POSITION.z,
+    lookAtX: LOBBY_RETURN_LOOK_AT.x,
+    lookAtY: LOBBY_RETURN_LOOK_AT.y,
+    lookAtZ: LOBBY_RETURN_LOOK_AT.z
   })
 }
 

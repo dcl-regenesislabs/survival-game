@@ -55,6 +55,23 @@ export function setupLobbyClient(): void {
       }
     })
   })
+  room.onMessage('lobbyReturnTeleport', (data) => {
+    const localAddress = getLocalAddress()
+    if (!localAddress || !data.addresses.includes(localAddress)) return
+    localReadyForMatch = false
+    movePlayerTo({
+      newRelativePosition: {
+        x: data.positionX,
+        y: data.positionY,
+        z: data.positionZ
+      },
+      cameraTarget: {
+        x: data.lookAtX,
+        y: data.lookAtY,
+        z: data.lookAtZ
+      }
+    })
+  })
 
   engine.addSystem(autoJoinLobbySystem, undefined, 'auto-join-lobby-client-system')
 }
