@@ -30,8 +30,8 @@ import {
   sendEquipLoadoutWeapon
 } from './multiplayer/lobbyClient'
 
-const PANEL_WORLD_POSITION = Vector3.create(76.4, 3, 21.5)
-const ROOT_ROTATION = Quaternion.fromEulerDegrees(0, -90, 0)
+const PANEL_WORLD_POSITION = Vector3.create(94, 3, 41.5)
+const ROOT_ROTATION = Quaternion.fromEulerDegrees(0, 0, 0)
 const PANEL_WORLD_SCALE = Vector3.create(7.2, 4.2, 0.2)
 const PANEL_UPDATE_INTERVAL_SECONDS = 0.2
 const TITLE_LOCAL_POSITION = Vector3.create(-2.5, 1.25, -0.25)

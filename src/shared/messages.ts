@@ -13,8 +13,6 @@ const LobbyMessages = {
   }),
   createMatch: Schemas.Map({}),
   createMatchAndJoin: Schemas.Map({}),
-  returnToLobby: Schemas.Map({}),
-  startZombieWaves: Schemas.Map({}),
   waveSpawnPlan: Schemas.Map({
     waveNumber: Schemas.Number,
     startAtMs: Schemas.Int64,
@@ -44,6 +42,15 @@ const LobbyMessages = {
     hp: Schemas.Number,
     isDead: Schemas.Boolean,
     respawnAtMs: Schemas.Int64
+  }),
+  matchAutoTeleport: Schemas.Map({
+    addresses: Schemas.Array(Schemas.String),
+    positionX: Schemas.Number,
+    positionY: Schemas.Number,
+    positionZ: Schemas.Number,
+    lookAtX: Schemas.Number,
+    lookAtY: Schemas.Number,
+    lookAtZ: Schemas.Number
   }),
   playerLoadoutState: Schemas.Map({
     address: Schemas.String,

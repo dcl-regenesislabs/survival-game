@@ -31,6 +31,10 @@ const SPAWN_MAX_Z = 54
 const PLAYER_MAX_HP = 5
 const PLAYER_RESPAWN_SECONDS = 2
 const PLAYER_DAMAGE_REQUEST_COOLDOWN_MS = 250
+const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
+const ARENA_WARNING_SECONDS = 5
+const ARENA_TELEPORT_POSITION = { x: 32, y: 0, z: 32 }
+const ARENA_TELEPORT_LOOK_AT = { x: 32, y: 1, z: 33 }
 const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
   { wave: 4, gold: 1 },
   { wave: 11, gold: 2 },
@@ -60,6 +64,10 @@ const deadZombieIds = new Set<string>()
 const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
+
+function logLobbyServerEvent(message: string): void {
+  console.log(`[Server][Lobby] ${message}`)
+}
 
 function getOwnedWeaponIds(address: string): LoadoutWeaponId[] {
   const progress = playerProgressStore.get(address)
@@ -115,7 +123,9 @@ function getLobbyStateMutable() {
       phase: LobbyPhase.LOBBY,
       matchId: '',
       hostAddress: '',
-      players: []
+      players: [],
+      countdownEndTimeMs: 0,
+      arenaIntroEndTimeMs: 0
     })
     syncEntity(lobbyEntity, [LobbyStateComponent.componentId])
   }
@@ -207,6 +217,8 @@ function endMatchAndReturnToLobby(message: string): void {
   const players = [...lobby.players]
   lobby.phase = LobbyPhase.LOBBY
   lobby.matchId = ''
+  lobby.countdownEndTimeMs = 0
+  lobby.arenaIntroEndTimeMs = 0
   resetMatchRuntime()
 
   for (const player of players) {
@@ -243,13 +255,29 @@ function resetMatchRuntime() {
   clearZombieTracking(runtime)
 }
 
+function cancelArenaAutoTeleportCountdown(): void {
+  const lobby = getLobbyStateMutable()
+  if (lobby.countdownEndTimeMs === 0) return
+  lobby.countdownEndTimeMs = 0
+  logLobbyServerEvent('ArenaAutoTeleportCountdownCancelled')
+}
+
+function cancelArenaIntroCountdown(): void {
+  const lobby = getLobbyStateMutable()
+  if (lobby.arenaIntroEndTimeMs === 0) return
+  lobby.arenaIntroEndTimeMs = 0
+  logLobbyServerEvent('ArenaIntroCountdownCancelled')
+}
+
 function getLobbyState() {
   const mutable = getLobbyStateMutable()
   return {
     phase: mutable.phase,
     matchId: mutable.matchId,
     hostAddress: mutable.hostAddress,
-    players: [...mutable.players]
+    players: [...mutable.players],
+    countdownEndTimeMs: mutable.countdownEndTimeMs,
+    arenaIntroEndTimeMs: mutable.arenaIntroEndTimeMs
   }
 }
 
@@ -260,6 +288,8 @@ function setPlayers(players: LobbyPlayer[]) {
     state.hostAddress = ''
     state.phase = LobbyPhase.LOBBY
     state.matchId = ''
+    state.countdownEndTimeMs = 0
+    state.arenaIntroEndTimeMs = 0
     resetMatchRuntime()
   } else if (!players.find((p) => p.address === state.hostAddress)) {
     state.hostAddress = players[0].address
@@ -269,6 +299,14 @@ function setPlayers(players: LobbyPlayer[]) {
 function isPlayerInLobby(address: string): boolean {
   const state = getLobbyState()
   return state.players.some((p) => p.address === address.toLowerCase())
+}
+
+function isMatchJoinLocked(): boolean {
+  const lobby = getLobbyState()
+  if (lobby.phase !== LobbyPhase.MATCH_CREATED) return false
+
+  const runtime = getMatchRuntimeMutable()
+  return runtime.isRunning || lobby.arenaIntroEndTimeMs > 0
 }
 
 async function ensurePlayerLoadedAndInLobby(address: string): Promise<void> {
@@ -284,10 +322,36 @@ async function ensurePlayerProfileLoaded(address: string): Promise<void> {
   const progress = await playerProgressStore.load(normalizedAddress, displayName)
   loadedProfileAddresses.add(normalizedAddress)
   sendPlayerLoadoutState(normalizedAddress)
+  logLobbyServerEvent(`ProfileLoaded ${displayName} (${normalizedAddress})`)
   void room.send('lobbyEvent', {
     type: 'profile_loaded',
     message: `${displayName} profile loaded (GOLD ${progress.profile.gold})`
   })
+}
+
+function sendArenaAutoTeleport(players: LobbyPlayer[]): void {
+  if (!players.length) return
+  const lobby = getLobbyStateMutable()
+  lobby.arenaIntroEndTimeMs = getServerTime() + ARENA_WARNING_SECONDS * 1000
+  logLobbyServerEvent(`ArenaAutoTeleport ${players.length}/${MATCH_MAX_PLAYERS}`)
+  void room.send('matchAutoTeleport', {
+    addresses: players.map((player) => player.address),
+    positionX: ARENA_TELEPORT_POSITION.x,
+    positionY: ARENA_TELEPORT_POSITION.y,
+    positionZ: ARENA_TELEPORT_POSITION.z,
+    lookAtX: ARENA_TELEPORT_LOOK_AT.x,
+    lookAtY: ARENA_TELEPORT_LOOK_AT.y,
+    lookAtZ: ARENA_TELEPORT_LOOK_AT.z
+  })
+}
+
+function startArenaAutoTeleportCountdown(players: LobbyPlayer[]): void {
+  const lobby = getLobbyStateMutable()
+  if (lobby.countdownEndTimeMs > 0) return
+  lobby.countdownEndTimeMs = getServerTime() + AUTO_TELEPORT_COUNTDOWN_SECONDS * 1000
+  logLobbyServerEvent(
+    `ArenaAutoTeleportCountdownStarted ${players.length}/${MATCH_MAX_PLAYERS} (${AUTO_TELEPORT_COUNTDOWN_SECONDS}s)`
+  )
 }
 
 function addPlayerToLobby(address: string): void {
@@ -304,10 +368,18 @@ function addPlayerToLobby(address: string): void {
     mutable.hostAddress = normalizedAddress
   }
 
+  logLobbyServerEvent(
+    `PlayerJoined ${getPlayerDisplayName(normalizedAddress)} ${nextPlayers.length}/${MATCH_MAX_PLAYERS}`
+  )
+
   void room.send('lobbyEvent', {
     type: 'join',
     message: `${getPlayerDisplayName(normalizedAddress)} joined lobby`
   })
+
+  if (mutable.phase === LobbyPhase.MATCH_CREATED && nextPlayers.length === MATCH_MAX_PLAYERS) {
+    startArenaAutoTeleportCountdown(nextPlayers)
+  }
 }
 
 async function removePlayerFromLobby(address: string): Promise<void> {
@@ -320,8 +392,17 @@ async function removePlayerFromLobby(address: string): Promise<void> {
   loadedProfileAddresses.delete(normalizedAddress)
   removePlayerCombatState(normalizedAddress)
   setPlayers(nextPlayers)
+  if (nextPlayers.length < MATCH_MAX_PLAYERS) {
+    cancelArenaAutoTeleportCountdown()
+  }
+  if (nextPlayers.length === 0) {
+    cancelArenaIntroCountdown()
+  }
 
   if (leavingPlayer) {
+    logLobbyServerEvent(
+      `PlayerLeft ${leavingPlayer.displayName} ${nextPlayers.length}/${MATCH_MAX_PLAYERS}`
+    )
     void room.send('lobbyEvent', {
       type: 'leave',
       message: `${leavingPlayer.displayName} left lobby`
@@ -340,27 +421,19 @@ function createMatch(address: string): void {
   mutable.phase = LobbyPhase.MATCH_CREATED
   mutable.hostAddress = state.hostAddress || normalizedAddress
   mutable.matchId = `match_${Date.now()}`
+  mutable.countdownEndTimeMs = 0
+  mutable.arenaIntroEndTimeMs = 0
   resetMatchRuntime()
+  logLobbyServerEvent(`MatchCreated ${mutable.matchId} by ${normalizedAddress}`)
 
   void room.send('lobbyEvent', {
     type: 'match_created',
     message: `Match created (${mutable.matchId})`
   })
-}
 
-function returnLobby(address: string): void {
-  const normalizedAddress = address.toLowerCase()
-  const mutable = getLobbyStateMutable()
-  if (!mutable.hostAddress || mutable.hostAddress !== normalizedAddress) return
-
-  mutable.phase = LobbyPhase.LOBBY
-  mutable.matchId = ''
-  resetMatchRuntime()
-
-  void room.send('lobbyEvent', {
-    type: 'lobby',
-    message: 'Returned to lobby'
-  })
+  if (state.players.length === MATCH_MAX_PLAYERS) {
+    startArenaAutoTeleportCountdown(state.players)
+  }
 }
 
 function getSpawnGroupSize(waveNumber: number): number {
@@ -446,7 +519,7 @@ function grantWaveMilestoneGold(waveNumber: number, players: LobbyPlayer[]): voi
   }
 }
 
-function startZombieWaves(address: string): void {
+function startZombieWaves(address: string, startReason: 'manual' | 'auto' = 'manual'): void {
   const normalizedAddress = address.toLowerCase()
   const state = getLobbyState()
   if (state.phase !== LobbyPhase.MATCH_CREATED) return
@@ -454,6 +527,9 @@ function startZombieWaves(address: string): void {
 
   const runtime = getMatchRuntimeMutable()
   if (runtime.isRunning) return
+
+  const lobby = getLobbyStateMutable()
+  lobby.arenaIntroEndTimeMs = 0
 
   runtime.isRunning = true
   runtime.waveNumber = 1
@@ -463,6 +539,7 @@ function startZombieWaves(address: string): void {
   runtime.startedByAddress = normalizedAddress
   clearZombieTracking(runtime)
   sendWaveSpawnPlan(runtime.waveNumber, runtime.serverNowMs)
+  logLobbyServerEvent(`WavesStarted by ${normalizedAddress}`)
 
   for (const player of state.players) {
     resetPlayerCombatState(player.address)
@@ -477,7 +554,7 @@ function startZombieWaves(address: string): void {
 
   void room.send('lobbyEvent', {
     type: 'waves_started',
-    message: `${getPlayerDisplayName(normalizedAddress)} started zombies`
+    message: startReason === 'auto' ? 'Waves started' : `${getPlayerDisplayName(normalizedAddress)} started zombies`
   })
 }
 
@@ -494,6 +571,20 @@ function waveRuntimeSystem(dt: number): void {
   const now = getServerTime()
   runtime.serverNowMs = now
   recomputeZombiesAlive(runtime, now)
+
+  if (lobbyState.players.length < MATCH_MAX_PLAYERS) {
+    cancelArenaAutoTeleportCountdown()
+  } else if (lobbyState.countdownEndTimeMs > 0 && now >= lobbyState.countdownEndTimeMs) {
+    cancelArenaAutoTeleportCountdown()
+    sendArenaAutoTeleport(lobbyState.players)
+  }
+
+  if (!runtime.isRunning && lobbyState.arenaIntroEndTimeMs > 0 && now >= lobbyState.arenaIntroEndTimeMs) {
+    const starterAddress = lobbyState.hostAddress || lobbyState.players[0]?.address
+    if (starterAddress) {
+      startZombieWaves(starterAddress, 'auto')
+    }
+  }
 
   for (const player of lobbyState.players) {
     const combat = getOrCreatePlayerCombatState(player.address)
@@ -643,22 +734,16 @@ export function setupLobbyServer(): void {
 
   room.onMessage('createMatchAndJoin', async (_data, context) => {
     if (!context) return
+    if (!isPlayerInLobby(context.from) && isMatchJoinLocked()) {
+      logLobbyServerEvent(`JoinRejectedMatchLocked ${context.from.toLowerCase()}`)
+      return
+    }
     await ensurePlayerLoadedAndInLobby(context.from)
     const state = getLobbyState()
     if (state.phase !== LobbyPhase.MATCH_CREATED) {
       createMatch(context.from)
     }
     sendPlayerHealthState(context.from)
-  })
-
-  room.onMessage('returnToLobby', (_data, context) => {
-    if (!context) return
-    returnLobby(context.from)
-  })
-
-  room.onMessage('startZombieWaves', (_data, context) => {
-    if (!context) return
-    startZombieWaves(context.from)
   })
 
   room.onMessage('zombieDieRequest', (data, context) => {
