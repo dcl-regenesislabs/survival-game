@@ -57,8 +57,8 @@ const MINIGUN_BUTTON_UVS = [0.748698, 0.416992, 0.748698, 0.6875, 0.992188, 0.68
 const BRICK_BUTTON_WIDTH = 180
 const BRICK_BUTTON_HEIGHT = 137
 const BRICK_BUTTON_UVS = [0.503906, 0.418945, 0.503906, 0.686523, 0.73763, 0.686523, 0.73763, 0.418945]
-const LOADOUT_TELEPORT_POSITION = { x: 81.4, y: 3, z: 21.5 }
-const LOADOUT_LOOK_TARGET = { x: 76, y: 3, z: 21.5 }
+const LOADOUT_TELEPORT_POSITION = { x: 94, y: 3, z: 36.5 }
+const LOADOUT_LOOK_TARGET = { x: 94, y: 3, z: 41.5 }
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
