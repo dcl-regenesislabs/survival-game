@@ -94,25 +94,122 @@ export function damageBrick(entity: Entity, amount: number): boolean {
 }
 
 const PLACE_DISTANCE = 1
+const BRICK_TARGET_TIMEOUT_MS = 5000
+const BRICK_TARGET_PREVIEW_SCALE = 1.05
+const BRICK_TARGET_PREVIEW_THICKNESS = 0.03
+const BRICK_TARGET_PREVIEW_Y = BRICK_TARGET_PREVIEW_THICKNESS / 2
+
+const BRICK_TARGET_PREVIEW_MATERIAL = {
+  albedoColor: Color4.create(0.9, 0.2, 0.15, 0.35),
+  emissiveColor: Color3.create(0.7, 0.15, 0.1),
+  emissiveIntensity: 0.25,
+  metallic: 0,
+  roughness: 1
+}
 
 // Deferred spawn: UI only requests; a system does the actual spawn next frame (avoids issues when creating entities from UI callback).
 let pendingBrickPosition: Vector3 | null = null
+let brickTargetModeUntilMs = 0
+let brickTargetPreviewEntity: Entity | null = null
 
-/** Request placing a brick next frame. Call from UI; costs ZC immediately, spawn happens in game loop. */
-export function tryPlaceBrick(): boolean {
-  if (!Transform.has(engine.PlayerEntity)) return false
-  if (!spendZombieCoins(BRICK_COST_ZC)) return false
+function getPlacementPositionFromPlayer(): Vector3 | null {
+  if (!Transform.has(engine.PlayerEntity)) return null
   const t = Transform.get(engine.PlayerEntity)
   const forward = Vector3.rotate(Vector3.Forward(), t.rotation)
   forward.y = 0
   const dir = Vector3.normalize(forward)
   const placePos = Vector3.add(t.position, Vector3.scale(dir, PLACE_DISTANCE))
   placePos.y = 0
-  pendingBrickPosition = Vector3.create(placePos.x, placePos.y, placePos.z)
+  return Vector3.create(placePos.x, placePos.y, placePos.z)
+}
+
+function isTargetModeStillActive(nowMs: number): boolean {
+  return brickTargetModeUntilMs > nowMs
+}
+
+function hideTargetPreview() {
+  if (brickTargetPreviewEntity !== null && Transform.has(brickTargetPreviewEntity)) {
+    Transform.getMutable(brickTargetPreviewEntity).scale = Vector3.Zero()
+  }
+}
+
+function ensureTargetPreviewEntity(): Entity {
+  if (brickTargetPreviewEntity !== null && Transform.has(brickTargetPreviewEntity)) {
+    return brickTargetPreviewEntity
+  }
+  const entity = engine.addEntity()
+  Transform.create(entity, {
+    position: Vector3.Zero(),
+    rotation: Quaternion.Identity(),
+    scale: Vector3.Zero()
+  })
+  MeshRenderer.setBox(entity)
+  Material.setPbrMaterial(entity, BRICK_TARGET_PREVIEW_MATERIAL)
+  brickTargetPreviewEntity = entity
+  return entity
+}
+
+function updateBrickTargetPreview(nowMs: number): void {
+  if (!isTargetModeStillActive(nowMs)) {
+    brickTargetModeUntilMs = 0
+    hideTargetPreview()
+    return
+  }
+  const placement = getPlacementPositionFromPlayer()
+  if (!placement) {
+    hideTargetPreview()
+    return
+  }
+  const previewEntity = ensureTargetPreviewEntity()
+  const previewTransform = Transform.getMutable(previewEntity)
+  previewTransform.position = Vector3.create(placement.x, BRICK_TARGET_PREVIEW_Y, placement.z)
+  previewTransform.rotation = Quaternion.Identity()
+  previewTransform.scale = Vector3.create(BRICK_TARGET_PREVIEW_SCALE, BRICK_TARGET_PREVIEW_THICKNESS, BRICK_TARGET_PREVIEW_SCALE)
+}
+
+export function isBrickTargetModeActive(nowMs: number = Date.now()): boolean {
+  return isTargetModeStillActive(nowMs)
+}
+
+export function activateBrickTargetMode(nowMs: number = Date.now()): boolean {
+  if (!Transform.has(engine.PlayerEntity)) return false
+  brickTargetModeUntilMs = nowMs + BRICK_TARGET_TIMEOUT_MS
+  return true
+}
+
+export function cancelBrickTargetMode(): void {
+  brickTargetModeUntilMs = 0
+  hideTargetPreview()
+}
+
+export function confirmBrickPlacementFromTargetMode(nowMs: number = Date.now()): boolean {
+  if (!isTargetModeStillActive(nowMs)) {
+    cancelBrickTargetMode()
+    return false
+  }
+  const placement = getPlacementPositionFromPlayer()
+  if (!placement) {
+    cancelBrickTargetMode()
+    return false
+  }
+  if (!spendZombieCoins(BRICK_COST_ZC)) return false
+  pendingBrickPosition = placement
+  cancelBrickTargetMode()
+  return true
+}
+
+/** Request placing a brick next frame. Call from UI; costs ZC immediately, spawn happens in game loop. */
+export function tryPlaceBrick(): boolean {
+  const placement = getPlacementPositionFromPlayer()
+  if (!placement) return false
+  if (!spendZombieCoins(BRICK_COST_ZC)) return false
+  pendingBrickPosition = placement
+  cancelBrickTargetMode()
   return true
 }
 
 function brickPlacementSystem(_dt: number) {
+  updateBrickTargetPreview(Date.now())
   if (pendingBrickPosition === null) return
   spawnBrickAt(pendingBrickPosition)
   pendingBrickPosition = null
@@ -126,6 +223,7 @@ export function initBrickSystem() {
 /** Remove all bricks (e.g. on game reset). */
 export function despawnAllBricks(): void {
   pendingBrickPosition = null
+  cancelBrickTargetMode()
   const toRemove: Entity[] = []
   for (const [entity] of engine.getEntitiesWith(BrickComponent)) {
     toRemove.push(entity)
