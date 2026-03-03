@@ -11,7 +11,14 @@ import {
 import { syncEntity } from '@dcl/sdk/network'
 import { Color4, Color3, Vector3, Quaternion } from '@dcl/sdk/math'
 import { MATCH_MAX_PLAYERS } from './shared/matchConfig'
-import { getLobbyState, getLocalAddress, sendCreateMatchAndJoin } from './multiplayer/lobbyClient'
+import {
+  getLobbyState,
+  getLocalAddress,
+  getMatchRuntimeState,
+  isLocalReadyForMatch,
+  sendCreateMatchAndJoin,
+  sendLeaveLobby
+} from './multiplayer/lobbyClient'
 import { getServerTime } from './shared/timeSync'
 
 const PANEL_WORLD_POSITION = Vector3.create(76.2, 3, 36)
@@ -138,7 +145,25 @@ export class LobbyWorldPanel {
       if (result.trigger?.entity !== engine.PlayerEntity) return
       console.log('[LobbyPanel] Player exited trigger area')
       this.isLocalPlayerInsideTrigger = false
+
+      const localAddress = getLocalAddress()
+      const lobby = getLobbyState()
+      const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
+      if (!isAlreadyJoined) return
+      if (this.shouldIgnoreTriggerExitLeave()) return
+
+      sendLeaveLobby()
     })
+  }
+
+  private shouldIgnoreTriggerExitLeave(): boolean {
+    if (isLocalReadyForMatch()) return true
+
+    const matchRuntime = getMatchRuntimeState()
+    if (matchRuntime?.isRunning) return true
+
+    const lobby = getLobbyState()
+    return !!(lobby?.arenaIntroEndTimeMs && lobby.arenaIntroEndTimeMs > getServerTime())
   }
 
   private createSyncedTriggerShadow(): void {
