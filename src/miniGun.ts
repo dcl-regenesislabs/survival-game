@@ -2,6 +2,9 @@ import {
   engine,
   Entity,
   Transform,
+  inputSystem,
+  InputAction,
+  PointerEventType,
   GltfContainer,
   Animator,
   MeshRenderer,
@@ -10,7 +13,6 @@ import {
   ColliderLayer
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
-import { ZombieComponent } from './zombie'
 import { ProjectileComponent } from './gun'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
@@ -24,9 +26,7 @@ const GUN_SHOOT_ANIM = 'Key.002Action'
 const GUN_OFFSET = Vector3.create(0, 0, 0) // Local offset from player (right, up, forward)
 const ROUNDS_PER_SECOND = 5 // Minigun fires faster
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (0.2s = 5 rounds/sec)
-const SHOOT_RANGE = 100
 const PROJECTILE_SPEED = 10 // Meters per second - lower = slower bullets
-const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
 const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0, 1.27, 0.25)
 // Shorter freeze so rotation can update between shots (minigun fires every 0.2s; 0.4s would block rotation entirely)
@@ -43,20 +43,6 @@ let gunEntity: Entity | null = null
 let shootTimer = 0
 /** Seconds left to freeze gun rotation after shoot (animator.playing may not clear when clip ends) */
 let rotationFreezeRemaining = 0
-
-function getNearestZombie(fromPosition: Vector3): Entity | null {
-  let nearest: Entity | null = null
-  let nearestDist = SHOOT_RANGE
-
-  for (const [entity, zombieData, transform] of engine.getEntitiesWith(ZombieComponent, Transform)) {
-    const dist = Vector3.distance(fromPosition, transform.position)
-    if (dist < nearestDist) {
-      nearestDist = dist
-      nearest = entity
-    }
-  }
-  return nearest
-}
 
 function playGunAnimation() {
   if (gunEntity && Animator.has(gunEntity)) {
@@ -162,19 +148,7 @@ export function miniGunSystem(dt: number) {
   const posSmooth = 1 - Math.exp(-GUN_POSITION_SMOOTH_SPEED * dt)
   mutableGunTransform.position = Vector3.lerp(currentPos, gunWorldPos, posSmooth)
 
-  const nearestZombie = getNearestZombie(gunWorldPos)
-  if (!nearestZombie) {
-    shootTimer = 0
-    return
-  }
-
-  const zombieBasePos = Transform.get(nearestZombie).position
-  const zombieTargetPos = Vector3.create(
-    zombieBasePos.x,
-    zombieBasePos.y + ZOMBIE_TARGET_HEIGHT,
-    zombieBasePos.z
-  )
-  const aimDir = Vector3.subtract(zombieTargetPos, gunWorldPos)
+  const aimDir = Vector3.rotate(Vector3.Forward(), playerTransform.rotation)
   const aimDirXZ = Vector3.create(aimDir.x, 0, aimDir.z)
   const lenSqXZ = aimDirXZ.x * aimDirXZ.x + aimDirXZ.z * aimDirXZ.z
   let gunWorldRot = Transform.get(gunEntity).rotation
@@ -188,11 +162,16 @@ export function miniGunSystem(dt: number) {
 
   const effectiveFireRate = FIRE_RATE / getFireRateMultiplier()
   shootTimer += dt
-  if (shootTimer >= effectiveFireRate) {
-    shootTimer = 0
-    playGunAnimation()
-    spawnProjectile(gunWorldPos, gunWorldRot)
-  }
+  if (shootTimer < effectiveFireRate) return
+
+  const didShoot =
+    inputSystem.isTriggered(InputAction.IA_POINTER, PointerEventType.PET_DOWN) ||
+    inputSystem.isTriggered(InputAction.IA_PRIMARY, PointerEventType.PET_DOWN)
+  if (!didShoot) return
+
+  shootTimer = 0
+  playGunAnimation()
+  spawnProjectile(gunWorldPos, gunWorldRot)
 }
 
 export function initMiniGunSystems() {
