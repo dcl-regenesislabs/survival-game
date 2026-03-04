@@ -44,6 +44,9 @@ const PLAYER_HP_FILL_UVS = [0.290462, 0.238462, 0.290462, 0.355385, 0.846821, 0.
 const WAVE_ZOMBIES_PANEL_WIDTH = 992
 const WAVE_ZOMBIES_PANEL_HEIGHT = 152
 const WAVE_ZOMBIES_PANEL_UVS = [0.032514, 0.358462, 0.032514, 0.650769, 0.928468, 0.650769, 0.928468, 0.358462]
+const BACK_TO_LOBBY_BUTTON_WIDTH = 127
+const BACK_TO_LOBBY_BUTTON_HEIGHT = 94
+const BACK_TO_LOBBY_BUTTON_UVS = [0.03396, 0.046154, 0.03396, 0.252308, 0.16474, 0.252308, 0.16474, 0.046154]
 const WEAPONS_SHEET_SRC = 'assets/images/WEAPONS.png'
 const WEAPONS_LOCK_SHEET_SRC = 'assets/images/WEAPONS_LOCK.png'
 const GUN_BUTTON_WIDTH = 180
@@ -484,17 +487,20 @@ export const uiMenu = () => {
       {showBackToLobbyButton && (
         <UiEntity
           uiTransform={{
-            width: '100%',
-            position: { bottom: 176, left: 0 },
+            position: { top: 321, right: 24 },
             positionType: 'absolute',
             flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center'
+            alignItems: 'flex-start',
+            justifyContent: 'flex-end'
           }}
         >
           <UiEntity
-            uiTransform={{ width: 420, height: 84 }}
-            uiBackground={{ color: Color4.create(0.55, 0.18, 0.16, 0.95) }}
+            uiTransform={{ width: BACK_TO_LOBBY_BUTTON_WIDTH, height: BACK_TO_LOBBY_BUTTON_HEIGHT }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: 'assets/images/HUD.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
+              uvs: BACK_TO_LOBBY_BUTTON_UVS
+            }}
             onMouseDown={() => {
               sendLeaveLobby()
               movePlayerTo({
@@ -502,23 +508,7 @@ export const uiMenu = () => {
                 cameraTarget: LOBBY_RETURN_LOOK_TARGET
               })
             }}
-          >
-            <UiEntity
-              uiTransform={{
-                width: '100%',
-                height: '100%',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              uiText={{
-                value: 'Back to Lobby',
-                fontSize: 32,
-                color: Color4.create(1, 1, 1, 1),
-                textAlign: 'middle-center'
-              }}
-            />
-          </UiEntity>
+          />
         </UiEntity>
       )}
       {playerDead && (
