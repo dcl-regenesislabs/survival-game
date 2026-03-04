@@ -617,6 +617,12 @@ function waveRuntimeSystem(dt: number): void {
   runtime.serverNowMs = now
   recomputeZombiesAlive(runtime, now)
 
+  if (lobbyState.arenaPlayers.length === 0) {
+    cancelArenaIntroCountdown()
+    resetMatchToLobbyKeepingPlayers()
+    return
+  }
+
   if (lobbyState.arenaPlayers.length < MATCH_MAX_PLAYERS) {
     cancelArenaAutoTeleportCountdown()
   } else if (lobbyState.countdownEndTimeMs > 0 && now >= lobbyState.countdownEndTimeMs) {
