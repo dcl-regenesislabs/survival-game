@@ -129,8 +129,8 @@ export function getLobbyState(): LobbyStateSnapshot | null {
   for (const [entity] of engine.getEntitiesWith(LobbyStateComponent)) {
     const state = LobbyStateComponent.get(entity)
     const localAddress = getLocalAddress()
-    const isInLobby = !!localAddress && state.players.some((p) => p.address === localAddress)
-    if (state.phase !== 'match_created' || !isInLobby) {
+    const isInArenaRoster = !!localAddress && state.arenaPlayers.some((p) => p.address === localAddress)
+    if (state.phase !== 'match_created' || !isInArenaRoster) {
       localReadyForMatch = false
     }
     return {
@@ -138,6 +138,7 @@ export function getLobbyState(): LobbyStateSnapshot | null {
       matchId: state.matchId,
       hostAddress: state.hostAddress,
       players: [...state.players],
+      arenaPlayers: [...state.arenaPlayers],
       countdownEndTimeMs: state.countdownEndTimeMs,
       arenaIntroEndTimeMs: state.arenaIntroEndTimeMs
     }

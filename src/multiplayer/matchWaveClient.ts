@@ -32,7 +32,7 @@ function isLocalPlayerInCurrentMatch(): boolean {
   const localAddress = getLocalAddress()
   if (!lobbyState || !localAddress) return false
   if (lobbyState.phase !== 'match_created') return false
-  return lobbyState.players.some((p) => p.address === localAddress)
+  return lobbyState.arenaPlayers.some((p) => p.address === localAddress)
 }
 
 function queueWavePlan(data: {

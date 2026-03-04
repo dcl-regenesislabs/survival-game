@@ -126,6 +126,7 @@ function getLobbyStateMutable() {
       matchId: '',
       hostAddress: '',
       players: [],
+      arenaPlayers: [],
       countdownEndTimeMs: 0,
       arenaIntroEndTimeMs: 0
     })
@@ -216,8 +217,8 @@ function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
 
 function endMatchAndReturnToLobby(message: string): void {
   const lobby = getLobbyStateMutable()
-  const players = [...lobby.players]
-  setPlayers([])
+  const players = [...lobby.arenaPlayers]
+  resetMatchToLobbyKeepingPlayers()
 
   for (const player of players) {
     resetPlayerCombatState(player.address)
@@ -255,6 +256,16 @@ function resetMatchRuntime() {
   clearZombieTracking(runtime)
 }
 
+function resetMatchToLobbyKeepingPlayers(): void {
+  const lobby = getLobbyStateMutable()
+  lobby.phase = LobbyPhase.LOBBY
+  lobby.matchId = ''
+  lobby.arenaPlayers = []
+  lobby.countdownEndTimeMs = 0
+  lobby.arenaIntroEndTimeMs = 0
+  resetMatchRuntime()
+}
+
 function cancelArenaAutoTeleportCountdown(): void {
   const lobby = getLobbyStateMutable()
   if (lobby.countdownEndTimeMs === 0) return
@@ -276,6 +287,7 @@ function getLobbyState() {
     matchId: mutable.matchId,
     hostAddress: mutable.hostAddress,
     players: [...mutable.players],
+    arenaPlayers: [...mutable.arenaPlayers],
     countdownEndTimeMs: mutable.countdownEndTimeMs,
     arenaIntroEndTimeMs: mutable.arenaIntroEndTimeMs
   }
@@ -288,6 +300,7 @@ function setPlayers(players: LobbyPlayer[]) {
     state.hostAddress = ''
     state.phase = LobbyPhase.LOBBY
     state.matchId = ''
+    state.arenaPlayers = []
     state.countdownEndTimeMs = 0
     state.arenaIntroEndTimeMs = 0
     resetMatchRuntime()
@@ -296,9 +309,19 @@ function setPlayers(players: LobbyPlayer[]) {
   }
 }
 
+function setArenaPlayers(players: LobbyPlayer[]) {
+  const state = getLobbyStateMutable()
+  state.arenaPlayers = players
+}
+
 function isPlayerInLobby(address: string): boolean {
   const state = getLobbyState()
   return state.players.some((p) => p.address === address.toLowerCase())
+}
+
+function isPlayerInArena(address: string): boolean {
+  const state = getLobbyState()
+  return state.arenaPlayers.some((p) => p.address === address.toLowerCase())
 }
 
 function isMatchJoinLocked(): boolean {
@@ -381,6 +404,12 @@ function addPlayerToLobby(address: string): void {
   if (!mutable.hostAddress) {
     mutable.hostAddress = normalizedAddress
   }
+  if (mutable.phase === LobbyPhase.MATCH_CREATED && !isMatchJoinLocked()) {
+    mutable.arenaPlayers = [...mutable.arenaPlayers, nextPlayers[nextPlayers.length - 1]]
+    if (mutable.arenaPlayers.length === MATCH_MAX_PLAYERS) {
+      startArenaAutoTeleportCountdown(mutable.arenaPlayers)
+    }
+  }
 
   logLobbyServerEvent(
     `PlayerJoined ${getPlayerDisplayName(normalizedAddress)} ${nextPlayers.length}/${MATCH_MAX_PLAYERS}`
@@ -390,27 +419,28 @@ function addPlayerToLobby(address: string): void {
     type: 'join',
     message: `${getPlayerDisplayName(normalizedAddress)} joined lobby`
   })
-
-  if (mutable.phase === LobbyPhase.MATCH_CREATED && nextPlayers.length === MATCH_MAX_PLAYERS) {
-    startArenaAutoTeleportCountdown(nextPlayers)
-  }
 }
 
 async function removePlayerFromLobby(address: string): Promise<void> {
   const normalizedAddress = address.toLowerCase()
   const state = getLobbyState()
   const nextPlayers = state.players.filter((p) => p.address !== normalizedAddress)
+  const nextArenaPlayers = state.arenaPlayers.filter((p) => p.address !== normalizedAddress)
   const leavingPlayer = state.players.find((p) => p.address === normalizedAddress)
 
   await playerProgressStore.saveAndEvict(normalizedAddress)
   loadedProfileAddresses.delete(normalizedAddress)
   removePlayerCombatState(normalizedAddress)
   setPlayers(nextPlayers)
-  if (nextPlayers.length < MATCH_MAX_PLAYERS) {
+  setArenaPlayers(nextArenaPlayers)
+  if (nextArenaPlayers.length < MATCH_MAX_PLAYERS) {
     cancelArenaAutoTeleportCountdown()
   }
-  if (nextPlayers.length === 0) {
+  if (nextArenaPlayers.length === 0) {
     cancelArenaIntroCountdown()
+    if (state.phase === LobbyPhase.MATCH_CREATED) {
+      resetMatchToLobbyKeepingPlayers()
+    }
   }
 
   if (leavingPlayer) {
@@ -435,6 +465,7 @@ function createMatch(address: string): void {
   mutable.phase = LobbyPhase.MATCH_CREATED
   mutable.hostAddress = state.hostAddress || normalizedAddress
   mutable.matchId = `match_${Date.now()}`
+  mutable.arenaPlayers = [...state.players]
   mutable.countdownEndTimeMs = 0
   mutable.arenaIntroEndTimeMs = 0
   resetMatchRuntime()
@@ -445,8 +476,8 @@ function createMatch(address: string): void {
     message: `Match created (${mutable.matchId})`
   })
 
-  if (state.players.length === MATCH_MAX_PLAYERS) {
-    startArenaAutoTeleportCountdown(state.players)
+  if (mutable.arenaPlayers.length === MATCH_MAX_PLAYERS) {
+    startArenaAutoTeleportCountdown(mutable.arenaPlayers)
   }
 }
 
@@ -537,7 +568,7 @@ function startZombieWaves(address: string, startReason: 'manual' | 'auto' = 'man
   const normalizedAddress = address.toLowerCase()
   const state = getLobbyState()
   if (state.phase !== LobbyPhase.MATCH_CREATED) return
-  if (!state.players.some((p) => p.address === normalizedAddress)) return
+  if (!state.arenaPlayers.some((p) => p.address === normalizedAddress)) return
 
   const runtime = getMatchRuntimeMutable()
   if (runtime.isRunning) return
@@ -555,12 +586,12 @@ function startZombieWaves(address: string, startReason: 'manual' | 'auto' = 'man
   sendWaveSpawnPlan(runtime.waveNumber, runtime.serverNowMs)
   logLobbyServerEvent(`WavesStarted by ${normalizedAddress}`)
 
-  for (const player of state.players) {
+  for (const player of state.arenaPlayers) {
     resetPlayerCombatState(player.address)
   }
-  sendPlayerHealthStatesForLobbyPlayers(state.players)
+  sendPlayerHealthStatesForLobbyPlayers(state.arenaPlayers)
 
-  for (const player of state.players) {
+  for (const player of state.arenaPlayers) {
     playerProgressStore.mutate(player.address, (progress) => {
       progress.profile.lifetimeStats.matchesPlayed += 1
     })
@@ -586,21 +617,29 @@ function waveRuntimeSystem(dt: number): void {
   runtime.serverNowMs = now
   recomputeZombiesAlive(runtime, now)
 
-  if (lobbyState.players.length < MATCH_MAX_PLAYERS) {
+  if (lobbyState.arenaPlayers.length === 0) {
+    cancelArenaIntroCountdown()
+    resetMatchToLobbyKeepingPlayers()
+    return
+  }
+
+  if (lobbyState.arenaPlayers.length < MATCH_MAX_PLAYERS) {
     cancelArenaAutoTeleportCountdown()
   } else if (lobbyState.countdownEndTimeMs > 0 && now >= lobbyState.countdownEndTimeMs) {
     cancelArenaAutoTeleportCountdown()
-    sendArenaAutoTeleport(lobbyState.players)
+    sendArenaAutoTeleport(lobbyState.arenaPlayers)
   }
 
   if (!runtime.isRunning && lobbyState.arenaIntroEndTimeMs > 0 && now >= lobbyState.arenaIntroEndTimeMs) {
-    const starterAddress = lobbyState.hostAddress || lobbyState.players[0]?.address
+    const starterAddress = lobbyState.arenaPlayers.some((player) => player.address === lobbyState.hostAddress)
+      ? lobbyState.hostAddress
+      : lobbyState.arenaPlayers[0]?.address
     if (starterAddress) {
       startZombieWaves(starterAddress, 'auto')
     }
   }
 
-  for (const player of lobbyState.players) {
+  for (const player of lobbyState.arenaPlayers) {
     const combat = getOrCreatePlayerCombatState(player.address)
     if (!combat.isDead) continue
     if (combat.respawnAtMs <= 0 || now < combat.respawnAtMs) continue
@@ -616,8 +655,8 @@ function waveRuntimeSystem(dt: number): void {
   if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
     runtime.cyclePhase = WaveCyclePhase.REST
     runtime.phaseEndTimeMs = now + runtime.restDurationSeconds * 1000
-    grantWaveMilestoneGold(runtime.waveNumber, lobbyState.players)
-    for (const player of lobbyState.players) {
+    grantWaveMilestoneGold(runtime.waveNumber, lobbyState.arenaPlayers)
+    for (const player of lobbyState.arenaPlayers) {
       playerProgressStore.mutate(player.address, (progress) => {
         progress.profile.lifetimeStats.wavesCleared += 1
       })
@@ -750,6 +789,12 @@ export function setupLobbyServer(): void {
     if (!context) return
     if (!isPlayerInLobby(context.from) && isMatchJoinLocked()) {
       logLobbyServerEvent(`JoinRejectedMatchLocked ${context.from.toLowerCase()}`)
+      await ensurePlayerProfileLoaded(context.from)
+      addPlayerToLobby(context.from)
+      void room.send('lobbyEvent', {
+        type: 'match_locked',
+        message: `${getPlayerDisplayName(context.from.toLowerCase())} can join the next match`
+      })
       return
     }
     await ensurePlayerLoadedAndInLobby(context.from)
@@ -762,7 +807,7 @@ export function setupLobbyServer(): void {
 
   room.onMessage('zombieDieRequest', (data, context) => {
     if (!context) return
-    if (!isPlayerInLobby(context.from)) return
+    if (!isPlayerInArena(context.from)) return
     const lobbyState = getLobbyState()
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
     if (!data.zombieId) return
@@ -780,7 +825,7 @@ export function setupLobbyServer(): void {
   room.onMessage('playerDamageRequest', (data, context) => {
     if (!context) return
     const normalizedAddress = context.from.toLowerCase()
-    if (!isPlayerInLobby(normalizedAddress)) return
+    if (!isPlayerInArena(normalizedAddress)) return
 
     const lobbyState = getLobbyState()
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
@@ -803,7 +848,7 @@ export function setupLobbyServer(): void {
     }
     sendPlayerHealthState(normalizedAddress)
 
-    if (areAllLobbyPlayersDead(lobbyState.players)) {
+    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby('All players died. Returning to lobby.')
     }
   })

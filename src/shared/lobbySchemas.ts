@@ -15,6 +15,7 @@ const LobbyStateSchema = {
   matchId: Schemas.String,
   hostAddress: Schemas.String,
   players: Schemas.Array(LobbyPlayerSchema),
+  arenaPlayers: Schemas.Array(LobbyPlayerSchema),
   countdownEndTimeMs: Schemas.Int64,
   arenaIntroEndTimeMs: Schemas.Int64
 }
@@ -24,6 +25,7 @@ export const LobbyStateComponent = engine.defineComponent('LobbyStateComponent',
   matchId: '',
   hostAddress: '',
   players: [],
+  arenaPlayers: [],
   countdownEndTimeMs: 0,
   arenaIntroEndTimeMs: 0
 })
@@ -38,6 +40,7 @@ export type LobbyStateSnapshot = {
   matchId: string
   hostAddress: string
   players: LobbyPlayer[]
+  arenaPlayers: LobbyPlayer[]
   countdownEndTimeMs: number
   arenaIntroEndTimeMs: number
 }
