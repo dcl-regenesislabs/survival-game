@@ -6,6 +6,7 @@ import { getPlayerHp, isPlayerDead, MAX_HP } from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
 import { getGameTime } from './zombie'
 import { isRaging, getRageTimeLeft } from './rageEffect'
+import { getHealthPickupFeedback } from './potions'
 import {
   isShotgunUnlocked,
   isMinigunUnlocked,
@@ -234,10 +235,10 @@ export const uiMenu = () => {
         </UiEntity>
       )}
 
-      {isRaging() && (
+      {showGameplayHud && isRaging() && (
         <UiEntity
           uiTransform={{
-            position: { top: 24, left: 0 },
+            position: { top: 186, left: 0 },
             positionType: 'absolute',
             flexDirection: 'row',
             alignItems: 'center',
@@ -247,16 +248,18 @@ export const uiMenu = () => {
         >
           <UiEntity
             uiTransform={{
-              padding: { left: 16, right: 16, top: 8, bottom: 8 }
+              width: 260,
+              height: 36,
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
-            uiBackground={{ color: Color4.create(0.6, 0.1, 0.2, 0.9) }}
           >
             <UiEntity
-              uiTransform={{ padding: { left: 4, right: 4 } }}
+              uiTransform={{ width: '100%', height: '100%' }}
               uiText={{
                 value: `RAGED • ${Math.ceil(getRageTimeLeft(getGameTime()))}s`,
-                fontSize: 20,
-                color: Color4.create(1, 0.7, 0.8, 1),
+                fontSize: 26,
+                color: Color4.create(0.58, 0.08, 0.12, 1),
                 textAlign: 'middle-center'
               }}
             />
@@ -317,6 +320,28 @@ export const uiMenu = () => {
               />
             </UiEntity>
           </UiEntity>
+        </UiEntity>
+      )}
+      {showGameplayHud && (
+        <UiEntity
+          uiTransform={{
+            position: { left: 64, top: 298 },
+            positionType: 'absolute',
+            width: PLAYER_HP_FRAME_WIDTH,
+            height: 28,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{ width: '100%', height: '100%' }}
+            uiText={{
+              value: getHealthPickupFeedback(getGameTime()),
+              fontSize: 24,
+              color: Color4.create(0.3, 1, 0.42, 1),
+              textAlign: 'middle-center'
+            }}
+          />
         </UiEntity>
       )}
       {showZcCounter && (
@@ -448,7 +473,6 @@ export const uiMenu = () => {
               justifyContent: 'center',
               padding: { top: 28, bottom: 28, left: 32, right: 32 }
             }}
-            uiBackground={{ color: Color4.create(0.04, 0.04, 0.06, 0.92) }}
           >
             {arenaIntroSeconds > 0 && (
               <UiEntity
