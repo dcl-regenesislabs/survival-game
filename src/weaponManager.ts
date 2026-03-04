@@ -37,13 +37,13 @@ function createWeapon(type: WeaponType): void {
 }
 
 export function switchTo(type: WeaponType): boolean {
+  if (!arenaWeaponEnabled) return false
+
   if (type === 'shotgun' && !isShotgunUnlocked()) return false
   if (type === 'minigun' && !isMinigunUnlocked()) return false
 
   const previousWeapon = currentWeapon
   currentWeapon = type
-
-  if (!arenaWeaponEnabled) return true
 
   if (hasSpawnedWeapon && previousWeapon === type) return true
 
@@ -60,6 +60,7 @@ export function enableArenaWeapon(): void {
 
 export function resetArenaWeaponProgress(): void {
   destroyCurrentWeapon()
+  hasSpawnedWeapon = false
   arenaWeaponEnabled = false
   currentWeapon = 'gun'
 }
