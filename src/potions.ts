@@ -6,7 +6,7 @@ import {
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
-import { healPlayer, MAX_HP, setHealGlowEndTime } from './playerHealth'
+import { getPlayerHp, healPlayer, MAX_HP, setHealGlowEndTime } from './playerHealth'
 import { applyRageEffect } from './rageEffect'
 import { getGameTime } from './zombie'
 
@@ -31,6 +31,13 @@ const PotionPickupSchema = {
   childEntity: Schemas.Entity
 }
 const PotionPickupComponent = engine.defineComponent('PotionPickup', PotionPickupSchema)
+let healthPickupFeedbackText = ''
+let healthPickupFeedbackEndTime = 0
+
+export function getHealthPickupFeedback(now: number): string {
+  if (now > healthPickupFeedbackEndTime) return ''
+  return healthPickupFeedbackText
+}
 
 function spawnHealthPotion(position: Vector3): void {
   const root = engine.addEntity()
@@ -130,7 +137,10 @@ export function potionPickupSystem(): void {
       const dist = distanceXZ(playerPos, transform.position)
       if (dist <= PICKUP_RADIUS) {
         if (potion.isHealth) {
+          const hpBefore = getPlayerHp()
           healPlayer(MAX_HP)
+          healthPickupFeedbackText = hpBefore >= MAX_HP ? 'Maximum Health' : '+100 Health'
+          healthPickupFeedbackEndTime = now + 1.5
           setHealGlowEndTime(now + 1.5)
         } else {
           applyRageEffect(now)
