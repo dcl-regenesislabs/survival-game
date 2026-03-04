@@ -1,9 +1,7 @@
 import {
   engine,
   pointerEventsSystem,
-  PointerEvents,
   InputAction,
-  PointerEventType,
   TextAlignMode,
   Transform,
   MeshRenderer,
@@ -223,19 +221,6 @@ export class LoadoutWorldPanel {
         metallic: 0,
         roughness: 0.86
       })
-      PointerEvents.create(buttonEntity, {
-        pointerEvents: [
-          {
-            eventType: PointerEventType.PET_DOWN,
-            eventInfo: {
-              button: InputAction.IA_POINTER,
-              hoverText: slot.kind === 'weapon' ? slot.weapon.label : slot.label,
-              maxDistance: 10,
-              showFeedback: true
-            }
-          }
-        ]
-      })
       pointerEventsSystem.onPointerDown(
         {
           entity: buttonEntity,
@@ -286,19 +271,6 @@ export class LoadoutWorldPanel {
       emissiveIntensity: 0.1,
       metallic: 0,
       roughness: 0.86
-    })
-    PointerEvents.create(this.actionButtonEntity, {
-      pointerEvents: [
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_POINTER,
-            hoverText: 'Loadout Action',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        }
-      ]
     })
     pointerEventsSystem.onPointerDown(
       { entity: this.actionButtonEntity, opts: { button: InputAction.IA_POINTER, hoverText: 'Loadout Action' } },
