@@ -9,8 +9,6 @@ import { isRaging, getRageTimeLeft } from './rageEffect'
 import {
   isShotgunUnlocked,
   isMinigunUnlocked,
-  canAffordShotgun,
-  canAffordMinigun,
   switchTo
 } from './weaponManager'
 import {
@@ -705,8 +703,8 @@ export const uiMenu = () => {
             ? (['gun', 'shotgun', 'minigun', 'brick'] as const).map((weapon) => {
                 const canUse =
                   weapon === 'gun' ||
-                  (weapon === 'shotgun' && (isShotgunUnlocked() || canAffordShotgun())) ||
-                  (weapon === 'minigun' && (isMinigunUnlocked() || canAffordMinigun())) ||
+                  (weapon === 'shotgun' && isShotgunUnlocked()) ||
+                  (weapon === 'minigun' && isMinigunUnlocked()) ||
                   (weapon === 'brick' && getZombieCoins() >= BRICK_COST_ZC)
                 const isLockedVisual =
                   weapon === 'gun'
