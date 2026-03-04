@@ -2,6 +2,7 @@ import {
   engine,
   Entity,
   Transform,
+  PlayerIdentityData,
   AudioSource,
   TextShape,
   GltfContainer,
@@ -14,6 +15,8 @@ import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
 import { createHealthBarForZombie } from './healthBar'
 import { tryDropPotions } from './potions'
+import { getLobbyState } from './multiplayer/lobbyClient'
+import { isPlayerDead } from './playerHealth'
 
 // Animation clip names from Zombie.glb
 const ANIM_ZOMBIE_UP = 'ZombieUP'
@@ -493,6 +496,30 @@ function distanceXZ(a: Vector3, b: Vector3): number {
   return Math.sqrt(dx * dx + dz * dz)
 }
 
+function getNearestPlayerPosition(zombiePos: Vector3, fallbackPos: Vector3): Vector3 {
+  const lobbyState = getLobbyState()
+  if (!lobbyState?.players.length) return fallbackPos
+
+  const activeAddresses = new Set(lobbyState.players.map((player) => player.address.toLowerCase()))
+  let nearestPlayerPos: Vector3 | null = null
+  let nearestDistance = Number.POSITIVE_INFINITY
+
+  for (const [entity, identity, transform] of engine.getEntitiesWith(PlayerIdentityData, Transform)) {
+    const address = identity.address.toLowerCase()
+    if (!activeAddresses.has(address)) continue
+    if (entity === engine.PlayerEntity && isPlayerDead()) continue
+
+    const candidatePos = transform.position
+    const candidateDistance = distanceXZ(zombiePos, candidatePos)
+    if (candidateDistance >= nearestDistance) continue
+
+    nearestDistance = candidateDistance
+    nearestPlayerPos = candidatePos
+  }
+
+  return nearestPlayerPos ?? fallbackPos
+}
+
 export function zombieSystem(dt: number) {
   if (!Transform.has(engine.PlayerEntity)) return
 
@@ -510,8 +537,8 @@ export function zombieSystem(dt: number) {
 
     const zombiePos = transform.position
 
-    // Target: nearest brick within agro range, or player
-    let targetPos = Vector3.clone(playerPos)
+    // Target: nearest brick within agro range, or nearest active match player
+    let targetPos = Vector3.clone(getNearestPlayerPosition(zombiePos, playerPos))
     let targetIsBrick = false
     let targetBrickEntity: Entity | null = null
     let nearestBrickDist = BRICK_AGRO_RANGE + 1
