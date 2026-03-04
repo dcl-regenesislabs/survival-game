@@ -6,6 +6,8 @@ import { isLoadoutWeaponOwned } from './loadoutState'
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
 
 let currentWeapon: WeaponType = 'gun'
+let arenaWeaponEnabled = false
+let hasSpawnedWeapon = false
 
 export function getCurrentWeapon(): WeaponType {
   return currentWeapon
@@ -20,47 +22,44 @@ export function isMinigunUnlocked(): boolean {
 }
 
 function destroyCurrentWeapon(): void {
+  if (!hasSpawnedWeapon) return
   if (currentWeapon === 'gun') destroyGun()
   else if (currentWeapon === 'shotgun') destroyShotGun()
   else if (currentWeapon === 'minigun') destroyMiniGun()
+  hasSpawnedWeapon = false
 }
 
 function createWeapon(type: WeaponType): void {
   if (type === 'gun') createGun()
   else if (type === 'shotgun') createShotGun()
   else if (type === 'minigun') createMiniGun()
+  hasSpawnedWeapon = true
 }
 
 export function switchTo(type: WeaponType): boolean {
-  if (type === 'gun') {
-    destroyCurrentWeapon()
-    createWeapon('gun')
-    currentWeapon = 'gun'
-    return true
-  }
+  if (type === 'shotgun' && !isShotgunUnlocked()) return false
+  if (type === 'minigun' && !isMinigunUnlocked()) return false
 
-  if (type === 'shotgun') {
-    if (!isShotgunUnlocked()) return false
-    destroyCurrentWeapon()
-    createWeapon('shotgun')
-    currentWeapon = 'shotgun'
-    return true
-  }
+  const previousWeapon = currentWeapon
+  currentWeapon = type
 
-  if (type === 'minigun') {
-    if (!isMinigunUnlocked()) return false
-    destroyCurrentWeapon()
-    createWeapon('minigun')
-    currentWeapon = 'minigun'
-    return true
-  }
+  if (!arenaWeaponEnabled) return true
 
-  return false
+  if (hasSpawnedWeapon && previousWeapon === type) return true
+
+  destroyCurrentWeapon()
+  createWeapon(type)
+  return true
+}
+
+export function enableArenaWeapon(): void {
+  arenaWeaponEnabled = true
+  if (hasSpawnedWeapon) return
+  createWeapon(currentWeapon)
 }
 
 export function resetArenaWeaponProgress(): void {
-  if (currentWeapon === 'gun') return
   destroyCurrentWeapon()
-  createWeapon('gun')
+  arenaWeaponEnabled = false
   currentWeapon = 'gun'
 }

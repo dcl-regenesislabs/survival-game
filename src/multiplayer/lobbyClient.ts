@@ -5,7 +5,7 @@ import { MatchRuntimeSnapshot, MatchRuntimeStateComponent } from '../shared/matc
 import { movePlayerTo } from '~system/RestrictedActions'
 import { applyAuthoritativeHealthState } from '../playerHealth'
 import { applyPlayerLoadoutSnapshot } from '../loadoutState'
-import { resetArenaWeaponProgress } from '../weaponManager'
+import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
 
 let latestLobbyEvent = ''
@@ -24,7 +24,7 @@ export function setupLobbyClient(): void {
       resetArenaWeaponProgress()
     }
     if (data.type === 'waves_started') {
-      resetArenaWeaponProgress()
+      enableArenaWeapon()
     }
     console.log(`[Lobby] ${data.type}: ${data.message}`)
   })

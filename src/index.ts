@@ -23,7 +23,7 @@ import {
   rewardTextSystem,
   setPlayerDamageReporter
 } from './zombie'
-import { createGun, initGunSystems } from './gun'
+import { initGunSystems } from './gun'
 import { initShotGunSystems } from './shotGun'
 import { initMiniGunSystems } from './miniGun'
 import { initBrickSystem } from './brick'
@@ -167,8 +167,7 @@ export function main() {
   // Authoritative match waves (30s active / 10s rest)
   initMatchWaveClientSystem()
 
-  // Create starting gun and init all weapon systems (only active weapon runs per frame)
-  createGun()
+  // Init all weapon systems (active weapon gets spawned when match starts)
   initGunSystems()
   initShotGunSystems()
   initMiniGunSystems()
