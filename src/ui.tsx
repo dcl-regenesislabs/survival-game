@@ -79,16 +79,17 @@ export const uiMenu = () => {
   const lobbyState = getLobbyState()
   const localAddress = getLocalAddress()
   const isInLobby = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
+  const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const isHost = !!localAddress && lobbyState?.hostAddress === localAddress
   const lobbyPlayersText = lobbyState?.players.length
     ? lobbyState.players.map((p) => p.displayName).join(', ')
     : 'No players'
   const lobbyPhaseLabel = lobbyState?.phase === LobbyPhase.MATCH_CREATED ? 'Match Created' : 'Lobby'
   const matchRuntime = getMatchRuntimeState()
-  const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInLobby
+  const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInArenaRoster
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
-  const showBackToLobbyButton = isInLobby && localReadyForMatch
+  const showBackToLobbyButton = isInArenaRoster && localReadyForMatch
   const timerNowMs = getServerTime()
   const arenaIntroSeconds =
     lobbyState?.arenaIntroEndTimeMs && lobbyState.arenaIntroEndTimeMs > timerNowMs

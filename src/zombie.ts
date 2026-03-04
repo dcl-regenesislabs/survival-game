@@ -498,9 +498,9 @@ function distanceXZ(a: Vector3, b: Vector3): number {
 
 function getNearestPlayerPosition(zombiePos: Vector3, fallbackPos: Vector3): Vector3 {
   const lobbyState = getLobbyState()
-  if (!lobbyState?.players.length) return fallbackPos
+  if (!lobbyState?.arenaPlayers.length) return fallbackPos
 
-  const activeAddresses = new Set(lobbyState.players.map((player) => player.address.toLowerCase()))
+  const activeAddresses = new Set(lobbyState.arenaPlayers.map((player) => player.address.toLowerCase()))
   let nearestPlayerPos: Vector3 | null = null
   let nearestDistance = Number.POSITIVE_INFINITY
 
