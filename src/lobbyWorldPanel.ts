@@ -68,14 +68,6 @@ export class LobbyWorldPanel {
       rotation: Quaternion.Identity(),
       scale: PANEL_WORLD_SCALE
     })
-    MeshRenderer.setBox(this.panelEntity)
-    Material.setPbrMaterial(this.panelEntity, {
-      albedoColor: Color4.create(0.04, 0.09, 0.16, 1),
-      emissiveColor: Color3.create(0.05, 0.12, 0.2),
-      emissiveIntensity: 0.2,
-      metallic: 0,
-      roughness: 0.9
-    })
 
     Transform.create(this.textEntity, {
       parent: this.rootEntity,
