@@ -88,7 +88,8 @@ export const uiMenu = () => {
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInLobby
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
-  const showBackToLobbyButton = isInLobby && localReadyForMatch
+  const showGameplayHud = inMatchContext && localReadyForMatch
+  const showBackToLobbyButton = showGameplayHud
   const timerNowMs = getServerTime()
   const arenaIntroSeconds =
     lobbyState?.arenaIntroEndTimeMs && lobbyState.arenaIntroEndTimeMs > timerNowMs
@@ -105,9 +106,9 @@ export const uiMenu = () => {
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
   const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
-  const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
+  const showArenaIntroOverlay = showGameplayHud && !matchRuntime?.isRunning
 
-  const showZcCounter = !isIdle || inMatchContext
+  const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
   const playerHpRatio = Math.max(0, Math.min(1, getPlayerHp() / MAX_HP))
   const hpFrameScale = PLAYER_HP_FRAME_WIDTH / 968
@@ -426,28 +427,6 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
-      {isIdle && !playerDead && !inMatchContext && (
-        <UiEntity
-          uiTransform={{
-            width: '100%',
-            height: 120,
-            position: { top: 24, left: 0 },
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start'
-          }}
-        >
-          <UiEntity
-            uiTransform={{ width: 400, height: 48 }}
-            uiText={{
-              value: 'Press START (Button3) to begin',
-              fontSize: 22,
-              color: Color4.create(1, 1, 1, 0.9),
-              textAlign: 'middle-center'
-            }}
-          />
-        </UiEntity>
-      )}
       {showArenaIntroOverlay && (
         <UiEntity
           uiTransform={{
@@ -670,27 +649,27 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
-      {/* Action bar: lobby placeholders on top, weapon selection in match at bottom */}
-      <UiEntity
-        uiTransform={{
-          width: '100%',
-          position: inMatchContext ? { bottom: 24, left: 0 } : { top: 24, left: 0 },
-          positionType: 'absolute',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: { left: 24, right: 24 }
-        }}
-      >
+      {/* Action bar: only visible once player is in active match context */}
+      {showGameplayHud && (
         <UiEntity
           uiTransform={{
+            width: '100%',
+            position: { bottom: 24, left: 0 },
+            positionType: 'absolute',
             flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            padding: { left: 24, right: 24 }
           }}
         >
-          {inMatchContext
-            ? (['gun', 'shotgun', 'minigun', 'brick'] as const).map((weapon) => {
+          <UiEntity
+            uiTransform={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {(['gun', 'shotgun', 'minigun', 'brick'] as const).map((weapon) => {
                 const canUse =
                   weapon === 'gun' ||
                   (weapon === 'shotgun' && isShotgunUnlocked()) ||
@@ -800,43 +779,10 @@ export const uiMenu = () => {
                     />
                   </UiEntity>
                 )
-              })
-            : (['Loadout', 'Upgrade'] as const).map((label) => (
-                <UiEntity
-                  key={label}
-                  uiTransform={{
-                    width: 288,
-                    height: 106,
-                    margin: { left: 19, right: 19 }
-                  }}
-                  uiBackground={{ color: Color4.create(0.2, 0.75, 0.35, 1) }}
-                  onMouseDown={() => {
-                    if (label !== 'Loadout') return
-                    movePlayerTo({
-                      newRelativePosition: LOADOUT_TELEPORT_POSITION,
-                      cameraTarget: LOADOUT_LOOK_TARGET
-                    })
-                  }}
-                >
-                  <UiEntity
-                    uiTransform={{
-                      width: '100%',
-                      height: '100%',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                    uiText={{
-                      value: label,
-                      fontSize: 43,
-                      color: Color4.create(1, 1, 1, 1),
-                      textAlign: 'middle-center'
-                    }}
-                  />
-                </UiEntity>
-              ))}
+              })}
+          </UiEntity>
         </UiEntity>
-      </UiEntity>
+      )}
     </UiEntity>
   )
 }
