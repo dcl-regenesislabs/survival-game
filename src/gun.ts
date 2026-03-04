@@ -218,7 +218,10 @@ export function gunSystem(dt: number) {
   const posSmooth = 1 - Math.exp(-GUN_POSITION_SMOOTH_SPEED * dt)
   mutableGunTransform.position = Vector3.lerp(currentPos, gunWorldPos, posSmooth)
 
-  const aimDir = Vector3.rotate(Vector3.Forward(), playerTransform.rotation)
+  const aimRotation = Transform.has(engine.CameraEntity)
+    ? Transform.get(engine.CameraEntity).rotation
+    : playerTransform.rotation
+  const aimDir = Vector3.rotate(Vector3.Forward(), aimRotation)
   const aimDirXZ = Vector3.create(aimDir.x, 0, aimDir.z)
   const lenSqXZ = aimDirXZ.x * aimDirXZ.x + aimDirXZ.z * aimDirXZ.z
   let gunWorldRot = Transform.get(gunEntity).rotation
