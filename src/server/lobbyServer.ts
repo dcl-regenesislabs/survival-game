@@ -218,7 +218,7 @@ function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
 function endMatchAndReturnToLobby(message: string): void {
   const lobby = getLobbyStateMutable()
   const players = [...lobby.arenaPlayers]
-  resetMatchToLobbyKeepingPlayers()
+  setPlayers([])
 
   for (const player of players) {
     resetPlayerCombatState(player.address)
