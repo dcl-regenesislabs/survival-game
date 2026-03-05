@@ -30,6 +30,7 @@ const GUN_SHOOT_ANIM = 'KeyAction'
 const GUN_OFFSET = Vector3.create(0, 0, 0) // Local offset from player (right, up, forward)
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
+const SHOOT_RANGE = 100
 const PROJECTILE_SPEED = 10 // Meters per second - lower = slower bullets
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
@@ -59,6 +60,20 @@ let gunEntity: Entity | null = null
 let shootTimer = 0
 /** Seconds left to freeze gun rotation after shoot (animator.playing may not clear when clip ends) */
 let rotationFreezeRemaining = 0
+
+function getNearestZombie(fromPosition: Vector3): Entity | null {
+  let nearest: Entity | null = null
+  let nearestDist = SHOOT_RANGE
+
+  for (const [entity, _zombieData, transform] of engine.getEntitiesWith(ZombieComponent, Transform)) {
+    const dist = Vector3.distance(fromPosition, transform.position)
+    if (dist < nearestDist) {
+      nearestDist = dist
+      nearest = entity
+    }
+  }
+  return nearest
+}
 
 function playGunAnimation() {
   if (gunEntity && Animator.has(gunEntity)) {
@@ -218,10 +233,17 @@ export function gunSystem(dt: number) {
   const posSmooth = 1 - Math.exp(-GUN_POSITION_SMOOTH_SPEED * dt)
   mutableGunTransform.position = Vector3.lerp(currentPos, gunWorldPos, posSmooth)
 
-  const aimRotation = Transform.has(engine.CameraEntity)
-    ? Transform.get(engine.CameraEntity).rotation
-    : playerTransform.rotation
-  const aimDir = Vector3.rotate(Vector3.Forward(), aimRotation)
+  const nearestZombie = getNearestZombie(gunWorldPos)
+  const aimDir = nearestZombie
+    ? Vector3.subtract(
+        Vector3.create(
+          Transform.get(nearestZombie).position.x,
+          Transform.get(nearestZombie).position.y + ZOMBIE_TARGET_HEIGHT,
+          Transform.get(nearestZombie).position.z
+        ),
+        gunWorldPos
+      )
+    : Vector3.rotate(Vector3.Forward(), playerTransform.rotation)
   const aimDirXZ = Vector3.create(aimDir.x, 0, aimDir.z)
   const lenSqXZ = aimDirXZ.x * aimDirXZ.x + aimDirXZ.z * aimDirXZ.z
   let gunWorldRot = Transform.get(gunEntity).rotation
