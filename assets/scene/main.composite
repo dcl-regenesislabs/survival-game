@@ -90,90 +90,6 @@
         "serializationType": "transform"
       },
       "data": {
-        "512": {
-          "json": {
-            "position": {
-              "x": 2,
-              "y": 0,
-              "z": 2
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            },
-            "rotation": {
-              "x": 0,
-              "y": 0,
-              "z": 0,
-              "w": 1
-            },
-            "parent": 0
-          }
-        },
-        "513": {
-          "json": {
-            "position": {
-              "x": 62,
-              "y": 0,
-              "z": 2
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            },
-            "rotation": {
-              "x": 0,
-              "y": -0.7071067690849304,
-              "z": 0,
-              "w": 0.7071067690849304
-            },
-            "parent": 0
-          }
-        },
-        "514": {
-          "json": {
-            "position": {
-              "x": 62,
-              "y": 0,
-              "z": 62
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            },
-            "rotation": {
-              "x": 0,
-              "y": 0.9999903440475464,
-              "z": 0,
-              "w": -5.551115123125783e-17
-            },
-            "parent": 0
-          }
-        },
-        "515": {
-          "json": {
-            "position": {
-              "x": 2,
-              "y": 0,
-              "z": 63.25
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            },
-            "rotation": {
-              "x": 0,
-              "y": 0.7071067690849304,
-              "z": 0,
-              "w": 0.7071067690849304
-            },
-            "parent": 0
-          }
-        },
         "516": {
           "json": {
             "position": {
@@ -198,20 +114,20 @@
         "517": {
           "json": {
             "position": {
-              "x": 4,
+              "x": 1.5,
               "y": 0,
-              "z": 26.273927688598633
-            },
-            "scale": {
-              "x": 1,
-              "y": 1.899999976158142,
-              "z": 1
+              "z": 62
             },
             "rotation": {
               "x": 0,
-              "y": 0.7933533191680908,
+              "y": 0,
               "z": 0,
-              "w": 0.6087614297866821
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
             },
             "parent": 0
           }
@@ -223,16 +139,16 @@
               "y": 0,
               "z": 15.75
             },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
             "rotation": {
               "x": 0,
               "y": -0.7071067690849304,
               "z": 0,
               "w": 0.7071067690849304
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
             },
             "parent": 0
           }
@@ -240,248 +156,64 @@
         "519": {
           "json": {
             "position": {
-              "x": 3.5500099658966064,
+              "x": 1.5,
               "y": 0,
-              "z": 23.21148681640625
-            },
-            "scale": {
-              "x": 1.399999976158142,
-              "y": 1.399999976158142,
-              "z": 1.399999976158142
+              "z": 62
             },
             "rotation": {
               "x": 0,
-              "y": 0,
+              "y": 0.707099974155426,
               "z": 0,
-              "w": 1
-            },
-            "parent": 0
-          }
-        },
-        "522": {
-          "json": {
-            "position": {
-              "x": 0.24909210205078125,
-              "y": 0.4575212001800537,
-              "z": 0.0034732818603515625
-            },
-            "scale": {
-              "x": 0.20000000298023224,
-              "y": 0.20000000298023224,
-              "z": 0.20000000298023224
-            },
-            "rotation": {
-              "x": 0,
-              "y": 0,
-              "z": 0,
-              "w": 1
-            },
-            "parent": 523
-          }
-        },
-        "523": {
-          "json": {
-            "position": {
-              "x": 3.1937055587768555,
-              "y": 1.455664873123169,
-              "z": 26.145551681518555
-            },
-            "scale": {
-              "x": 2.0999999046325684,
-              "y": 2.0999999046325684,
-              "z": 2.0999999046325684
-            },
-            "rotation": {
-              "x": 0,
-              "y": -0.760399580001831,
-              "z": 0,
-              "w": 0.6494555473327637
-            },
-            "parent": 0
-          }
-        },
-        "524": {
-          "json": {
-            "position": {
-              "x": 3.7706620693206787,
-              "y": 1.3478654024606969e-14,
-              "z": 6.507617950439453
+              "w": 0.707099974155426
             },
             "scale": {
               "x": 1,
               "y": 1,
               "z": 1
             },
-            "rotation": {
-              "x": 0,
-              "y": 0,
-              "z": 0,
-              "w": 1
-            },
             "parent": 0
           }
         },
-        "525": {
+        "520": {
           "json": {
             "position": {
-              "x": 0.24909210205078125,
-              "y": 0.4575212001800537,
-              "z": 0.0034732818603515625
-            },
-            "scale": {
-              "x": 0.20000000298023224,
-              "y": 0.20000000298023224,
-              "z": 0.20000000298023224
-            },
-            "rotation": {
-              "x": 0,
+              "x": 61.5,
               "y": 0,
-              "z": 0,
-              "w": 1
-            },
-            "parent": 526
-          }
-        },
-        "526": {
-          "json": {
-            "position": {
-              "x": 2.7557456493377686,
-              "y": 1.455664873123169,
-              "z": 21.97943115234375
-            },
-            "scale": {
-              "x": 2.0999999046325684,
-              "y": 2.0999999046325684,
-              "z": 2.0999999046325684
+              "z": 62
             },
             "rotation": {
               "x": 0,
-              "y": -0.7603995203971863,
+              "y": 0.707099974155426,
               "z": 0,
-              "w": 0.6494555473327637
-            },
-            "parent": 0
-          }
-        },
-        "527": {
-          "json": {
-            "position": {
-              "x": 0.24909210205078125,
-              "y": 0.4575212001800537,
-              "z": 0.0034732818603515625
-            },
-            "scale": {
-              "x": 0.20000000298023224,
-              "y": 0.20000000298023224,
-              "z": 0.20000000298023224
-            },
-            "rotation": {
-              "x": 0,
-              "y": 0,
-              "z": 0,
-              "w": 1
-            },
-            "parent": 528
-          }
-        },
-        "528": {
-          "json": {
-            "position": {
-              "x": 2.6922430992126465,
-              "y": 0.5910419225692749,
-              "z": 5.6644368171691895
-            },
-            "scale": {
-              "x": 2.0999999046325684,
-              "y": 2.0999999046325684,
-              "z": 2.0999999046325684
-            },
-            "rotation": {
-              "x": 0,
-              "y": -0.7603995203971863,
-              "z": 0,
-              "w": 0.6494555473327637
-            },
-            "parent": 0
-          }
-        },
-        "538": {
-          "json": {
-            "position": {
-              "x": 3.7706620693206787,
-              "y": 1.3478654024606969e-14,
-              "z": 9.734289169311523
+              "w": 0.707099974155426
             },
             "scale": {
               "x": 1,
               "y": 1,
               "z": 1
             },
+            "parent": 0
+          }
+        },
+        "521": {
+          "json": {
+            "position": {
+              "x": 1.5,
+              "y": 0,
+              "z": 2
+            },
             "rotation": {
               "x": 0,
               "y": 0,
               "z": 0,
               "w": 1
-            },
-            "parent": 0
-          }
-        },
-        "539": {
-          "json": {
-            "position": {
-              "x": 3.7706620693206787,
-              "y": 1.3478654024606969e-14,
-              "z": 11.928523063659668
             },
             "scale": {
               "x": 1,
               "y": 1,
               "z": 1
             },
-            "rotation": {
-              "x": 0,
-              "y": 0,
-              "z": 0,
-              "w": 1
-            },
             "parent": 0
-          }
-        }
-      }
-    },
-    {
-      "name": "core-schema::Network-Entity",
-      "jsonSchema": {
-        "type": "object",
-        "properties": {
-          "networkId": {
-            "type": "integer",
-            "serializationType": "int64"
-          },
-          "entityId": {
-            "type": "integer",
-            "serializationType": "entity"
-          }
-        },
-        "serializationType": "map"
-      },
-      "data": {
-        "522": {
-          "json": {
-            "networkId": 0,
-            "entityId": 8002
-          }
-        },
-        "525": {
-          "json": {
-            "networkId": 0,
-            "entityId": 8003
-          }
-        },
-        "527": {
-          "json": {
-            "networkId": 0,
-            "entityId": 8004
           }
         }
       }
@@ -495,34 +227,6 @@
         "protocolBuffer": "PBGltfContainer"
       },
       "data": {
-        "512": {
-          "json": {
-            "src": "assets/scene/Models/wall01/wall01.glb",
-            "visibleMeshesCollisionMask": 0,
-            "invisibleMeshesCollisionMask": 3
-          }
-        },
-        "513": {
-          "json": {
-            "src": "assets/scene/Models/wall01/wall01.glb",
-            "visibleMeshesCollisionMask": 0,
-            "invisibleMeshesCollisionMask": 3
-          }
-        },
-        "514": {
-          "json": {
-            "src": "assets/scene/Models/wall01/wall01.glb",
-            "visibleMeshesCollisionMask": 0,
-            "invisibleMeshesCollisionMask": 3
-          }
-        },
-        "515": {
-          "json": {
-            "src": "assets/scene/Models/wall01/wall01.glb",
-            "visibleMeshesCollisionMask": 0,
-            "invisibleMeshesCollisionMask": 3
-          }
-        },
         "516": {
           "json": {
             "src": "assets/scene/Models/floor/floor.glb",
@@ -532,7 +236,7 @@
         },
         "517": {
           "json": {
-            "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
+            "src": "assets/scene/Models/Wall02/Wall02.glb",
             "visibleMeshesCollisionMask": 0,
             "invisibleMeshesCollisionMask": 3
           }
@@ -546,49 +250,21 @@
         },
         "519": {
           "json": {
-            "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
+            "src": "assets/scene/Models/Wall02/Wall02.glb",
             "visibleMeshesCollisionMask": 0,
             "invisibleMeshesCollisionMask": 3
           }
         },
-        "523": {
+        "520": {
           "json": {
-            "src": "assets/asset-packs/bubble/MessageBubble.glb",
-            "visibleMeshesCollisionMask": 0,
-            "invisibleMeshesCollisionMask": 2
-          }
-        },
-        "524": {
-          "json": {
-            "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
+            "src": "assets/scene/Models/Wall02/Wall02.glb",
             "visibleMeshesCollisionMask": 0,
             "invisibleMeshesCollisionMask": 3
           }
         },
-        "526": {
+        "521": {
           "json": {
-            "src": "assets/asset-packs/bubble/MessageBubble.glb",
-            "visibleMeshesCollisionMask": 0,
-            "invisibleMeshesCollisionMask": 2
-          }
-        },
-        "528": {
-          "json": {
-            "src": "assets/asset-packs/bubble/MessageBubble.glb",
-            "visibleMeshesCollisionMask": 0,
-            "invisibleMeshesCollisionMask": 2
-          }
-        },
-        "538": {
-          "json": {
-            "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
-            "visibleMeshesCollisionMask": 0,
-            "invisibleMeshesCollisionMask": 3
-          }
-        },
-        "539": {
-          "json": {
-            "src": "assets/asset-packs/buttons_table/ButtonsTable.glb",
+            "src": "assets/scene/Models/Wall02/Wall02.glb",
             "visibleMeshesCollisionMask": 0,
             "invisibleMeshesCollisionMask": 3
           }
@@ -608,26 +284,6 @@
         "serializationType": "map"
       },
       "data": {
-        "512": {
-          "json": {
-            "value": "wall01.glb"
-          }
-        },
-        "513": {
-          "json": {
-            "value": "wall01.glb_2"
-          }
-        },
-        "514": {
-          "json": {
-            "value": "wall01.glb_3"
-          }
-        },
-        "515": {
-          "json": {
-            "value": "wall01.glb_4"
-          }
-        },
         "516": {
           "json": {
             "value": "floor.glb"
@@ -635,7 +291,7 @@
         },
         "517": {
           "json": {
-            "value": "Button3"
+            "value": "Wall02.glb"
           }
         },
         "518": {
@@ -645,210 +301,17 @@
         },
         "519": {
           "json": {
-            "value": "Button2"
+            "value": "Wall02.glb_2"
           }
         },
-        "522": {
+        "520": {
           "json": {
-            "value": "Text"
+            "value": "Wall02.glb_3"
           }
         },
-        "523": {
+        "521": {
           "json": {
-            "value": "Bubble"
-          }
-        },
-        "524": {
-          "json": {
-            "value": "Button"
-          }
-        },
-        "525": {
-          "json": {
-            "value": "Text_2"
-          }
-        },
-        "526": {
-          "json": {
-            "value": "Bubble_2"
-          }
-        },
-        "527": {
-          "json": {
-            "value": "Text_3"
-          }
-        },
-        "528": {
-          "json": {
-            "value": "Bubble_3"
-          }
-        },
-        "538": {
-          "json": {
-            "value": "ButtonQuick"
-          }
-        },
-        "539": {
-          "json": {
-            "value": "ButtonTank"
-          }
-        }
-      }
-    },
-    {
-      "name": "core-schema::Sync-Components",
-      "jsonSchema": {
-        "type": "object",
-        "properties": {
-          "componentIds": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "serializationType": "int64"
-            },
-            "serializationType": "array"
-          }
-        },
-        "serializationType": "map"
-      },
-      "data": {
-        "522": {
-          "json": {
-            "componentIds": [
-              1030,
-              1081
-            ]
-          }
-        },
-        "525": {
-          "json": {
-            "componentIds": [
-              1030,
-              1081
-            ]
-          }
-        },
-        "527": {
-          "json": {
-            "componentIds": [
-              1030,
-              1081
-            ]
-          }
-        }
-      }
-    },
-    {
-      "name": "core::TextShape",
-      "jsonSchema": {
-        "type": "object",
-        "properties": {},
-        "serializationType": "protocol-buffer",
-        "protocolBuffer": "PBTextShape"
-      },
-      "data": {
-        "522": {
-          "json": {
-            "text": "START GAME",
-            "font": 2,
-            "fontSize": 4,
-            "fontAutoSize": false,
-            "textAlign": 4,
-            "paddingTop": 0,
-            "paddingRight": 0,
-            "paddingBottom": 0,
-            "paddingLeft": 0,
-            "lineSpacing": 0,
-            "outlineWidth": 0,
-            "outlineColor": {
-              "r": 1,
-              "g": 1,
-              "b": 1
-            },
-            "textColor": {
-              "r": 0,
-              "g": 0,
-              "b": 0,
-              "a": 1
-            }
-          }
-        },
-        "525": {
-          "json": {
-            "text": "SET CAMERA",
-            "font": 2,
-            "fontSize": 4,
-            "fontAutoSize": false,
-            "textAlign": 4,
-            "paddingTop": 0,
-            "paddingRight": 0,
-            "paddingBottom": 0,
-            "paddingLeft": 0,
-            "lineSpacing": 0,
-            "outlineWidth": 0,
-            "outlineColor": {
-              "r": 1,
-              "g": 1,
-              "b": 1
-            },
-            "textColor": {
-              "r": 0,
-              "g": 0,
-              "b": 0,
-              "a": 1
-            }
-          }
-        },
-        "527": {
-          "json": {
-            "text": "SPAWN ZOMBIE",
-            "font": 2,
-            "fontSize": 4,
-            "fontAutoSize": false,
-            "textAlign": 4,
-            "paddingTop": 0,
-            "paddingRight": 0,
-            "paddingBottom": 0,
-            "paddingLeft": 0,
-            "lineSpacing": 0,
-            "outlineWidth": 0,
-            "outlineColor": {
-              "r": 1,
-              "g": 1,
-              "b": 1
-            },
-            "textColor": {
-              "r": 0,
-              "g": 0,
-              "b": 0,
-              "a": 1
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "core::VisibilityComponent",
-      "jsonSchema": {
-        "type": "object",
-        "properties": {},
-        "serializationType": "protocol-buffer",
-        "protocolBuffer": "PBVisibilityComponent"
-      },
-      "data": {
-        "523": {
-          "json": {
-            "visible": true
-          }
-        },
-        "526": {
-          "json": {
-            "visible": true
-          }
-        },
-        "528": {
-          "json": {
-            "visible": true
+            "value": "Wall02.glb_4"
           }
         }
       }
@@ -895,10 +358,147 @@
         "serializationType": "map"
       },
       "data": {
-        "518": {
+        "520": {
           "json": {
             "gizmo": 1
           }
+        }
+      }
+    },
+    {
+      "name": "inspector::Nodes",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "type": "integer",
+                  "serializationType": "entity"
+                },
+                "open": {
+                  "type": "boolean",
+                  "serializationType": "optional",
+                  "optionalJsonSchema": {
+                    "type": "boolean",
+                    "serializationType": "boolean"
+                  }
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "serializationType": "entity"
+                  },
+                  "serializationType": "array"
+                }
+              },
+              "serializationType": "map"
+            },
+            "serializationType": "array"
+          }
+        },
+        "serializationType": "map"
+      },
+      "data": {
+        "0": {
+          "json": {
+            "value": [
+              {
+                "entity": 0,
+                "open": true,
+                "children": [
+                  516,
+                  518,
+                  517,
+                  519,
+                  520,
+                  521
+                ]
+              },
+              {
+                "entity": 1,
+                "children": []
+              },
+              {
+                "entity": 2,
+                "children": []
+              },
+              {
+                "entity": 516,
+                "children": []
+              },
+              {
+                "entity": 518,
+                "children": []
+              },
+              {
+                "entity": 517,
+                "children": []
+              },
+              {
+                "entity": 519,
+                "children": []
+              },
+              {
+                "entity": 520,
+                "children": []
+              },
+              {
+                "entity": 521,
+                "children": []
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "inspector::TransformConfig",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {
+          "porportionalScaling": {
+            "type": "boolean",
+            "serializationType": "optional",
+            "optionalJsonSchema": {
+              "type": "boolean",
+              "serializationType": "boolean"
+            }
+          }
+        },
+        "serializationType": "map"
+      },
+      "data": {
+        "516": {
+          "json": {}
+        },
+        "517": {
+          "json": {}
+        },
+        "518": {
+          "json": {}
+        },
+        "519": {
+          "json": {}
+        },
+        "520": {
+          "json": {}
+        },
+        "521": {
+          "json": {}
+        },
+        "535": {
+          "json": {}
+        },
+        "536": {
+          "json": {}
+        },
+        "537": {
+          "json": {}
         }
       }
     },
@@ -1230,14 +830,12 @@
           "json": {
             "name": "Survival",
             "description": "Empty Scene Template",
+            "thumbnail": "",
             "categories": [],
             "author": "SDK",
+            "email": "",
             "tags": [],
             "layout": {
-              "base": {
-                "x": 0,
-                "y": 0
-              },
               "parcels": [
                 {
                   "x": 0,
@@ -1379,8 +977,14 @@
                   "x": 6,
                   "y": -1
                 }
-              ]
+              ],
+              "base": {
+                "x": 0,
+                "y": 0
+              }
             },
+            "silenceVoiceChat": false,
+            "disablePortableExperiences": false,
             "spawnPoints": [
               {
                 "name": "spawn1",
@@ -1389,182 +993,31 @@
                   "x": {
                     "$case": "range",
                     "value": [
-                      0,
-                      3
+                      106.75
                     ]
                   },
                   "y": {
                     "$case": "range",
                     "value": [
-                      0,
                       0
                     ]
                   },
                   "z": {
                     "$case": "range",
                     "value": [
-                      0,
-                      3
+                      32
                     ]
                   }
                 },
                 "cameraTarget": {
-                  "x": 8,
+                  "x": 91.75,
                   "y": 1,
-                  "z": 8
+                  "z": 32
                 }
               }
             ],
-            "skyboxConfig": {}
-          }
-        }
-      }
-    },
-    {
-      "name": "inspector::Nodes",
-      "jsonSchema": {
-        "type": "object",
-        "properties": {
-          "value": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "entity": {
-                  "type": "integer",
-                  "serializationType": "entity"
-                },
-                "open": {
-                  "type": "boolean",
-                  "serializationType": "optional",
-                  "optionalJsonSchema": {
-                    "type": "boolean",
-                    "serializationType": "boolean"
-                  }
-                },
-                "children": {
-                  "type": "array",
-                  "items": {
-                    "type": "integer",
-                    "serializationType": "entity"
-                  },
-                  "serializationType": "array"
-                }
-              },
-              "serializationType": "map"
-            },
-            "serializationType": "array"
-          }
-        },
-        "serializationType": "map"
-      },
-      "data": {
-        "0": {
-          "json": {
-            "value": [
-              {
-                "entity": 0,
-                "open": true,
-                "children": [
-                  516,
-                  512,
-                  513,
-                  514,
-                  515,
-                  524,
-                  519,
-                  517,
-                  523,
-                  526,
-                  528,
-                  538,
-                  539,
-                  518
-                ]
-              },
-              {
-                "entity": 1,
-                "children": []
-              },
-              {
-                "entity": 2,
-                "children": []
-              },
-              {
-                "entity": 516,
-                "children": []
-              },
-              {
-                "entity": 512,
-                "children": []
-              },
-              {
-                "entity": 513,
-                "children": []
-              },
-              {
-                "entity": 514,
-                "children": []
-              },
-              {
-                "entity": 515,
-                "children": []
-              },
-              {
-                "entity": 524,
-                "children": []
-              },
-              {
-                "entity": 519,
-                "children": []
-              },
-              {
-                "entity": 517,
-                "children": []
-              },
-              {
-                "entity": 522,
-                "children": []
-              },
-              {
-                "entity": 523,
-                "children": [
-                  522
-                ]
-              },
-              {
-                "entity": 526,
-                "children": [
-                  525
-                ]
-              },
-              {
-                "entity": 525,
-                "children": []
-              },
-              {
-                "entity": 528,
-                "children": [
-                  527
-                ]
-              },
-              {
-                "entity": 527,
-                "children": []
-              },
-              {
-                "entity": 538,
-                "children": []
-              },
-              {
-                "entity": 539,
-                "children": []
-              },
-              {
-                "entity": 518,
-                "children": []
-              }
-            ]
+            "skyboxConfig": {},
+            "creator": ""
           }
         }
       }
@@ -1838,118 +1291,14 @@
               {
                 "type": "call_script_method",
                 "jsonSchema": "{\"type\":\"object\",\"properties\":{\"scriptPath\":{\"type\":\"string\",\"serializationType\":\"utf8-string\"},\"methodName\":{\"type\":\"string\",\"serializationType\":\"utf8-string\"},\"params\":{\"type\":\"object\",\"serializationType\":\"optional\",\"optionalJsonSchema\":{\"type\":\"object\",\"properties\":{},\"serializationType\":\"map\"}}},\"serializationType\":\"map\"}"
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "name": "asset-packs::Actions",
-      "jsonSchema": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "serializationType": "int32"
-          },
-          "value": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "serializationType": "utf8-string"
-                },
-                "type": {
-                  "type": "string",
-                  "serializationType": "utf8-string"
-                },
-                "jsonPayload": {
-                  "type": "string",
-                  "serializationType": "utf8-string"
-                },
-                "allowedInBasicView": {
-                  "type": "boolean",
-                  "serializationType": "optional",
-                  "optionalJsonSchema": {
-                    "type": "boolean",
-                    "serializationType": "boolean"
-                  }
-                },
-                "basicViewId": {
-                  "type": "string",
-                  "serializationType": "optional",
-                  "optionalJsonSchema": {
-                    "type": "string",
-                    "serializationType": "utf8-string"
-                  }
-                },
-                "default": {
-                  "type": "boolean",
-                  "serializationType": "optional",
-                  "optionalJsonSchema": {
-                    "type": "boolean",
-                    "serializationType": "boolean"
-                  }
-                }
-              },
-              "serializationType": "map"
-            },
-            "serializationType": "array"
-          }
-        },
-        "serializationType": "map"
-      },
-      "data": {
-        "523": {
-          "json": {
-            "id": 1,
-            "value": [
-              {
-                "name": "Hide",
-                "type": "set_visibility",
-                "jsonPayload": "{\"visible\":false,\"collider\":0}"
               },
               {
-                "name": "Show",
-                "type": "set_visibility",
-                "jsonPayload": "{\"visible\":true,\"collider\":0}"
-              }
-            ]
-          }
-        },
-        "526": {
-          "json": {
-            "id": 2,
-            "value": [
-              {
-                "name": "Hide",
-                "type": "set_visibility",
-                "jsonPayload": "{\"visible\":false,\"collider\":0}"
+                "type": "log_to_console",
+                "jsonSchema": "{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"serializationType\":\"utf8-string\"}},\"serializationType\":\"map\"}"
               },
               {
-                "name": "Show",
-                "type": "set_visibility",
-                "jsonPayload": "{\"visible\":true,\"collider\":0}"
-              }
-            ]
-          }
-        },
-        "528": {
-          "json": {
-            "id": 3,
-            "value": [
-              {
-                "name": "Hide",
-                "type": "set_visibility",
-                "jsonPayload": "{\"visible\":false,\"collider\":0}"
-              },
-              {
-                "name": "Show",
-                "type": "set_visibility",
-                "jsonPayload": "{\"visible\":true,\"collider\":0}"
+                "type": "delete",
+                "jsonSchema": "{\"type\":\"object\",\"properties\":{},\"serializationType\":\"map\"}"
               }
             ]
           }
@@ -1978,85 +1327,6 @@
             "id": 0,
             "value": 3
           }
-        }
-      }
-    },
-    {
-      "name": "inspector::TransformConfig",
-      "jsonSchema": {
-        "type": "object",
-        "properties": {
-          "porportionalScaling": {
-            "type": "boolean",
-            "serializationType": "optional",
-            "optionalJsonSchema": {
-              "type": "boolean",
-              "serializationType": "boolean"
-            }
-          }
-        },
-        "serializationType": "map"
-      },
-      "data": {
-        "512": {
-          "json": {}
-        },
-        "513": {
-          "json": {}
-        },
-        "514": {
-          "json": {}
-        },
-        "515": {
-          "json": {}
-        },
-        "516": {
-          "json": {}
-        },
-        "517": {
-          "json": {}
-        },
-        "518": {
-          "json": {}
-        },
-        "519": {
-          "json": {}
-        },
-        "522": {
-          "json": {}
-        },
-        "523": {
-          "json": {}
-        },
-        "524": {
-          "json": {}
-        },
-        "525": {
-          "json": {}
-        },
-        "526": {
-          "json": {}
-        },
-        "527": {
-          "json": {}
-        },
-        "528": {
-          "json": {}
-        },
-        "535": {
-          "json": {}
-        },
-        "536": {
-          "json": {}
-        },
-        "537": {
-          "json": {}
-        },
-        "538": {
-          "json": {}
-        },
-        "539": {
-          "json": {}
         }
       }
     }
