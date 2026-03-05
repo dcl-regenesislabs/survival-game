@@ -831,7 +831,7 @@ export function setupLobbyServer(): void {
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
 
     const runtime = getMatchRuntimeMutable()
-    if (!runtime.isRunning || runtime.cyclePhase !== WaveCyclePhase.ACTIVE) return
+    if (!runtime.isRunning) return
 
     const now = getServerTime()
     const state = getOrCreatePlayerCombatState(normalizedAddress)
