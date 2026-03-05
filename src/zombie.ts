@@ -496,12 +496,20 @@ function distanceXZ(a: Vector3, b: Vector3): number {
   return Math.sqrt(dx * dx + dz * dz)
 }
 
-function getNearestPlayerPosition(zombiePos: Vector3, fallbackPos: Vector3): Vector3 {
+type NearestPlayerTarget = {
+  position: Vector3
+  isLocalPlayer: boolean
+}
+
+function getNearestPlayerTarget(zombiePos: Vector3, fallbackPos: Vector3): NearestPlayerTarget {
   const lobbyState = getLobbyState()
-  if (!lobbyState?.arenaPlayers.length) return fallbackPos
+  if (!lobbyState?.arenaPlayers.length) {
+    return { position: fallbackPos, isLocalPlayer: true }
+  }
 
   const activeAddresses = new Set(lobbyState.arenaPlayers.map((player) => player.address.toLowerCase()))
   let nearestPlayerPos: Vector3 | null = null
+  let nearestIsLocalPlayer = false
   let nearestDistance = Number.POSITIVE_INFINITY
 
   for (const [entity, identity, transform] of engine.getEntitiesWith(PlayerIdentityData, Transform)) {
@@ -515,9 +523,17 @@ function getNearestPlayerPosition(zombiePos: Vector3, fallbackPos: Vector3): Vec
 
     nearestDistance = candidateDistance
     nearestPlayerPos = candidatePos
+    nearestIsLocalPlayer = entity === engine.PlayerEntity
   }
 
-  return nearestPlayerPos ?? fallbackPos
+  if (!nearestPlayerPos) {
+    return { position: fallbackPos, isLocalPlayer: true }
+  }
+
+  return {
+    position: nearestPlayerPos,
+    isLocalPlayer: nearestIsLocalPlayer
+  }
 }
 
 export function zombieSystem(dt: number) {
@@ -538,9 +554,11 @@ export function zombieSystem(dt: number) {
     const zombiePos = transform.position
 
     // Target: nearest brick within agro range, or nearest active match player
-    let targetPos = Vector3.clone(getNearestPlayerPosition(zombiePos, playerPos))
+    const playerTarget = getNearestPlayerTarget(zombiePos, playerPos)
+    let targetPos = Vector3.clone(playerTarget.position)
     let targetIsBrick = false
     let targetBrickEntity: Entity | null = null
+    let targetIsLocalPlayer = playerTarget.isLocalPlayer
     let nearestBrickDist = BRICK_AGRO_RANGE + 1
     for (const { entity, position } of bricks) {
       const d = distanceXZ(zombiePos, position)
@@ -549,6 +567,7 @@ export function zombieSystem(dt: number) {
         targetPos = position
         targetIsBrick = true
         targetBrickEntity = entity
+        targetIsLocalPlayer = false
       }
     }
 
@@ -579,9 +598,11 @@ export function zombieSystem(dt: number) {
           spawnBloodAtPosition(burstCenter)
           damageBrick(targetBrickEntity, 1)
         } else {
-          const burstCenter = Vector3.create(playerPos.x, playerPos.y + 0.9, playerPos.z)
+          const burstCenter = Vector3.create(targetPos.x, targetPos.y + 0.9, targetPos.z)
           spawnBloodAtPosition(burstCenter)
-          reportPlayerDamageToServer?.(1)
+          if (targetIsLocalPlayer) {
+            reportPlayerDamageToServer?.(1)
+          }
         }
       }
       continue
