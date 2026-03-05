@@ -2,6 +2,9 @@ import {
   engine,
   Entity,
   Transform,
+  inputSystem,
+  InputAction,
+  PointerEventType,
   GltfContainer,
   Animator,
   MeshRenderer,
@@ -48,7 +51,7 @@ function getNearestZombie(fromPosition: Vector3): Entity | null {
   let nearest: Entity | null = null
   let nearestDist = SHOOT_RANGE
 
-  for (const [entity, zombieData, transform] of engine.getEntitiesWith(ZombieComponent, Transform)) {
+  for (const [entity, _zombieData, transform] of engine.getEntitiesWith(ZombieComponent, Transform)) {
     const dist = Vector3.distance(fromPosition, transform.position)
     if (dist < nearestDist) {
       nearestDist = dist
@@ -163,18 +166,16 @@ export function miniGunSystem(dt: number) {
   mutableGunTransform.position = Vector3.lerp(currentPos, gunWorldPos, posSmooth)
 
   const nearestZombie = getNearestZombie(gunWorldPos)
-  if (!nearestZombie) {
-    shootTimer = 0
-    return
-  }
-
-  const zombieBasePos = Transform.get(nearestZombie).position
-  const zombieTargetPos = Vector3.create(
-    zombieBasePos.x,
-    zombieBasePos.y + ZOMBIE_TARGET_HEIGHT,
-    zombieBasePos.z
-  )
-  const aimDir = Vector3.subtract(zombieTargetPos, gunWorldPos)
+  const aimDir = nearestZombie
+    ? Vector3.subtract(
+        Vector3.create(
+          Transform.get(nearestZombie).position.x,
+          Transform.get(nearestZombie).position.y + ZOMBIE_TARGET_HEIGHT,
+          Transform.get(nearestZombie).position.z
+        ),
+        gunWorldPos
+      )
+    : Vector3.rotate(Vector3.Forward(), playerTransform.rotation)
   const aimDirXZ = Vector3.create(aimDir.x, 0, aimDir.z)
   const lenSqXZ = aimDirXZ.x * aimDirXZ.x + aimDirXZ.z * aimDirXZ.z
   let gunWorldRot = Transform.get(gunEntity).rotation
@@ -188,11 +189,16 @@ export function miniGunSystem(dt: number) {
 
   const effectiveFireRate = FIRE_RATE / getFireRateMultiplier()
   shootTimer += dt
-  if (shootTimer >= effectiveFireRate) {
-    shootTimer = 0
-    playGunAnimation()
-    spawnProjectile(gunWorldPos, gunWorldRot)
-  }
+  if (shootTimer < effectiveFireRate) return
+
+  const didShoot =
+    inputSystem.isTriggered(InputAction.IA_POINTER, PointerEventType.PET_DOWN) ||
+    inputSystem.isTriggered(InputAction.IA_PRIMARY, PointerEventType.PET_DOWN)
+  if (!didShoot) return
+
+  shootTimer = 0
+  playGunAnimation()
+  spawnProjectile(gunWorldPos, gunWorldRot)
 }
 
 export function initMiniGunSystems() {
