@@ -28,6 +28,7 @@ import { initShotGunSystems } from './shotGun'
 import { initMiniGunSystems } from './miniGun'
 import { initBrickSystem } from './brick'
 import { initHealthBarSystem } from './healthBar'
+import { initWeaponLifecycleSystem } from './weaponManager'
 import {
   isPlayerDead,
   getRespawnDelay,
@@ -42,6 +43,7 @@ import { setupLobbyServer } from './server/lobbyServer'
 import { getMatchRuntimeState, sendPlayerDamageRequest, setupLobbyClient } from './multiplayer/lobbyClient'
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
+import { initDeathAnimationSystem } from './deathAnimation'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
@@ -165,158 +167,13 @@ export function main() {
   // Potion pickup and visual (tilt + spin)
   engine.addSystem(potionPickupSystem)
   engine.addSystem(potionVisualSystem)
+  initDeathAnimationSystem()
   // Authoritative match waves (30s active / 10s rest)
   initMatchWaveClientSystem()
 
   // Init all weapon systems (active weapon gets spawned when match starts)
+  initWeaponLifecycleSystem()
   initGunSystems()
   initShotGunSystems()
   initMiniGunSystems()
-
-  // Setup Button click to spawn zombies
-  const buttonEntity = engine.getEntityOrNullByName(EntityNames.Button)
-  if (buttonEntity) {
-    // Buttons from GLTF often have visibleMeshesCollisionMask: 0, so pointer raycast misses. Add a box collider for pointer/touch.
-    MeshCollider.setBox(buttonEntity, ColliderLayer.CL_POINTER)
-    PointerEvents.create(buttonEntity, {
-      pointerEvents: [
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_POINTER,
-            hoverText: 'Spawn Zombie',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        },
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_PRIMARY,
-            hoverText: 'Spawn Zombie',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        }
-      ]
-    })
-
-    pointerEventsSystem.onPointerDown(
-      { entity: buttonEntity, opts: { button: InputAction.IA_POINTER, hoverText: 'Spawn Zombie' } },
-      () => { spawnZombie() }
-    )
-    pointerEventsSystem.onPointerDown(
-      { entity: buttonEntity, opts: { button: InputAction.IA_PRIMARY, hoverText: 'Spawn Zombie' } },
-      () => { spawnZombie() }
-    )
-  }
-
-  // Setup Button2 click to toggle regular / cinematic (Diablo-like) camera
-  const button2Entity = engine.getEntityOrNullByName(EntityNames.Button2)
-  if (button2Entity) {
-    MeshCollider.setBox(button2Entity, ColliderLayer.CL_POINTER)
-    PointerEvents.create(button2Entity, {
-      pointerEvents: [
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_POINTER,
-            hoverText: 'Toggle Camera',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        },
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_PRIMARY,
-            hoverText: 'Toggle Camera',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        }
-      ]
-    })
-
-    pointerEventsSystem.onPointerDown(
-      { entity: button2Entity, opts: { button: InputAction.IA_POINTER, hoverText: 'Toggle Camera' } },
-      () => { setActiveCamera(!useCinematicCamera) }
-    )
-    pointerEventsSystem.onPointerDown(
-      { entity: button2Entity, opts: { button: InputAction.IA_PRIMARY, hoverText: 'Toggle Camera' } },
-      () => { setActiveCamera(!useCinematicCamera) }
-    )
-  }
-
-  // ButtonQuick: spawn quick zombie (fast, 2 HP)
-  const buttonQuickEntity = engine.getEntityOrNullByName(EntityNames.ButtonQuick)
-  if (buttonQuickEntity) {
-    MeshCollider.setBox(buttonQuickEntity, ColliderLayer.CL_POINTER)
-    PointerEvents.create(buttonQuickEntity, {
-      pointerEvents: [
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_POINTER,
-            hoverText: 'Spawn Quick Zombie',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        },
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_PRIMARY,
-            hoverText: 'Spawn Quick Zombie',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        }
-      ]
-    })
-    pointerEventsSystem.onPointerDown(
-      { entity: buttonQuickEntity, opts: { button: InputAction.IA_POINTER, hoverText: 'Spawn Quick Zombie' } },
-      () => { spawnQuickZombie() }
-    )
-    pointerEventsSystem.onPointerDown(
-      { entity: buttonQuickEntity, opts: { button: InputAction.IA_PRIMARY, hoverText: 'Spawn Quick Zombie' } },
-      () => { spawnQuickZombie() }
-    )
-  }
-
-  // ButtonTank: spawn tank zombie (slow, 10 HP)
-  const buttonTankEntity = engine.getEntityOrNullByName(EntityNames.ButtonTank)
-  if (buttonTankEntity) {
-    MeshCollider.setBox(buttonTankEntity, ColliderLayer.CL_POINTER)
-    PointerEvents.create(buttonTankEntity, {
-      pointerEvents: [
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_POINTER,
-            hoverText: 'Spawn Tank Zombie',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        },
-        {
-          eventType: PointerEventType.PET_DOWN,
-          eventInfo: {
-            button: InputAction.IA_PRIMARY,
-            hoverText: 'Spawn Tank Zombie',
-            maxDistance: 10,
-            showFeedback: true
-          }
-        }
-      ]
-    })
-    pointerEventsSystem.onPointerDown(
-      { entity: buttonTankEntity, opts: { button: InputAction.IA_POINTER, hoverText: 'Spawn Tank Zombie' } },
-      () => { spawnTankZombie() }
-    )
-    pointerEventsSystem.onPointerDown(
-      { entity: buttonTankEntity, opts: { button: InputAction.IA_PRIMARY, hoverText: 'Spawn Tank Zombie' } },
-      () => { spawnTankZombie() }
-    )
-  }
 }

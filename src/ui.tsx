@@ -2,7 +2,7 @@ import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { movePlayerTo } from '~system/RestrictedActions'
 import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
-import { getPlayerHp, isPlayerDead, MAX_HP } from './playerHealth'
+import { getPlayerHp, isPlayerDead, MAX_HP, getRespawnAtMs, getRespawnDelay } from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
 import { getGameTime } from './zombie'
 import { isRaging, getRageTimeLeft } from './rageEffect'
@@ -112,6 +112,7 @@ export const uiMenu = () => {
 
   const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
+  const respawnSecondsLeft = Math.max(0, Math.ceil((getRespawnAtMs() - timerNowMs) / 1000))
   const playerHpRatio = Math.max(0, Math.min(1, getPlayerHp() / MAX_HP))
   const hpFrameScale = PLAYER_HP_FRAME_WIDTH / 968
   const playerHpFillWidth = Math.round(PLAYER_HP_FILL_SOURCE_W * hpFrameScale)
@@ -528,34 +529,32 @@ export const uiMenu = () => {
         >
           <UiEntity
             uiTransform={{
-              width: 480,
-              minHeight: 120,
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: { top: 32, bottom: 32, left: 32, right: 32 }
+              width: 744,
+              height: 524,
+              positionType: 'absolute',
+              position: { top: 330 }
             }}
-            uiBackground={{ color: Color4.create(0.2, 0.05, 0.05, 0.95) }}
-          >
-            <UiEntity
-              uiTransform={{ width: '100%', height: 80 }}
-              uiText={{
-                value: 'YOU DIED',
-                fontSize: 48,
-                color: Color4.create(1, 0.2, 0.2, 1),
-                textAlign: 'middle-center'
-              }}
-            />
-            <UiEntity
-              uiTransform={{ width: '100%', height: 28, margin: { top: 8 } }}
-              uiText={{
-                value: 'Respawn in 2 seconds...',
-                fontSize: 18,
-                color: Color4.create(0.9, 0.8, 0.8, 0.9),
-                textAlign: 'middle-center'
-              }}
-            />
-          </UiEntity>
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: 'assets/images/death.png', filterMode: 'bi-linear', wrapMode: 'clamp' }
+            }}
+          />
+          <UiEntity
+            uiTransform={{
+              width: 744,
+              height: 48,
+              positionType: 'absolute',
+              position: { top: 610 },
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            uiText={{
+              value: `Respawning in ${respawnSecondsLeft > 0 ? respawnSecondsLeft : getRespawnDelay()} seconds...`,
+              fontSize: 34,
+              color: Color4.create(0.95, 0.88, 0.76, 1),
+              textAlign: 'middle-center'
+            }}
+          />
         </UiEntity>
       )}
       {showGameOverOverlay && (

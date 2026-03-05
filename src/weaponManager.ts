@@ -1,13 +1,17 @@
+import { engine } from '@dcl/sdk/ecs'
 import { createGun, destroyGun } from './gun'
 import { createShotGun, destroyShotGun } from './shotGun'
 import { createMiniGun, destroyMiniGun } from './miniGun'
 import { isLoadoutWeaponOwned } from './loadoutState'
+import { isPlayerDead } from './playerHealth'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
 
 let currentWeapon: WeaponType = 'gun'
 let arenaWeaponEnabled = false
 let hasSpawnedWeapon = false
+let weaponHiddenByDeath = false
+let lifecycleSystemInitialized = false
 
 export function getCurrentWeapon(): WeaponType {
   return currentWeapon
@@ -54,6 +58,7 @@ export function switchTo(type: WeaponType): boolean {
 
 export function enableArenaWeapon(): void {
   arenaWeaponEnabled = true
+  if (isPlayerDead()) return
   if (hasSpawnedWeapon) return
   createWeapon(currentWeapon)
 }
@@ -63,4 +68,28 @@ export function resetArenaWeaponProgress(): void {
   hasSpawnedWeapon = false
   arenaWeaponEnabled = false
   currentWeapon = 'gun'
+  weaponHiddenByDeath = false
+}
+
+function weaponLifecycleSystem(): void {
+  if (!arenaWeaponEnabled) return
+
+  if (isPlayerDead()) {
+    if (hasSpawnedWeapon) {
+      destroyCurrentWeapon()
+      weaponHiddenByDeath = true
+    }
+    return
+  }
+
+  if (weaponHiddenByDeath && !hasSpawnedWeapon) {
+    createWeapon(currentWeapon)
+    weaponHiddenByDeath = false
+  }
+}
+
+export function initWeaponLifecycleSystem(): void {
+  if (lifecycleSystemInitialized) return
+  lifecycleSystemInitialized = true
+  engine.addSystem(weaponLifecycleSystem, undefined, 'weapon-lifecycle-system')
 }

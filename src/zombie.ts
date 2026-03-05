@@ -15,8 +15,7 @@ import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
 import { createHealthBarForZombie } from './healthBar'
 import { tryDropPotions } from './potions'
-import { getLobbyState } from './multiplayer/lobbyClient'
-import { isPlayerDead } from './playerHealth'
+import { getLobbyState, getPlayerCombatSnapshot } from './multiplayer/lobbyClient'
 
 // Animation clip names from Zombie.glb
 const ANIM_ZOMBIE_UP = 'ZombieUP'
@@ -515,7 +514,8 @@ function getNearestPlayerTarget(zombiePos: Vector3, fallbackPos: Vector3): Neare
   for (const [entity, identity, transform] of engine.getEntitiesWith(PlayerIdentityData, Transform)) {
     const address = identity.address.toLowerCase()
     if (!activeAddresses.has(address)) continue
-    if (entity === engine.PlayerEntity && isPlayerDead()) continue
+    const combat = getPlayerCombatSnapshot(address)
+    if (combat?.isDead) continue
 
     const candidatePos = transform.position
     const candidateDistance = distanceXZ(zombiePos, candidatePos)
