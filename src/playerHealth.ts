@@ -11,7 +11,7 @@ let healGlowEndTime = 0
 
 /** Respawn position in scene (center of play area) */
 const RESPAWN_POSITION = Vector3.create(32, 0, 32)
-const RESPAWN_DELAY = 2 // seconds to show "You Died" before respawning
+const RESPAWN_DELAY = 5 // seconds to show "You Died" before respawning
 
 export function getPlayerHp(): number {
   return currentHp

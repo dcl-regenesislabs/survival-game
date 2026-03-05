@@ -13,6 +13,7 @@ let latestLobbyEventType = ''
 let latestLobbyEventAtMs = 0
 let hasProfileLoadSent = false
 let localReadyForMatch = false
+const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
@@ -29,8 +30,16 @@ export function setupLobbyClient(): void {
     console.log(`[Lobby] ${data.type}: ${data.message}`)
   })
   room.onMessage('playerHealthState', (data) => {
+    const address = data.address.toLowerCase()
+    playerCombatStateByAddress.set(address, {
+      hp: data.hp,
+      isDead: data.isDead,
+      respawnAtMs: data.respawnAtMs,
+      updatedAtMs: Date.now()
+    })
+
     const localAddress = getLocalAddress()
-    if (!localAddress || data.address !== localAddress) return
+    if (!localAddress || address !== localAddress) return
     applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs)
   })
   room.onMessage('playerLoadoutState', (data) => {
@@ -176,4 +185,14 @@ export function shouldShowGameOverOverlay(windowMs: number = 3000): boolean {
 
 export function isLocalReadyForMatch(): boolean {
   return localReadyForMatch
+}
+
+export function getPlayerCombatSnapshot(address: string): { hp: number; isDead: boolean; respawnAtMs: number } | null {
+  const state = playerCombatStateByAddress.get(address.toLowerCase())
+  if (!state) return null
+  return {
+    hp: state.hp,
+    isDead: state.isDead,
+    respawnAtMs: state.respawnAtMs
+  }
 }
