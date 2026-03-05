@@ -20,6 +20,7 @@ import { ZombieComponent, damageZombie, spawnZcRewardTextAtPosition } from './zo
 import { addZombieCoins, COINS_PER_KILL } from './zombieCoins'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
+import { getLobbyState, getLocalAddress, isLocalReadyForMatch } from './multiplayer/lobbyClient'
 
 const GUN_MODEL = 'assets/scene/Models/Gun01/Gun01.glb'
 
@@ -220,6 +221,15 @@ function zombieBulletTriggerSetupSystem() {
 
 export function gunSystem(dt: number) {
   if (getCurrentWeapon() !== 'gun' || !Transform.has(engine.PlayerEntity) || !gunEntity) return
+  const localAddress = getLocalAddress()
+  const lobbyState = getLobbyState()
+  const isInArena =
+    !!localAddress &&
+    !!lobbyState &&
+    lobbyState.phase === 'match_created' &&
+    lobbyState.arenaPlayers.some((player) => player.address === localAddress) &&
+    isLocalReadyForMatch()
+  if (!isInArena) return
 
   if (rotationFreezeRemaining > 0) rotationFreezeRemaining -= dt
 
