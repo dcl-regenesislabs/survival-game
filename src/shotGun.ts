@@ -17,6 +17,7 @@ import { ZombieComponent } from './zombie'
 import { ProjectileComponent } from './gun'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
+import { getLobbyState, getLocalAddress, isLocalReadyForMatch } from './multiplayer/lobbyClient'
 
 const GUN_MODEL = 'assets/scene/Models/ShotGun01/ShotGun01.glb'
 
@@ -162,6 +163,15 @@ export function destroyShotGun(): void {
 
 export function shotGunSystem(dt: number) {
   if (getCurrentWeapon() !== 'shotgun' || !Transform.has(engine.PlayerEntity) || !gunEntity) return
+  const localAddress = getLocalAddress()
+  const lobbyState = getLobbyState()
+  const isInArena =
+    !!localAddress &&
+    !!lobbyState &&
+    lobbyState.phase === 'match_created' &&
+    lobbyState.arenaPlayers.some((player) => player.address === localAddress) &&
+    isLocalReadyForMatch()
+  if (!isInArena) return
 
   if (rotationFreezeRemaining > 0) rotationFreezeRemaining -= dt
 
