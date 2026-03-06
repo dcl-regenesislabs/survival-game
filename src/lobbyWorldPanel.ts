@@ -15,6 +15,7 @@ import {
   getLobbyState,
   getLocalAddress,
   getMatchRuntimeState,
+  isMatchJoinLocked,
   isLocalReadyForMatch,
   sendCreateMatchAndJoin,
   sendLeaveLobby
@@ -126,6 +127,8 @@ export class LobbyWorldPanel {
       console.log('[LobbyPanel] Player entered trigger area')
       this.isLocalPlayerInsideTrigger = true
 
+      if (isMatchJoinLocked()) return
+
       const localAddress = getLocalAddress()
       const lobby = getLobbyState()
       const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
@@ -177,6 +180,9 @@ export class LobbyWorldPanel {
 
   private buildPlayersText(): string {
     const lobby = getLobbyState()
+    if (isMatchJoinLocked()) {
+      return 'Room Closed'
+    }
     const joinedCount = lobby?.players.length ?? 0
     return `Players Joined: ${joinedCount}/${MATCH_MAX_PLAYERS}`
   }
@@ -211,7 +217,7 @@ export class LobbyWorldPanel {
 
   private updateTriggerShadow(): void {
     const mutableShadowTransform = Transform.getMutable(this.triggerShadowEntity)
-    if (!this.isLocalPlayerInsideTrigger || !Transform.has(engine.PlayerEntity)) {
+    if (!this.isLocalPlayerInsideTrigger || isMatchJoinLocked() || !Transform.has(engine.PlayerEntity)) {
       mutableShadowTransform.position = TRIGGER_SHADOW_HIDDEN_POSITION
       mutableShadowTransform.scale = Vector3.Zero()
       return

@@ -206,6 +206,14 @@ function sendPlayerHealthStatesForLobbyPlayers(players: LobbyPlayer[]): void {
   }
 }
 
+function sendLobbyEvent(type: string, message: string, addresses: string[] = []): void {
+  void room.send('lobbyEvent', {
+    type,
+    message,
+    addresses: addresses.map((address) => address.toLowerCase())
+  })
+}
+
 function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
   if (!players.length) return false
   for (const player of players) {
@@ -218,7 +226,10 @@ function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
 function endMatchAndReturnToLobby(message: string): void {
   const lobby = getLobbyStateMutable()
   const players = [...lobby.arenaPlayers]
-  setPlayers([])
+  const arenaAddresses = new Set(players.map((player) => player.address))
+  const remainingLobbyPlayers = lobby.players.filter((player) => !arenaAddresses.has(player.address))
+  resetMatchToLobbyKeepingPlayers()
+  setPlayers(remainingLobbyPlayers)
 
   for (const player of players) {
     resetPlayerCombatState(player.address)
@@ -226,11 +237,7 @@ function endMatchAndReturnToLobby(message: string): void {
   }
 
   sendLobbyReturnTeleport(players)
-
-  void room.send('lobbyEvent', {
-    type: 'team_wipe',
-    message
-  })
+  sendLobbyEvent('team_wipe', message, players.map((player) => player.address))
 }
 
 function recomputeZombiesAlive(runtime: ReturnType<typeof getMatchRuntimeMutable>, nowMs: number): void {
@@ -329,7 +336,7 @@ function isMatchJoinLocked(): boolean {
   if (lobby.phase !== LobbyPhase.MATCH_CREATED) return false
 
   const runtime = getMatchRuntimeMutable()
-  return runtime.isRunning || lobby.arenaIntroEndTimeMs > 0
+  return runtime.isRunning || lobby.countdownEndTimeMs > 0 || lobby.arenaIntroEndTimeMs > 0
 }
 
 async function ensurePlayerLoadedAndInLobby(address: string): Promise<void> {
@@ -346,10 +353,7 @@ async function ensurePlayerProfileLoaded(address: string): Promise<void> {
   loadedProfileAddresses.add(normalizedAddress)
   sendPlayerLoadoutState(normalizedAddress)
   logLobbyServerEvent(`ProfileLoaded ${displayName} (${normalizedAddress})`)
-  void room.send('lobbyEvent', {
-    type: 'profile_loaded',
-    message: `${displayName} profile loaded (GOLD ${progress.profile.gold})`
-  })
+  sendLobbyEvent('profile_loaded', `${displayName} profile loaded (GOLD ${progress.profile.gold})`)
 }
 
 function sendArenaAutoTeleport(players: LobbyPlayer[]): void {
@@ -414,11 +418,7 @@ function addPlayerToLobby(address: string): void {
   logLobbyServerEvent(
     `PlayerJoined ${getPlayerDisplayName(normalizedAddress)} ${nextPlayers.length}/${MATCH_MAX_PLAYERS}`
   )
-
-  void room.send('lobbyEvent', {
-    type: 'join',
-    message: `${getPlayerDisplayName(normalizedAddress)} joined lobby`
-  })
+  sendLobbyEvent('join', `${getPlayerDisplayName(normalizedAddress)} joined lobby`)
 }
 
 async function removePlayerFromLobby(address: string): Promise<void> {
@@ -447,10 +447,7 @@ async function removePlayerFromLobby(address: string): Promise<void> {
     logLobbyServerEvent(
       `PlayerLeft ${leavingPlayer.displayName} ${nextPlayers.length}/${MATCH_MAX_PLAYERS}`
     )
-    void room.send('lobbyEvent', {
-      type: 'leave',
-      message: `${leavingPlayer.displayName} left lobby`
-    })
+    sendLobbyEvent('leave', `${leavingPlayer.displayName} left lobby`)
   }
 }
 
@@ -470,11 +467,7 @@ function createMatch(address: string): void {
   mutable.arenaIntroEndTimeMs = 0
   resetMatchRuntime()
   logLobbyServerEvent(`MatchCreated ${mutable.matchId} by ${normalizedAddress}`)
-
-  void room.send('lobbyEvent', {
-    type: 'match_created',
-    message: `Match created (${mutable.matchId})`
-  })
+  sendLobbyEvent('match_created', `Match created (${mutable.matchId})`)
 
   if (mutable.arenaPlayers.length === MATCH_MAX_PLAYERS) {
     startArenaAutoTeleportCountdown(mutable.arenaPlayers)
@@ -557,10 +550,7 @@ function grantWaveMilestoneGold(waveNumber: number, players: LobbyPlayer[]): voi
       sendPlayerLoadoutState(player.address)
     }
 
-    void room.send('lobbyEvent', {
-      type: 'gold_reward',
-      message: `Wave ${milestone.wave} reached: +${milestone.gold} GOLD`
-    })
+    sendLobbyEvent('gold_reward', `Wave ${milestone.wave} reached: +${milestone.gold} GOLD`)
   }
 }
 
@@ -597,10 +587,10 @@ function startZombieWaves(address: string, startReason: 'manual' | 'auto' = 'man
     })
   }
 
-  void room.send('lobbyEvent', {
-    type: 'waves_started',
-    message: startReason === 'auto' ? 'Waves started' : `${getPlayerDisplayName(normalizedAddress)} started zombies`
-  })
+  sendLobbyEvent(
+    'waves_started',
+    startReason === 'auto' ? 'Waves started' : `${getPlayerDisplayName(normalizedAddress)} started zombies`
+  )
 }
 
 let waveTickAccumulator = 0
@@ -661,19 +651,13 @@ function waveRuntimeSystem(dt: number): void {
         progress.profile.lifetimeStats.wavesCleared += 1
       })
     }
-    void room.send('lobbyEvent', {
-      type: 'wave_rest',
-      message: `Wave ${runtime.waveNumber} complete. Resting...`
-    })
+    sendLobbyEvent('wave_rest', `Wave ${runtime.waveNumber} complete. Resting...`)
   } else {
     runtime.waveNumber += 1
     runtime.cyclePhase = WaveCyclePhase.ACTIVE
     runtime.phaseEndTimeMs = now + runtime.activeDurationSeconds * 1000
     sendWaveSpawnPlan(runtime.waveNumber, now)
-    void room.send('lobbyEvent', {
-      type: 'wave_active',
-      message: `Wave ${runtime.waveNumber} started`
-    })
+    sendLobbyEvent('wave_active', `Wave ${runtime.waveNumber} started`)
   }
 }
 
@@ -722,10 +706,7 @@ export function setupLobbyServer(): void {
       return
     }
     if (progress.profile.gold < weapon.priceGold) {
-      void room.send('lobbyEvent', {
-        type: 'loadout_error',
-        message: `Not enough GOLD for ${weapon.label}`
-      })
+      sendLobbyEvent('loadout_error', `Not enough GOLD for ${weapon.label}`, [normalizedAddress])
       return
     }
 
@@ -736,10 +717,7 @@ export function setupLobbyServer(): void {
     await playerProgressStore.save(normalizedAddress)
     sendPlayerLoadoutState(normalizedAddress)
 
-    void room.send('lobbyEvent', {
-      type: 'loadout_purchase',
-      message: `${weapon.label} purchased for ${weapon.priceGold} GOLD`
-    })
+    sendLobbyEvent('loadout_purchase', `${weapon.label} purchased for ${weapon.priceGold} GOLD`, [normalizedAddress])
   })
 
   room.onMessage('equipLoadoutWeapon', async (data, context) => {
@@ -758,10 +736,7 @@ export function setupLobbyServer(): void {
         ? ['gun_basic']
         : progress.weapons.ownedByTier[weapon.tierKey]
     if (!ownedWeaponIds.includes(weapon.id)) {
-      void room.send('lobbyEvent', {
-        type: 'loadout_error',
-        message: `${weapon.label} is not owned yet`
-      })
+      sendLobbyEvent('loadout_error', `${weapon.label} is not owned yet`, [normalizedAddress])
       return
     }
 
@@ -771,10 +746,7 @@ export function setupLobbyServer(): void {
     await playerProgressStore.save(normalizedAddress)
     sendPlayerLoadoutState(normalizedAddress)
 
-    void room.send('lobbyEvent', {
-      type: 'loadout_equipped',
-      message: `${weapon.label} equipped`
-    })
+    sendLobbyEvent('loadout_equipped', `${weapon.label} equipped`, [normalizedAddress])
   })
 
   room.onMessage('createMatch', (_data, context) => {
@@ -790,11 +762,7 @@ export function setupLobbyServer(): void {
     if (!isPlayerInLobby(context.from) && isMatchJoinLocked()) {
       logLobbyServerEvent(`JoinRejectedMatchLocked ${context.from.toLowerCase()}`)
       await ensurePlayerProfileLoaded(context.from)
-      addPlayerToLobby(context.from)
-      void room.send('lobbyEvent', {
-        type: 'match_locked',
-        message: `${getPlayerDisplayName(context.from.toLowerCase())} can join the next match`
-      })
+      sendLobbyEvent('match_locked', 'Room closed. Wait for the current match to finish.', [context.from])
       return
     }
     await ensurePlayerLoadedAndInLobby(context.from)

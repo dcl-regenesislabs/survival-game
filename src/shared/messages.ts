@@ -69,7 +69,8 @@ const LobbyMessages = {
   }),
   lobbyEvent: Schemas.Map({
     type: Schemas.String,
-    message: Schemas.String
+    message: Schemas.String,
+    addresses: Schemas.Array(Schemas.String)
   })
 }
 

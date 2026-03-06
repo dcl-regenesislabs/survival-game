@@ -7,6 +7,7 @@ import { applyAuthoritativeHealthState } from '../playerHealth'
 import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
+import { getServerTime } from '../shared/timeSync'
 
 let latestLobbyEvent = ''
 let latestLobbyEventType = ''
@@ -15,8 +16,20 @@ let hasProfileLoadSent = false
 let localReadyForMatch = false
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
 
+function isLocalPlayerInArenaRosterSnapshot(
+  state: { phase: string; arenaPlayers: ReadonlyArray<{ address: string }> } | null
+): boolean {
+  const localAddress = getLocalAddress()
+  return !!localAddress && !!state && state.phase === 'match_created' && state.arenaPlayers.some((p) => p.address === localAddress)
+}
+
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
+    const localAddress = getLocalAddress()
+    const targetAddresses = data.addresses.map((address) => address.toLowerCase())
+    const isTargetedEvent = targetAddresses.length > 0
+    if (isTargetedEvent && (!localAddress || !targetAddresses.includes(localAddress))) return
+
     latestLobbyEvent = data.message
     latestLobbyEventType = data.type
     latestLobbyEventAtMs = Date.now()
@@ -25,7 +38,11 @@ export function setupLobbyClient(): void {
       resetArenaWeaponProgress()
     }
     if (data.type === 'waves_started') {
-      enableArenaWeapon()
+      if (isLocalPlayerInArenaRosterSnapshot(getLobbyState()) && localReadyForMatch) {
+        enableArenaWeapon()
+      } else {
+        resetArenaWeaponProgress()
+      }
     }
     console.log(`[Lobby] ${data.type}: ${data.message}`)
   })
@@ -137,10 +154,10 @@ function autoJoinLobbySystem(): void {
 export function getLobbyState(): LobbyStateSnapshot | null {
   for (const [entity] of engine.getEntitiesWith(LobbyStateComponent)) {
     const state = LobbyStateComponent.get(entity)
-    const localAddress = getLocalAddress()
-    const isInArenaRoster = !!localAddress && state.arenaPlayers.some((p) => p.address === localAddress)
+    const isInArenaRoster = isLocalPlayerInArenaRosterSnapshot(state)
     if (state.phase !== 'match_created' || !isInArenaRoster) {
       localReadyForMatch = false
+      resetArenaWeaponProgress()
     }
     return {
       phase: state.phase,
@@ -153,6 +170,18 @@ export function getLobbyState(): LobbyStateSnapshot | null {
     }
   }
   return null
+}
+
+export function isMatchJoinLocked(): boolean {
+  const lobbyState = getLobbyState()
+  if (!lobbyState || lobbyState.phase !== 'match_created') return false
+
+  const now = getServerTime()
+  if (lobbyState.countdownEndTimeMs > now) return true
+  if (lobbyState.arenaIntroEndTimeMs > now) return true
+
+  const runtime = getMatchRuntimeState()
+  return !!runtime?.isRunning
 }
 
 export function getMatchRuntimeState(): MatchRuntimeSnapshot | null {

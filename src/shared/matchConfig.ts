@@ -1,5 +1,5 @@
 // Lobby / match flow
-export const MATCH_MAX_PLAYERS = 2
+export const MATCH_MAX_PLAYERS = 4
 
 // Wave loop timing
 export const WAVE_ACTIVE_SECONDS = 30
@@ -16,3 +16,4 @@ export const QUICK_ZOMBIE_UNLOCK_WAVE = 3
 export const TANK_ZOMBIE_UNLOCK_WAVE = 7
 export const QUICK_ZOMBIE_CHANCE = 0.35
 export const TANK_ZOMBIE_CHANCE = 0.2
+ 
