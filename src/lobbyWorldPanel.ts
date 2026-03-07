@@ -128,9 +128,19 @@ export class LobbyWorldPanel {
 
       const localAddress = getLocalAddress()
       const lobby = getLobbyState()
-      const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
+      const hasLocalAddress = !!localAddress
+      const joinedPlayer = lobby?.players.find((player) => player.address === localAddress)
+      const isAlreadyJoined = hasLocalAddress && !!joinedPlayer
+      console.log(
+        `[LobbyPanel][TriggerEnter] hasLocalAddress=${hasLocalAddress} localAddress=${localAddress || 'empty'} ` +
+          `hasLobby=${!!lobby} lobbyPlayers=${lobby?.players.length ?? 0} ` +
+          `joinedPlayerFound=${!!joinedPlayer} isAlreadyJoined=${isAlreadyJoined}`
+      )
       if (!isAlreadyJoined) {
+        console.log('[LobbyPanel][TriggerEnter] Sending createMatchAndJoin')
         sendCreateMatchAndJoin()
+      } else {
+        console.log('[LobbyPanel][TriggerEnter] Skipped createMatchAndJoin because player is already joined')
       }
     })
     triggerAreaEventsSystem.onTriggerExit(this.triggerEntity, (result) => {
