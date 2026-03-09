@@ -16,7 +16,7 @@ import {
   WAVE_ACTIVE_SECONDS,
   WAVE_REST_SECONDS
 } from '../shared/matchConfig'
-import { LoadoutWeaponId, getLoadoutWeaponDefinition } from '../shared/loadoutCatalog'
+import { ArenaWeaponType, LoadoutWeaponId, getLoadoutWeaponDefinition } from '../shared/loadoutCatalog'
 import { createPlayerProgressStore } from './storage/playerProgress'
 import { getServerTime } from '../shared/timeSync'
 
@@ -31,6 +31,11 @@ const SPAWN_MAX_Z = 54
 const PLAYER_MAX_HP = 5
 const PLAYER_RESPAWN_SECONDS = 5
 const PLAYER_DAMAGE_REQUEST_COOLDOWN_MS = 250
+const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
+  gun: 450,
+  shotgun: 450,
+  minigun: 120
+}
 const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
 const ARENA_TELEPORT_POSITION = { x: 32, y: 0, z: 32 }
@@ -66,6 +71,7 @@ const deadZombieIds = new Set<string>()
 const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
+const lastShotAtMsByPlayerAndWeapon = new Map<string, number>()
 
 function logLobbyServerEvent(message: string): void {
   console.log(`[Server][Lobby] ${message}`)
@@ -83,6 +89,10 @@ function getOwnedWeaponIds(address: string): LoadoutWeaponId[] {
     if (weaponId === 'minigun_heavy' && !ownedWeaponIds.includes(weaponId)) ownedWeaponIds.push(weaponId)
   }
   return ownedWeaponIds
+}
+
+function isArenaWeaponType(value: string): value is ArenaWeaponType {
+  return value === 'gun' || value === 'shotgun' || value === 'minigun'
 }
 
 function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
@@ -851,6 +861,64 @@ export function setupLobbyServer(): void {
     if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby('All players died. Returning to lobby.')
     }
+  })
+
+  room.onMessage('playerShotRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+
+    const lobbyState = getLobbyState()
+    if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning) return
+
+    const state = getOrCreatePlayerCombatState(normalizedAddress)
+    if (state.isDead) return
+
+    if (!isArenaWeaponType(data.weaponType)) return
+    const weaponType = data.weaponType
+    const now = getServerTime()
+    const rateLimitKey = `${normalizedAddress}:${weaponType}`
+    const lastShotAtMs = lastShotAtMsByPlayerAndWeapon.get(rateLimitKey) ?? 0
+    if (now - lastShotAtMs < SHOT_RATE_LIMIT_MS_BY_WEAPON[weaponType]) return
+
+    const originX = Number(data.originX)
+    const originY = Number(data.originY)
+    const originZ = Number(data.originZ)
+    const directionX = Number(data.directionX)
+    const directionY = Number(data.directionY)
+    const directionZ = Number(data.directionZ)
+    if (
+      !Number.isFinite(originX) ||
+      !Number.isFinite(originY) ||
+      !Number.isFinite(originZ) ||
+      !Number.isFinite(directionX) ||
+      !Number.isFinite(directionY) ||
+      !Number.isFinite(directionZ)
+    ) {
+      return
+    }
+
+    const directionLenSq = directionX * directionX + directionY * directionY + directionZ * directionZ
+    if (directionLenSq < 0.0001) return
+    const directionLen = Math.sqrt(directionLenSq)
+
+    lastShotAtMsByPlayerAndWeapon.set(rateLimitKey, now)
+    void room.send('playerShotBroadcast', {
+      shooterAddress: normalizedAddress,
+      seq: Number.isFinite(data.seq) ? Math.floor(data.seq) : 0,
+      weaponType,
+      originX,
+      originY,
+      originZ,
+      directionX: directionX / directionLen,
+      directionY: directionY / directionLen,
+      directionZ: directionZ / directionLen,
+      firedAtMs: Number.isFinite(data.firedAtMs) ? Math.floor(data.firedAtMs) : now,
+      serverTimeMs: now
+    })
   })
 
   engine.addSystem(waveRuntimeSystem, undefined, 'match-wave-runtime-system')

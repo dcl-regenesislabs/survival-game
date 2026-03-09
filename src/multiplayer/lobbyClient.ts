@@ -3,6 +3,7 @@ import { room } from '../shared/messages'
 import { LobbyStateComponent, LobbyStateSnapshot } from '../shared/lobbySchemas'
 import { MatchRuntimeSnapshot, MatchRuntimeStateComponent } from '../shared/matchRuntimeSchemas'
 import { movePlayerTo } from '~system/RestrictedActions'
+import { Vector3 } from '@dcl/sdk/math'
 import { applyAuthoritativeHealthState } from '../playerHealth'
 import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
@@ -115,6 +116,25 @@ export function sendCreateMatchAndJoin(): void {
 
 export function sendPlayerDamageRequest(amount: number): void {
   void room.send('playerDamageRequest', { amount })
+}
+
+export function sendPlayerShotRequest(
+  weaponType: 'gun' | 'shotgun' | 'minigun',
+  origin: Vector3,
+  direction: Vector3,
+  seq: number
+): void {
+  void room.send('playerShotRequest', {
+    seq,
+    weaponType,
+    originX: origin.x,
+    originY: origin.y,
+    originZ: origin.z,
+    directionX: direction.x,
+    directionY: direction.y,
+    directionZ: direction.z,
+    firedAtMs: Date.now()
+  })
 }
 
 export function getLocalAddress(): string {

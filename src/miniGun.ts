@@ -17,7 +17,7 @@ import { ZombieComponent } from './zombie'
 import { ProjectileComponent } from './gun'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
-import { getLobbyState, getLocalAddress, isLocalReadyForMatch } from './multiplayer/lobbyClient'
+import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
 
 const GUN_MODEL = 'assets/scene/Models/MiniGun01/MiniGun01.glb'
 
@@ -47,6 +47,7 @@ let gunEntity: Entity | null = null
 let shootTimer = 0
 /** Seconds left to freeze gun rotation after shoot (animator.playing may not clear when clip ends) */
 let rotationFreezeRemaining = 0
+let localShotSeq = 0
 
 function getNearestZombie(fromPosition: Vector3): Entity | null {
   let nearest: Entity | null = null
@@ -80,8 +81,9 @@ function playGunAnimation() {
 
 function spawnProjectile(
   gunWorldPos: Vector3,
-  gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number }
-) {
+  gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number },
+  canDamage: boolean = true
+): Vector3 {
   // Bullet direction = gun forward (where the barrel points), so bullet always matches gun aim
   const direction = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
   const right = Vector3.rotate(Vector3.Right(), gunWorldRot)
@@ -110,10 +112,14 @@ function spawnProjectile(
   })
   ProjectileComponent.create(projectile, {
     direction,
-    startPosition: Vector3.clone(spawnPos)
+    startPosition: Vector3.clone(spawnPos),
+    canDamage
   })
-  // Bullets need a collider so they trigger zombie TriggerAreas
-  MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
+  if (canDamage) {
+    // Bullets need a collider so they trigger zombie TriggerAreas
+    MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
+  }
+  return direction
 }
 
 export function createMiniGun(): Entity {
@@ -208,7 +214,17 @@ export function miniGunSystem(dt: number) {
 
   shootTimer = 0
   playGunAnimation()
-  spawnProjectile(gunWorldPos, gunWorldRot)
+  const direction = spawnProjectile(gunWorldPos, gunWorldRot, true)
+  localShotSeq += 1
+  sendPlayerShotRequest('minigun', gunWorldPos, direction, localShotSeq)
+}
+
+export function spawnReplicatedMiniGunShotVisual(origin: Vector3, direction: Vector3): void {
+  const directionXZ = Vector3.create(direction.x, 0, direction.z)
+  const lenSq = directionXZ.x * directionXZ.x + directionXZ.z * directionXZ.z
+  if (lenSq <= 0.0001) return
+  const rotation = Quaternion.lookRotation(Vector3.normalize(directionXZ))
+  spawnProjectile(origin, rotation, false)
 }
 
 export function initMiniGunSystems() {
