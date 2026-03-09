@@ -20,7 +20,7 @@ import { ZombieComponent, damageZombie, spawnZcRewardTextAtPosition } from './zo
 import { addZombieCoins, COINS_PER_KILL } from './zombieCoins'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
-import { getLobbyState, getLocalAddress, isLocalReadyForMatch } from './multiplayer/lobbyClient'
+import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
 
 const GUN_MODEL = 'assets/scene/Models/Gun01/Gun01.glb'
 
@@ -49,7 +49,8 @@ const GUN_ROTATION_SMOOTH_SPEED = 12
 // Projectile: flies straight; hit detection is via TriggerArea on zombies (collider-based)
 const ProjectileComponentSchema = {
   direction: Schemas.Vector3,
-  startPosition: Schemas.Vector3
+  startPosition: Schemas.Vector3,
+  canDamage: Schemas.Boolean
 }
 export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
 
@@ -61,6 +62,7 @@ let gunEntity: Entity | null = null
 let shootTimer = 0
 /** Seconds left to freeze gun rotation after shoot (animator.playing may not clear when clip ends) */
 let rotationFreezeRemaining = 0
+let localShotSeq = 0
 
 function getNearestZombie(fromPosition: Vector3): Entity | null {
   let nearest: Entity | null = null
@@ -94,8 +96,9 @@ function playGunAnimation() {
 
 function spawnProjectile(
   gunWorldPos: Vector3,
-  gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number }
-) {
+  gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number },
+  canDamage: boolean = true
+): Vector3 {
   // Bullet direction = gun forward (where the barrel points), so bullet always matches gun aim
   const direction = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
   const right = Vector3.rotate(Vector3.Right(), gunWorldRot)
@@ -124,10 +127,14 @@ function spawnProjectile(
   })
   ProjectileComponent.create(projectile, {
     direction,
-    startPosition: Vector3.clone(spawnPos)
+    startPosition: Vector3.clone(spawnPos),
+    canDamage
   })
-  // Bullets need a collider so they trigger zombie TriggerAreas
-  MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
+  if (canDamage) {
+    // Bullets need a collider so they trigger zombie TriggerAreas
+    MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
+  }
+  return direction
 }
 
 export function createGun(): Entity {
@@ -206,6 +213,8 @@ function zombieBulletTriggerSetupSystem() {
       const areaEntity = result.triggeredEntity as Entity
       const bulletEntity = result.trigger?.entity as Entity | undefined
       if (bulletEntity == null || !ProjectileComponent.has(bulletEntity)) return
+      const projectileData = ProjectileComponent.get(bulletEntity)
+      if (!projectileData.canDamage) return
       const zombieEntity = Transform.has(areaEntity) ? (Transform.get(areaEntity).parent as Entity) : null
       if (zombieEntity == null || !ZombieComponent.has(zombieEntity)) return
       const rewardAnchor = Vector3.clone(Transform.get(zombieEntity).position)
@@ -276,7 +285,17 @@ export function gunSystem(dt: number) {
 
   shootTimer = 0
   playGunAnimation()
-  spawnProjectile(gunWorldPos, gunWorldRot)
+  const direction = spawnProjectile(gunWorldPos, gunWorldRot, true)
+  localShotSeq += 1
+  sendPlayerShotRequest('gun', gunWorldPos, direction, localShotSeq)
+}
+
+export function spawnReplicatedGunShotVisual(origin: Vector3, direction: Vector3): void {
+  const directionXZ = Vector3.create(direction.x, 0, direction.z)
+  const lenSq = directionXZ.x * directionXZ.x + directionXZ.z * directionXZ.z
+  if (lenSq <= 0.0001) return
+  const rotation = Quaternion.lookRotation(Vector3.normalize(directionXZ))
+  spawnProjectile(origin, rotation, false)
 }
 
 export function initGunSystems() {

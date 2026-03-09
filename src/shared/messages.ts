@@ -37,6 +37,30 @@ const LobbyMessages = {
   playerDamageRequest: Schemas.Map({
     amount: Schemas.Number
   }),
+  playerShotRequest: Schemas.Map({
+    seq: Schemas.Number,
+    weaponType: Schemas.String,
+    originX: Schemas.Number,
+    originY: Schemas.Number,
+    originZ: Schemas.Number,
+    directionX: Schemas.Number,
+    directionY: Schemas.Number,
+    directionZ: Schemas.Number,
+    firedAtMs: Schemas.Int64
+  }),
+  playerShotBroadcast: Schemas.Map({
+    shooterAddress: Schemas.String,
+    seq: Schemas.Number,
+    weaponType: Schemas.String,
+    originX: Schemas.Number,
+    originY: Schemas.Number,
+    originZ: Schemas.Number,
+    directionX: Schemas.Number,
+    directionY: Schemas.Number,
+    directionZ: Schemas.Number,
+    firedAtMs: Schemas.Int64,
+    serverTimeMs: Schemas.Int64
+  }),
   playerHealthState: Schemas.Map({
     address: Schemas.String,
     hp: Schemas.Number,

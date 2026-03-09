@@ -23,9 +23,9 @@ import {
   rewardTextSystem,
   setPlayerDamageReporter
 } from './zombie'
-import { initGunSystems } from './gun'
-import { initShotGunSystems } from './shotGun'
-import { initMiniGunSystems } from './miniGun'
+import { initGunSystems, spawnReplicatedGunShotVisual } from './gun'
+import { initShotGunSystems, spawnReplicatedShotGunShotVisual } from './shotGun'
+import { initMiniGunSystems, spawnReplicatedMiniGunShotVisual } from './miniGun'
 import { initBrickSystem } from './brick'
 import { initHealthBarSystem } from './healthBar'
 import { initWeaponLifecycleSystem } from './weaponManager'
@@ -40,13 +40,21 @@ import { initRageAura } from './rageAura'
 import { potionPickupSystem, potionVisualSystem } from './potions'
 import { EntityNames } from '../assets/scene/entity-names'
 import { setupLobbyServer } from './server/lobbyServer'
-import { getMatchRuntimeState, sendPlayerDamageRequest, setupLobbyClient } from './multiplayer/lobbyClient'
+import {
+  getLocalAddress,
+  getLobbyState,
+  getMatchRuntimeState,
+  isLocalReadyForMatch,
+  sendPlayerDamageRequest,
+  setupLobbyClient
+} from './multiplayer/lobbyClient'
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
 import { initDeathAnimationSystem } from './deathAnimation'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
+import { room } from './shared/messages'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
 const CINEMATIC_CAMERA_HEIGHT = 12
@@ -64,6 +72,9 @@ let cinematicCameraEntity: ReturnType<typeof engine.addEntity> | null = null
 let cinematicSmoothedTarget = Vector3.create(0, 0, 0)
 let cinematicSmoothedTargetReady = false
 let appliedSkyboxTime: number | null = null
+const seenRemoteShotKeys = new Set<string>()
+const seenRemoteShotKeyQueue: string[] = []
+const MAX_SEEN_REMOTE_SHOTS = 512
 
 // Fixed world offset: camera sits here relative to player; rotation never changes
 const CINEMATIC_OFFSET = Vector3.create(0, CINEMATIC_CAMERA_HEIGHT, -CINEMATIC_CAMERA_DISTANCE)
@@ -126,6 +137,52 @@ function setActiveCamera(cinematic: boolean) {
   mainCamera.virtualCameraEntity = cinematic && cinematicCameraEntity ? cinematicCameraEntity : undefined
 }
 
+function isLocalPlayerInCurrentMatch(): boolean {
+  const lobbyState = getLobbyState()
+  const localAddress = getLocalAddress()
+  if (!lobbyState || !localAddress) return false
+  if (lobbyState.phase !== 'match_created') return false
+  if (!isLocalReadyForMatch()) return false
+  return lobbyState.arenaPlayers.some((player) => player.address === localAddress)
+}
+
+function rememberRemoteShot(key: string): boolean {
+  if (seenRemoteShotKeys.has(key)) return false
+  seenRemoteShotKeys.add(key)
+  seenRemoteShotKeyQueue.push(key)
+  if (seenRemoteShotKeyQueue.length > MAX_SEEN_REMOTE_SHOTS) {
+    const oldest = seenRemoteShotKeyQueue.shift()
+    if (oldest) seenRemoteShotKeys.delete(oldest)
+  }
+  return true
+}
+
+function setupShotReplicationClient(): void {
+  room.onMessage('playerShotBroadcast', (data) => {
+    if (!isLocalPlayerInCurrentMatch()) return
+    const shooterAddress = data.shooterAddress.toLowerCase()
+    const localAddress = getLocalAddress()
+    if (!shooterAddress || shooterAddress === localAddress) return
+
+    const shotKey = `${shooterAddress}:${data.weaponType}:${Math.floor(data.seq)}`
+    if (!rememberRemoteShot(shotKey)) return
+
+    const origin = Vector3.create(data.originX, data.originY, data.originZ)
+    const direction = Vector3.create(data.directionX, data.directionY, data.directionZ)
+    switch (data.weaponType) {
+      case 'gun':
+        spawnReplicatedGunShotVisual(origin, direction)
+        break
+      case 'shotgun':
+        spawnReplicatedShotGunShotVisual(origin, direction)
+        break
+      case 'minigun':
+        spawnReplicatedMiniGunShotVisual(origin, direction)
+        break
+    }
+  })
+}
+
 export function main() {
   if (isServer()) {
     initTimeSync({ isServer: true })
@@ -135,6 +192,7 @@ export function main() {
 
   initTimeSync({ isServer: false })
   setupLobbyClient()
+  setupShotReplicationClient()
   setPlayerDamageReporter((amount) => {
     if (isPlayerDead()) return
     sendPlayerDamageRequest(amount)
