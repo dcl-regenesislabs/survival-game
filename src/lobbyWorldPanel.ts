@@ -25,12 +25,17 @@ const PANEL_WORLD_POSITION = Vector3.create(76.2, 3, 36)
 const ROOT_ROTATION = Quaternion.fromEulerDegrees(0, -90, 0)
 const PANEL_WORLD_SCALE = Vector3.create(6.4, 3.8, 0.2)
 const PANEL_UPDATE_INTERVAL_SECONDS = 0.2
+const TRIGGER_RECONCILE_INTERVAL_SECONDS = 0.1
 const TEXT_LOCAL_POSITION = Vector3.create(0, 0.82, 0.3)
 const COUNTDOWN_TEXT_LOCAL_POSITION = Vector3.create(0, -0.25, -0.25)
 const TRIGGER_LOCAL_POSITION = Vector3.create(0, -3, -2.2)
 const TRIGGER_SCALE = Vector3.create(5.4, 2.6, 4.6)
+const TRIGGER_HALF_EXTENTS = Vector3.create(TRIGGER_SCALE.x * 0.5, TRIGGER_SCALE.y * 0.5, TRIGGER_SCALE.z * 0.5)
+const TRIGGER_BOUNDS_EPSILON = 0.15
 const TRIGGER_SHADOW_SCALE_VISIBLE = Vector3.create(1.9, 0.06, 1.9)
 const TRIGGER_SHADOW_HIDDEN_POSITION = Vector3.create(0, -1000, 0)
+const ROOT_INVERSE_ROTATION = Quaternion.fromEulerDegrees(0, 90, 0)
+const LOBBY_REQUEST_COOLDOWN_MS = 1000
 const TRIGGER_SHADOW_SYNC_COMPONENT_IDS = [
   Transform.componentId,
   MeshRenderer.componentId,
@@ -45,9 +50,12 @@ export class LobbyWorldPanel {
   private triggerEntity = engine.addEntity()
   private triggerShadowEntity = engine.addEntity()
   private updateAccumulator = 0
+  private triggerReconcileAccumulator = 0
   private lastRenderedPlayersText = ''
   private lastRenderedCountdownText = ''
   private isLocalPlayerInsideTrigger = false
+  private lastJoinRequestAtMs = 0
+  private lastLeaveRequestAtMs = 0
 
   constructor() {
     this.createPanel()
@@ -125,27 +133,39 @@ export class LobbyWorldPanel {
       if (result.trigger?.entity !== engine.PlayerEntity) return
       console.log('[LobbyPanel] Player entered trigger area')
       this.isLocalPlayerInsideTrigger = true
-
-      const localAddress = getLocalAddress()
-      const lobby = getLobbyState()
-      const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
-      if (!isAlreadyJoined) {
-        sendCreateMatchAndJoin()
-      }
+      this.requestLobbyJoinIfNeeded()
     })
     triggerAreaEventsSystem.onTriggerExit(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
       console.log('[LobbyPanel] Player exited trigger area')
       this.isLocalPlayerInsideTrigger = false
-
-      const localAddress = getLocalAddress()
-      const lobby = getLobbyState()
-      const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
-      if (!isAlreadyJoined) return
-      if (this.shouldIgnoreTriggerExitLeave()) return
-
-      sendLeaveLobby()
+      this.requestLobbyLeaveIfNeeded()
     })
+  }
+
+  private requestLobbyJoinIfNeeded(): void {
+    const localAddress = getLocalAddress()
+    const lobby = getLobbyState()
+    const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
+    if (isAlreadyJoined) return
+
+    const nowMs = Date.now()
+    if (nowMs - this.lastJoinRequestAtMs < LOBBY_REQUEST_COOLDOWN_MS) return
+    this.lastJoinRequestAtMs = nowMs
+    sendCreateMatchAndJoin()
+  }
+
+  private requestLobbyLeaveIfNeeded(): void {
+    const localAddress = getLocalAddress()
+    const lobby = getLobbyState()
+    const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
+    if (!isAlreadyJoined) return
+    if (this.shouldIgnoreTriggerExitLeave()) return
+
+    const nowMs = Date.now()
+    if (nowMs - this.lastLeaveRequestAtMs < LOBBY_REQUEST_COOLDOWN_MS) return
+    this.lastLeaveRequestAtMs = nowMs
+    sendLeaveLobby()
   }
 
   private shouldIgnoreTriggerExitLeave(): boolean {
@@ -190,6 +210,7 @@ export class LobbyWorldPanel {
   }
 
   private updateSystem(dt: number): void {
+    this.reconcileLocalTriggerState(dt)
     this.updateTriggerShadow()
 
     this.updateAccumulator += dt
@@ -207,6 +228,40 @@ export class LobbyWorldPanel {
       this.lastRenderedCountdownText = nextCountdownText
       TextShape.getMutable(this.countdownTextEntity).text = nextCountdownText
     }
+  }
+
+  private reconcileLocalTriggerState(dt: number): void {
+    this.triggerReconcileAccumulator += dt
+    if (this.triggerReconcileAccumulator < TRIGGER_RECONCILE_INTERVAL_SECONDS) return
+    this.triggerReconcileAccumulator = 0
+
+    const isActuallyInside = this.isPlayerInsideLobbyTriggerVolume()
+    if (isActuallyInside === this.isLocalPlayerInsideTrigger) return
+
+    this.isLocalPlayerInsideTrigger = isActuallyInside
+    if (isActuallyInside) {
+      console.log('[LobbyPanel] Reconciled player inside trigger area')
+      this.requestLobbyJoinIfNeeded()
+      return
+    }
+
+    console.log('[LobbyPanel] Reconciled player outside trigger area')
+    this.requestLobbyLeaveIfNeeded()
+  }
+
+  private isPlayerInsideLobbyTriggerVolume(): boolean {
+    if (!Transform.has(engine.PlayerEntity)) return false
+
+    const triggerCenter = Vector3.add(PANEL_WORLD_POSITION, Vector3.rotate(TRIGGER_LOCAL_POSITION, ROOT_ROTATION))
+    const playerPosition = Transform.get(engine.PlayerEntity).position
+    const offsetFromCenter = Vector3.subtract(playerPosition, triggerCenter)
+    const localOffset = Vector3.rotate(offsetFromCenter, ROOT_INVERSE_ROTATION)
+
+    return (
+      Math.abs(localOffset.x) <= TRIGGER_HALF_EXTENTS.x + TRIGGER_BOUNDS_EPSILON &&
+      Math.abs(localOffset.y) <= TRIGGER_HALF_EXTENTS.y + TRIGGER_BOUNDS_EPSILON &&
+      Math.abs(localOffset.z) <= TRIGGER_HALF_EXTENTS.z + TRIGGER_BOUNDS_EPSILON
+    )
   }
 
   private updateTriggerShadow(): void {
