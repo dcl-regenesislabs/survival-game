@@ -31,6 +31,8 @@ const SPAWN_MAX_Z = 54
 const PLAYER_MAX_HP = 5
 const PLAYER_RESPAWN_SECONDS = 5
 const PLAYER_DAMAGE_REQUEST_COOLDOWN_MS = 250
+const DISCONNECTED_PLAYER_GRACE_MS = 3000
+const DISCONNECTED_PLAYER_RECONCILE_INTERVAL_SECONDS = 0.5
 const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
   gun: 450,
   shotgun: 450,
@@ -72,6 +74,9 @@ const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
 const lastShotAtMsByPlayerAndWeapon = new Map<string, number>()
+const disconnectedLobbyPlayerSinceMs = new Map<string, number>()
+let disconnectedPlayerReconcileAccumulator = 0
+let isDisconnectReconcileInFlight = false
 
 function logLobbyServerEvent(message: string): void {
   console.log(`[Server][Lobby] ${message}`)
@@ -197,6 +202,13 @@ function resetPlayerCombatState(address: string): void {
 
 function removePlayerCombatState(address: string): void {
   playerCombatStateByAddress.delete(address.toLowerCase())
+}
+
+function clearPlayerShotRateLimitState(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  for (const weaponType of Object.keys(SHOT_RATE_LIMIT_MS_BY_WEAPON) as ArenaWeaponType[]) {
+    lastShotAtMsByPlayerAndWeapon.delete(`${normalizedAddress}:${weaponType}`)
+  }
 }
 
 function sendPlayerHealthState(address: string): void {
@@ -450,6 +462,8 @@ async function removePlayerFromLobby(address: string): Promise<void> {
   await playerProgressStore.saveAndEvict(normalizedAddress)
   loadedProfileAddresses.delete(normalizedAddress)
   removePlayerCombatState(normalizedAddress)
+  clearPlayerShotRateLimitState(normalizedAddress)
+  disconnectedLobbyPlayerSinceMs.delete(normalizedAddress)
   setPlayers(nextPlayers)
   setArenaPlayers(nextArenaPlayers)
   if (nextArenaPlayers.length < MATCH_MAX_PLAYERS) {
@@ -471,6 +485,66 @@ async function removePlayerFromLobby(address: string): Promise<void> {
       message: `${leavingPlayer.displayName} left lobby`
     })
   }
+}
+
+function getConnectedPlayerAddresses(): Set<string> {
+  const connectedAddresses = new Set<string>()
+  for (const [_entity, identity] of engine.getEntitiesWith(PlayerIdentityData)) {
+    if (!identity.address) continue
+    connectedAddresses.add(identity.address.toLowerCase())
+  }
+  return connectedAddresses
+}
+
+async function reconcileDisconnectedLobbyPlayers(): Promise<void> {
+  if (isDisconnectReconcileInFlight) return
+  isDisconnectReconcileInFlight = true
+
+  try {
+    const lobbyState = getLobbyState()
+    if (!lobbyState.players.length) {
+      disconnectedLobbyPlayerSinceMs.clear()
+      return
+    }
+
+    const now = getServerTime()
+    const connectedAddresses = getConnectedPlayerAddresses()
+    const staleAddresses: string[] = []
+
+    for (const player of lobbyState.players) {
+      const address = player.address.toLowerCase()
+      if (connectedAddresses.has(address)) {
+        disconnectedLobbyPlayerSinceMs.delete(address)
+        continue
+      }
+
+      const missingSince = disconnectedLobbyPlayerSinceMs.get(address) ?? now
+      disconnectedLobbyPlayerSinceMs.set(address, missingSince)
+      if (now - missingSince >= DISCONNECTED_PLAYER_GRACE_MS) {
+        staleAddresses.push(address)
+      }
+    }
+
+    for (const trackedAddress of [...disconnectedLobbyPlayerSinceMs.keys()]) {
+      if (connectedAddresses.has(trackedAddress)) {
+        disconnectedLobbyPlayerSinceMs.delete(trackedAddress)
+      }
+    }
+
+    for (const address of staleAddresses) {
+      logLobbyServerEvent(`PlayerDisconnected ${address}`)
+      await removePlayerFromLobby(address)
+    }
+  } finally {
+    isDisconnectReconcileInFlight = false
+  }
+}
+
+function disconnectedPlayerReconcileSystem(dt: number): void {
+  disconnectedPlayerReconcileAccumulator += dt
+  if (disconnectedPlayerReconcileAccumulator < DISCONNECTED_PLAYER_RECONCILE_INTERVAL_SECONDS) return
+  disconnectedPlayerReconcileAccumulator = 0
+  void reconcileDisconnectedLobbyPlayers()
 }
 
 function createMatch(address: string): void {
@@ -932,6 +1006,7 @@ export function setupLobbyServer(): void {
 
   engine.addSystem(waveRuntimeSystem, undefined, 'match-wave-runtime-system')
   engine.addSystem(playerProgressAutosaveSystem, undefined, 'player-progress-autosave-system')
+  engine.addSystem(disconnectedPlayerReconcileSystem, undefined, 'disconnected-player-reconcile-system')
 
   console.log('[Server] Lobby server ready')
 }
