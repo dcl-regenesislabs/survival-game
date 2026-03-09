@@ -946,6 +946,26 @@ export function setupLobbyServer(): void {
     }
   })
 
+  room.onMessage('playerHealRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+
+    const lobbyState = getLobbyState()
+    if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning) return
+
+    const state = getOrCreatePlayerCombatState(normalizedAddress)
+    if (state.isDead) return
+
+    const requestedAmount = Number.isFinite(data.amount) ? Math.floor(data.amount) : PLAYER_MAX_HP
+    const amount = Math.max(1, Math.min(PLAYER_MAX_HP, requestedAmount))
+    state.hp = Math.min(PLAYER_MAX_HP, state.hp + amount)
+    sendPlayerHealthState(normalizedAddress)
+  })
+
   room.onMessage('playerShotRequest', (data, context) => {
     if (!context) return
     const normalizedAddress = context.from.toLowerCase()
