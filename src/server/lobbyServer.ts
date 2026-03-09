@@ -233,6 +233,15 @@ function endMatchAndReturnToLobby(message: string): void {
   })
 }
 
+function resetArenaToLobby(message: string): void {
+  resetMatchToLobbyKeepingPlayers()
+  logLobbyServerEvent(`ArenaResetToLobby ${message}`)
+  void room.send('lobbyEvent', {
+    type: 'lobby',
+    message
+  })
+}
+
 function recomputeZombiesAlive(runtime: ReturnType<typeof getMatchRuntimeMutable>, nowMs: number): void {
   let alive = 0
   for (const [zombieId, spawnAtMs] of zombieSpawnAtById) {
@@ -439,7 +448,7 @@ async function removePlayerFromLobby(address: string): Promise<void> {
   if (nextArenaPlayers.length === 0) {
     cancelArenaIntroCountdown()
     if (state.phase === LobbyPhase.MATCH_CREATED) {
-      resetMatchToLobbyKeepingPlayers()
+      resetArenaToLobby('Match closed. Returning to lobby.')
     }
   }
 
@@ -619,7 +628,7 @@ function waveRuntimeSystem(dt: number): void {
 
   if (lobbyState.arenaPlayers.length === 0) {
     cancelArenaIntroCountdown()
-    resetMatchToLobbyKeepingPlayers()
+    resetArenaToLobby('Match closed. Returning to lobby.')
     return
   }
 
