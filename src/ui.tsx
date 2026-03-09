@@ -8,8 +8,12 @@ import { getGameTime } from './zombie'
 import { isRaging, getRageTimeLeft } from './rageEffect'
 import { getHealthPickupFeedback } from './potions'
 import {
+  getCurrentWeapon,
+  getWeaponUnlockCost,
   isShotgunUnlocked,
   isMinigunUnlocked,
+  isWeaponPurchasedInMatch,
+  purchaseWeapon,
   switchTo
 } from './weaponManager'
 import {
@@ -66,6 +70,8 @@ const LOBBY_RETURN_POSITION = { x: 78.4, y: 3, z: 31.5 }
 const LOBBY_RETURN_LOOK_TARGET = { x: 76.2, y: 3, z: 31 }
 const BRICK_TARGET_RETICLE_WIDTH = 106
 const BRICK_TARGET_RETICLE_HEIGHT = 98
+const WEAPON_SELECTION_BAR_WIDTH = 92
+const WEAPON_SELECTION_BAR_HEIGHT = 6
 // WEAPONS_LOCK.png region: x=853, y=92, w=213, h=196 (1536x1024 atlas, V axis bottom-up in UI UVs)
 const BRICK_TARGET_RETICLE_UVS = [0.555339, 0.71875, 0.555339, 0.910156, 0.69401, 0.910156, 0.69401, 0.71875]
 const LOADOUT_TELEPORT_POSITION = { x: 94, y: 3, z: 38.5 }
@@ -692,6 +698,11 @@ export const uiMenu = () => {
             }}
           >
             {(['gun', 'shotgun', 'minigun', 'brick'] as const).map((weapon) => {
+                const currentWeapon = getCurrentWeapon()
+                const isPurchasableWeapon = weapon === 'shotgun' || weapon === 'minigun'
+                const weaponCost = weapon === 'brick' ? BRICK_COST_ZC : isPurchasableWeapon ? getWeaponUnlockCost(weapon) : 0
+                const isPurchased = weapon === 'brick' ? true : weapon === 'gun' ? true : isWeaponPurchasedInMatch(weapon)
+                const canAfford = weaponCost <= 0 || getZombieCoins() >= weaponCost
                 const canUse =
                   weapon === 'gun' ||
                   (weapon === 'shotgun' && isShotgunUnlocked()) ||
@@ -701,10 +712,12 @@ export const uiMenu = () => {
                   weapon === 'gun'
                     ? false
                     : weapon === 'shotgun'
-                      ? !isShotgunUnlocked()
-                      : weapon === 'minigun'
-                        ? !isMinigunUnlocked()
+                      ? !isPurchased
+                    : weapon === 'minigun'
+                        ? !isPurchased
                         : getZombieCoins() < BRICK_COST_ZC
+                const isSelected =
+                  weapon === 'brick' ? brickTargetModeActive : currentWeapon === weapon
                 const buttonWidth =
                   weapon === 'gun'
                     ? GUN_BUTTON_WIDTH
@@ -731,7 +744,7 @@ export const uiMenu = () => {
                     key={weapon}
                     uiTransform={{
                       width: buttonWidth,
-                      height: buttonHeight + BRICK_TARGET_RETICLE_HEIGHT + 12,
+                      height: buttonHeight + BRICK_TARGET_RETICLE_HEIGHT + WEAPON_SELECTION_BAR_HEIGHT + 20,
                       positionType: 'relative',
                       margin: { left: 19, right: 19, bottom: 14 },
                       flexDirection: 'column',
@@ -787,18 +800,51 @@ export const uiMenu = () => {
                                 : { color: Color4.create(0.2, 0.75, 0.35, 1) }
                       }
                       onMouseDown={() => {
-                        if (!canUse) return
                         if (weapon === 'brick') {
+                          if (!canUse) return
                           if (brickTargetModeActive) {
                             confirmBrickPlacementFromTargetMode()
                           } else {
                             activateBrickTargetMode()
                           }
                         } else {
+                          if (!isPurchased) {
+                            if (!canAfford) return
+                            if (!purchaseWeapon(weapon)) return
+                          }
                           switchTo(weapon)
                         }
                       }}
-                    />
+                    >
+                      {weaponCost > 0 && ((weapon === 'brick' && !canUse) || (weapon !== 'brick' && !isPurchased)) && (
+                        <UiEntity
+                          uiTransform={{
+                            width: 64,
+                            height: 20,
+                            positionType: 'absolute',
+                            position: { right: 24, bottom: 20 }
+                          }}
+                          uiText={{
+                            value: `${weaponCost} ZC`,
+                            fontSize: 15,
+                            color: canAfford
+                              ? Color4.create(1, 0.84, 0.18, 1)
+                              : Color4.create(0.78, 0.62, 0.12, 1),
+                            textAlign: 'middle-right'
+                          }}
+                        />
+                      )}
+                    </UiEntity>
+                    {weapon !== 'brick' && isSelected && (
+                      <UiEntity
+                        uiTransform={{
+                          width: WEAPON_SELECTION_BAR_WIDTH,
+                          height: WEAPON_SELECTION_BAR_HEIGHT,
+                          margin: { top: 8 }
+                        }}
+                        uiBackground={{ color: Color4.create(0.96, 0.78, 0.18, 0.95) }}
+                      />
+                    )}
                   </UiEntity>
                 )
               })}

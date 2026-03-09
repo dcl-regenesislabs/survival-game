@@ -2,27 +2,56 @@ import { engine } from '@dcl/sdk/ecs'
 import { createGun, destroyGun } from './gun'
 import { createShotGun, destroyShotGun } from './shotGun'
 import { createMiniGun, destroyMiniGun } from './miniGun'
-import { isLoadoutWeaponOwned } from './loadoutState'
 import { isPlayerDead } from './playerHealth'
+import { spendZombieCoins } from './zombieCoins'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
+export const SHOTGUN_UNLOCK_COST_ZC = 50
+export const MINIGUN_UNLOCK_COST_ZC = 100
 
 let currentWeapon: WeaponType = 'gun'
 let arenaWeaponEnabled = false
 let hasSpawnedWeapon = false
 let weaponHiddenByDeath = false
 let lifecycleSystemInitialized = false
+let shotgunPurchasedInMatch = false
+let minigunPurchasedInMatch = false
 
 export function getCurrentWeapon(): WeaponType {
   return currentWeapon
 }
 
+export function getWeaponUnlockCost(type: WeaponType): number {
+  if (type === 'shotgun') return SHOTGUN_UNLOCK_COST_ZC
+  if (type === 'minigun') return MINIGUN_UNLOCK_COST_ZC
+  return 0
+}
+
+export function isWeaponPurchasedInMatch(type: WeaponType): boolean {
+  if (type === 'gun') return true
+  if (type === 'shotgun') return shotgunPurchasedInMatch
+  return minigunPurchasedInMatch
+}
+
 export function isShotgunUnlocked(): boolean {
-  return isLoadoutWeaponOwned('shotgun_pump')
+  return shotgunPurchasedInMatch
 }
 
 export function isMinigunUnlocked(): boolean {
-  return isLoadoutWeaponOwned('minigun_heavy')
+  return minigunPurchasedInMatch
+}
+
+export function purchaseWeapon(type: WeaponType): boolean {
+  if (!arenaWeaponEnabled) return false
+  if (isWeaponPurchasedInMatch(type)) return true
+
+  const cost = getWeaponUnlockCost(type)
+  if (cost <= 0) return true
+  if (!spendZombieCoins(cost)) return false
+
+  if (type === 'shotgun') shotgunPurchasedInMatch = true
+  else if (type === 'minigun') minigunPurchasedInMatch = true
+  return true
 }
 
 function destroyCurrentWeapon(): void {
@@ -47,11 +76,11 @@ export function switchTo(type: WeaponType): boolean {
   if (type === 'minigun' && !isMinigunUnlocked()) return false
 
   const previousWeapon = currentWeapon
-  currentWeapon = type
-
   if (hasSpawnedWeapon && previousWeapon === type) return true
 
+  currentWeapon = previousWeapon
   destroyCurrentWeapon()
+  currentWeapon = type
   createWeapon(type)
   return true
 }
@@ -69,6 +98,8 @@ export function resetArenaWeaponProgress(): void {
   arenaWeaponEnabled = false
   currentWeapon = 'gun'
   weaponHiddenByDeath = false
+  shotgunPurchasedInMatch = false
+  minigunPurchasedInMatch = false
 }
 
 function weaponLifecycleSystem(): void {
