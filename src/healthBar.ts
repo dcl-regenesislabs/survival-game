@@ -15,7 +15,8 @@ const HealthBarSchema = {
   maxHp: Schemas.Number,
   isPlayer: Schemas.Boolean,
   /** Height above parent feet (y offset). Used for zombies; player bar uses Transform parent + local position. */
-  heightOffset: Schemas.Number
+  heightOffset: Schemas.Number,
+  lastStyleVariant: Schemas.Number
 }
 const HealthBarComponent = engine.defineComponent('HealthBarComponent', HealthBarSchema)
 
@@ -66,7 +67,7 @@ export function createHealthBarForZombie(zombie: Entity, maxHp: number, heightOf
     metallic: 0,
     roughness: 0.9
   })
-  HealthBarComponent.create(bar, { parent: zombie, maxHp, isPlayer: false, heightOffset })
+  HealthBarComponent.create(bar, { parent: zombie, maxHp, isPlayer: false, heightOffset, lastStyleVariant: -1 })
   return bar
 }
 
@@ -90,7 +91,8 @@ export function createHealthBarForPlayer(): Entity {
     parent: engine.PlayerEntity,
     maxHp: MAX_HP,
     isPlayer: true,
-    heightOffset: HEIGHT_PLAYER
+    heightOffset: HEIGHT_PLAYER,
+    lastStyleVariant: -1
   })
   return bar
 }
@@ -177,22 +179,27 @@ function healthBarSystem(dt: number) {
 
     let colors = getHealthColor(ratio)
     let emissiveIntensity = 0.25
+    let styleVariant = ratio > 0.6 ? 0 : ratio > 0.33 ? 1 : 2
     if (isPlayer && getGameTime() < getHealGlowEndTime()) {
       const glowPhase = (getGameTime() * 4) % (2 * Math.PI)
       const pulse = 0.5 + 0.5 * Math.sin(glowPhase)
       emissiveIntensity = 0.4 + pulse * 0.5
+      styleVariant = 3
       colors = {
         albedo: Color4.create(0.2, 1, 0.35, 0.95),
         emissive: Color3.create(0.2, 1, 0.3)
       }
     }
-    Material.setPbrMaterial(barEntity, {
-      albedoColor: colors.albedo,
-      emissiveColor: colors.emissive,
-      emissiveIntensity,
-      metallic: 0,
-      roughness: 0.9
-    })
+    if (barData.lastStyleVariant !== styleVariant || styleVariant === 3) {
+      Material.setPbrMaterial(barEntity, {
+        albedoColor: colors.albedo,
+        emissiveColor: colors.emissive,
+        emissiveIntensity,
+        metallic: 0,
+        roughness: 0.9
+      })
+      HealthBarComponent.getMutable(barEntity).lastStyleVariant = styleVariant
+    }
   }
 
   for (const e of toRemove) engine.removeEntity(e)
