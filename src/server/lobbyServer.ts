@@ -31,6 +31,8 @@ const SPAWN_MAX_Z = 54
 const PLAYER_MAX_HP = 5
 const PLAYER_RESPAWN_SECONDS = 5
 const PLAYER_DAMAGE_REQUEST_COOLDOWN_MS = 250
+const PLAYER_HEAL_REQUEST_COOLDOWN_MS = 250
+const HEALTH_POTION_HEAL_AMOUNT = PLAYER_MAX_HP
 const DISCONNECTED_PLAYER_GRACE_MS = 3000
 const DISCONNECTED_PLAYER_RECONCILE_INTERVAL_SECONDS = 0.5
 const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
@@ -65,6 +67,7 @@ type PlayerCombatState = {
   isDead: boolean
   respawnAtMs: number
   lastDamageRequestAtMs: number
+  lastHealRequestAtMs: number
 }
 
 let nextZombieSequence = 0
@@ -186,7 +189,8 @@ function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
     hp: PLAYER_MAX_HP,
     isDead: false,
     respawnAtMs: 0,
-    lastDamageRequestAtMs: 0
+    lastDamageRequestAtMs: 0,
+    lastHealRequestAtMs: 0
   }
   playerCombatStateByAddress.set(normalizedAddress, created)
   return created
@@ -198,6 +202,7 @@ function resetPlayerCombatState(address: string): void {
   state.isDead = false
   state.respawnAtMs = 0
   state.lastDamageRequestAtMs = 0
+  state.lastHealRequestAtMs = 0
 }
 
 function removePlayerCombatState(address: string): void {
@@ -960,8 +965,12 @@ export function setupLobbyServer(): void {
     const state = getOrCreatePlayerCombatState(normalizedAddress)
     if (state.isDead) return
 
-    const requestedAmount = Number.isFinite(data.amount) ? Math.floor(data.amount) : PLAYER_MAX_HP
-    const amount = Math.max(1, Math.min(PLAYER_MAX_HP, requestedAmount))
+    const now = getServerTime()
+    if (now - state.lastHealRequestAtMs < PLAYER_HEAL_REQUEST_COOLDOWN_MS) return
+
+    const requestedAmount = Number.isFinite(data.amount) ? Math.floor(data.amount) : HEALTH_POTION_HEAL_AMOUNT
+    const amount = Math.max(1, Math.min(HEALTH_POTION_HEAL_AMOUNT, requestedAmount))
+    state.lastHealRequestAtMs = now
     state.hp = Math.min(PLAYER_MAX_HP, state.hp + amount)
     sendPlayerHealthState(normalizedAddress)
   })
