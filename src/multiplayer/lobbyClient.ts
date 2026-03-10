@@ -118,6 +118,10 @@ export function sendPlayerDamageRequest(amount: number): void {
   void room.send('playerDamageRequest', { amount })
 }
 
+export function sendPlayerHealRequest(amount: number): void {
+  void room.send('playerHealRequest', { amount })
+}
+
 export function sendPlayerShotRequest(
   weaponType: 'gun' | 'shotgun' | 'minigun',
   origin: Vector3,

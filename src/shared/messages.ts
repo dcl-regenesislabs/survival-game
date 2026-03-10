@@ -37,6 +37,9 @@ const LobbyMessages = {
   playerDamageRequest: Schemas.Map({
     amount: Schemas.Number
   }),
+  playerHealRequest: Schemas.Map({
+    amount: Schemas.Number
+  }),
   playerShotRequest: Schemas.Map({
     seq: Schemas.Number,
     weaponType: Schemas.String,

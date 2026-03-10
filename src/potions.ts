@@ -9,6 +9,7 @@ import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { getPlayerHp, healPlayer, MAX_HP, setHealGlowEndTime } from './playerHealth'
 import { applyRageEffect } from './rageEffect'
 import { getGameTime } from './zombie'
+import { sendPlayerHealRequest } from './multiplayer/lobbyClient'
 
 const HEALTH_POTION_GLB = 'assets/asset-packs/green_plasma/PlasmaGreen_01/PlasmaGreen_01.glb'
 const RAGE_POTION_GLB = 'assets/asset-packs/pink_plasma/PlasmaPink_01/PlasmaPink_01.glb'
@@ -139,6 +140,7 @@ export function potionPickupSystem(): void {
         if (potion.isHealth) {
           const hpBefore = getPlayerHp()
           healPlayer(MAX_HP)
+          sendPlayerHealRequest(MAX_HP)
           healthPickupFeedbackText = hpBefore >= MAX_HP ? 'Maximum Health' : '+100 Health'
           healthPickupFeedbackEndTime = now + 1.5
           setHealGlowEndTime(now + 1.5)
