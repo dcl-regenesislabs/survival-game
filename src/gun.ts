@@ -9,10 +9,6 @@ import {
   Animator,
   MeshRenderer,
   Material,
-  MeshCollider,
-  TriggerArea,
-  triggerAreaEventsSystem,
-  ColliderLayer,
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
@@ -41,6 +37,8 @@ const SHOOT_ANIM_FREEZE_DURATION = 0.4
 // Bullet flies straight; remove after this distance from spawn (out of scene)
 const BULLET_MAX_DISTANCE = 40
 const GUN_SYSTEM_PRIORITY_LAST = -1000
+const PROJECTILE_HIT_RADIUS = 0.95
+const PROJECTILE_HIT_RADIUS_SQ = PROJECTILE_HIT_RADIUS * PROJECTILE_HIT_RADIUS
 
 // Unparented gun: we set position and rotation every frame (lerp/slerp to reduce jitter). Bullet spawns at exact gunWorldPos/gunWorldRot.
 const GUN_POSITION_SMOOTH_SPEED = 12
@@ -53,10 +51,6 @@ const ProjectileComponentSchema = {
   canDamage: Schemas.Boolean
 }
 export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
-
-// Tag: zombie already has a bullet trigger area (so we add it only once)
-const ZombieBulletTriggerSchema = {}
-const ZombieBulletTriggerTag = engine.defineComponent('ZombieBulletTriggerTag', ZombieBulletTriggerSchema)
 
 let gunEntity: Entity | null = null
 let shootTimer = 0
@@ -130,10 +124,6 @@ function spawnProjectile(
     startPosition: Vector3.clone(spawnPos),
     canDamage
   })
-  if (canDamage) {
-    // Bullets need a collider so they trigger zombie TriggerAreas
-    MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
-  }
   return direction
 }
 
@@ -193,38 +183,25 @@ function projectileSystem(dt: number) {
 
     const mutableTransform = Transform.getMutable(projectile)
     mutableTransform.position = newPos
-  }
-}
 
-// One-time setup: add a TriggerArea to each zombie so bullets (MeshCollider CL_CUSTOM1) trigger hit
-function zombieBulletTriggerSetupSystem() {
-  for (const [zombie] of engine.getEntitiesWith(ZombieComponent, Transform)) {
-    if (ZombieBulletTriggerTag.has(zombie)) continue
+    if (!projData.canDamage) continue
 
-    const triggerChild = engine.addEntity()
-    Transform.create(triggerChild, {
-      parent: zombie,
-      position: Vector3.create(0, ZOMBIE_TARGET_HEIGHT, 0),
-      scale: Vector3.create(2, 2, 2),
-      rotation: Quaternion.Identity()
-    })
-    TriggerArea.setSphere(triggerChild, ColliderLayer.CL_CUSTOM1)
-    triggerAreaEventsSystem.onTriggerEnter(triggerChild, (result) => {
-      const areaEntity = result.triggeredEntity as Entity
-      const bulletEntity = result.trigger?.entity as Entity | undefined
-      if (bulletEntity == null || !ProjectileComponent.has(bulletEntity)) return
-      const projectileData = ProjectileComponent.get(bulletEntity)
-      if (!projectileData.canDamage) return
-      const zombieEntity = Transform.has(areaEntity) ? (Transform.get(areaEntity).parent as Entity) : null
-      if (zombieEntity == null || !ZombieComponent.has(zombieEntity)) return
-      const rewardAnchor = Vector3.clone(Transform.get(zombieEntity).position)
-      if (damageZombie(zombieEntity, 1)) {
+    for (const [zombie] of engine.getEntitiesWith(ZombieComponent, Transform)) {
+      const zombiePos = Transform.get(zombie).position
+      const dx = newPos.x - zombiePos.x
+      const dy = newPos.y - (zombiePos.y + ZOMBIE_TARGET_HEIGHT)
+      const dz = newPos.z - zombiePos.z
+      const distSq = dx * dx + dy * dy + dz * dz
+      if (distSq > PROJECTILE_HIT_RADIUS_SQ) continue
+
+      const rewardAnchor = Vector3.clone(zombiePos)
+      if (damageZombie(zombie, 1)) {
         addZombieCoins(COINS_PER_KILL)
         spawnZcRewardTextAtPosition(rewardAnchor, COINS_PER_KILL)
       }
-      engine.removeEntity(bulletEntity)
-    })
-    ZombieBulletTriggerTag.create(zombie)
+      engine.removeEntity(projectile)
+      break
+    }
   }
 }
 
@@ -299,7 +276,6 @@ export function spawnReplicatedGunShotVisual(origin: Vector3, direction: Vector3
 }
 
 export function initGunSystems() {
-  engine.addSystem(zombieBulletTriggerSetupSystem)
   engine.addSystem(projectileSystem)
   engine.addSystem(gunSystem, GUN_SYSTEM_PRIORITY_LAST, 'gunSystem')
 }

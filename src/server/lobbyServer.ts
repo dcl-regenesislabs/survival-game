@@ -273,7 +273,6 @@ function recomputeZombiesAlive(runtime: ReturnType<typeof getMatchRuntimeMutable
   let alive = 0
   for (const [zombieId, spawnAtMs] of zombieSpawnAtById) {
     if (spawnAtMs > nowMs) continue
-    if (deadZombieIds.has(zombieId)) continue
     alive += 1
   }
   runtime.zombiesAlive = alive
@@ -912,9 +911,8 @@ export function setupLobbyServer(): void {
     const spawnAtMs = zombieSpawnAtById.get(data.zombieId)
     if (spawnAtMs === undefined) return
     if (spawnAtMs > getServerTime()) return
-    if (deadZombieIds.has(data.zombieId)) return
-
-    deadZombieIds.add(data.zombieId)
+    zombieSpawnAtById.delete(data.zombieId)
+    deadZombieIds.delete(data.zombieId)
     const runtime = getMatchRuntimeMutable()
     recomputeZombiesAlive(runtime, getServerTime())
     void room.send('zombieDied', { zombieId: data.zombieId })
