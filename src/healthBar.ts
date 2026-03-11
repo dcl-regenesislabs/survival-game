@@ -4,17 +4,20 @@ import {
   Transform,
   MeshRenderer,
   Material,
+  PlayerIdentityData,
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { ZombieComponent, getGameTime } from './zombie'
 import { getPlayerHp, MAX_HP, getHealGlowEndTime } from './playerHealth'
+import { getLocalAddress, getLobbyState, getPlayerCombatSnapshot } from './multiplayer/lobbyClient'
 
 const HealthBarSchema = {
   parent: Schemas.Entity,
   maxHp: Schemas.Number,
   isPlayer: Schemas.Boolean,
-  /** Height above parent feet (y offset). Used for zombies; player bar uses Transform parent + local position. */
+  playerAddress: Schemas.String,
+  /** Height above parent feet (y offset). */
   heightOffset: Schemas.Number,
   lastStyleVariant: Schemas.Number
 }
@@ -32,6 +35,16 @@ const HEIGHT_PLAYER = 2.5
 const PLAYER_BAR_WIDTH = 1.2
 const PLAYER_BAR_HEIGHT = 0.2
 const PLAYER_BAR_DEPTH = 0.16
+const remotePlayerBarByAddress = new Map<string, Entity>()
+
+function removeRemotePlayerBar(address: string): void {
+  const normalized = address.toLowerCase()
+  const barEntity = remotePlayerBarByAddress.get(normalized)
+  if (barEntity !== undefined) {
+    engine.removeEntity(barEntity)
+    remotePlayerBarByAddress.delete(normalized)
+  }
+}
 
 function getHealthColor(ratio: number): { albedo: Color4; emissive: Color3 } {
   if (ratio > 0.6) {
@@ -67,18 +80,28 @@ export function createHealthBarForZombie(zombie: Entity, maxHp: number, heightOf
     metallic: 0,
     roughness: 0.9
   })
-  HealthBarComponent.create(bar, { parent: zombie, maxHp, isPlayer: false, heightOffset, lastStyleVariant: -1 })
+  HealthBarComponent.create(bar, {
+    parent: zombie,
+    maxHp,
+    isPlayer: false,
+    playerAddress: '',
+    heightOffset,
+    lastStyleVariant: -1
+  })
   return bar
 }
 
-/** Create the player's health bar, parented to the player so it follows correctly. Call once at init. */
+/** Create a player's 3D health bar. */
 export function createHealthBarForPlayer(): Entity {
+  return createHealthBarForPlayerEntity(engine.PlayerEntity, getLocalAddress())
+}
+
+function createHealthBarForPlayerEntity(playerEntity: Entity, playerAddress: string): Entity {
   const bar = engine.addEntity()
   Transform.create(bar, {
     position: Vector3.create(0, HEIGHT_PLAYER, 0),
     rotation: Quaternion.Identity(),
-    scale: Vector3.create(PLAYER_BAR_WIDTH, PLAYER_BAR_HEIGHT, PLAYER_BAR_DEPTH),
-    parent: engine.PlayerEntity
+    scale: Vector3.create(PLAYER_BAR_WIDTH, PLAYER_BAR_HEIGHT, PLAYER_BAR_DEPTH)
   })
   MeshRenderer.setBox(bar)
   Material.setPbrMaterial(bar, {
@@ -88,9 +111,10 @@ export function createHealthBarForPlayer(): Entity {
     roughness: 0.9
   })
   HealthBarComponent.create(bar, {
-    parent: engine.PlayerEntity,
+    parent: playerEntity,
     maxHp: MAX_HP,
     isPlayer: true,
+    playerAddress: playerAddress.toLowerCase(),
     heightOffset: HEIGHT_PLAYER,
     lastStyleVariant: -1
   })
@@ -104,14 +128,51 @@ export function removeAllHealthBars(): void {
     toRemove.push(entity)
   }
   for (const e of toRemove) engine.removeEntity(e)
+  remotePlayerBarByAddress.clear()
+}
+
+function syncRemotePlayerHealthBars(): void {
+  const localAddress = getLocalAddress()
+  const lobby = getLobbyState()
+  const shouldShowTeammateBars =
+    !!localAddress &&
+    !!lobby &&
+    lobby.phase === 'match_created' &&
+    lobby.arenaPlayers.some((player) => player.address.toLowerCase() === localAddress)
+
+  const expectedAddresses = new Set<string>()
+  if (shouldShowTeammateBars) {
+    for (const player of lobby!.arenaPlayers) {
+      const address = player.address.toLowerCase()
+      if (!address || address === localAddress) continue
+      expectedAddresses.add(address)
+    }
+  }
+
+  for (const [address, barEntity] of remotePlayerBarByAddress) {
+    if (expectedAddresses.has(address) && HealthBarComponent.has(barEntity)) continue
+    removeRemotePlayerBar(address)
+  }
+
+  if (!shouldShowTeammateBars) return
+
+  for (const [playerEntity, identity] of engine.getEntitiesWith(PlayerIdentityData, Transform)) {
+    const address = identity.address.toLowerCase()
+    if (!expectedAddresses.has(address)) continue
+    if (remotePlayerBarByAddress.has(address)) continue
+    remotePlayerBarByAddress.set(address, createHealthBarForPlayerEntity(playerEntity, address))
+  }
 }
 
 function healthBarSystem(dt: number) {
   if (!Transform.has(engine.CameraEntity)) return
 
+  syncRemotePlayerHealthBars()
+
   const cameraPos = Transform.get(engine.CameraEntity).position
   const smoothFactor = 1 - Math.exp(-BILLBOARD_SMOOTH_SPEED * dt)
   const toRemove: Entity[] = []
+  const localAddress = getLocalAddress()
 
   for (const [barEntity, barData, barTransform] of engine.getEntitiesWith(
     HealthBarComponent,
@@ -121,7 +182,18 @@ function healthBarSystem(dt: number) {
     const { parent, maxHp, isPlayer, heightOffset } = barData
 
     if (isPlayer) {
-      if (!Transform.has(parent)) continue
+      if (!Transform.has(parent)) {
+        if (barData.playerAddress) removeRemotePlayerBar(barData.playerAddress)
+        else toRemove.push(barEntity)
+        continue
+      }
+      if (barData.playerAddress) {
+        const identity = PlayerIdentityData.getOrNull(parent)
+        if (!identity || identity.address.toLowerCase() !== barData.playerAddress) {
+          removeRemotePlayerBar(barData.playerAddress)
+          continue
+        }
+      }
     } else {
       if (!ZombieComponent.has(parent)) {
         toRemove.push(barEntity)
@@ -129,25 +201,33 @@ function healthBarSystem(dt: number) {
       }
     }
 
-    const currentHp = isPlayer ? getPlayerHp() : ZombieComponent.get(parent).health
+    let currentHp = 0
+    let playerIsDead = false
+    if (isPlayer) {
+      const isLocalPlayerBar = !barData.playerAddress || barData.playerAddress === localAddress
+      if (isLocalPlayerBar) {
+        currentHp = getPlayerHp()
+      } else {
+        const snapshot = getPlayerCombatSnapshot(barData.playerAddress)
+        currentHp = snapshot?.hp ?? MAX_HP
+        playerIsDead = snapshot?.isDead ?? false
+      }
+    } else {
+      currentHp = ZombieComponent.get(parent).health
+    }
+    if (isPlayer && playerIsDead) {
+      if (barData.playerAddress) removeRemotePlayerBar(barData.playerAddress)
+      else toRemove.push(barEntity)
+      continue
+    }
     const ratio = Math.max(0, Math.min(1, currentHp / maxHp))
 
-    let barWorldPos: Vector3
-    if (isPlayer) {
-      // Player bar is parented: compute world position so billboard direction is correct.
-      const parentT = Transform.get(parent)
-      barWorldPos = Vector3.add(
-        parentT.position,
-        Vector3.rotate(barTransform.position, parentT.rotation)
-      )
-    } else {
-      const parentPos = Transform.get(parent).position
-      barWorldPos = Vector3.create(
-        parentPos.x,
-        parentPos.y + heightOffset,
-        parentPos.z
-      )
-    }
+    const parentPos = Transform.get(parent).position
+    const barWorldPos = Vector3.create(
+      parentPos.x,
+      parentPos.y + heightOffset,
+      parentPos.z
+    )
 
     const dirToCamera = Vector3.subtract(cameraPos, barWorldPos)
     dirToCamera.y = 0
@@ -157,20 +237,9 @@ function healthBarSystem(dt: number) {
     const lookRotWorld = Quaternion.lookRotation(forward)
 
     const mutableTransform = Transform.getMutable(barEntity)
-    if (!isPlayer) {
-      mutableTransform.position = barWorldPos
-    }
-    // Target rotation (world for zombies; local for player so world result faces camera).
-    let targetRot: Quaternion
-    if (isPlayer) {
-      const parentRot = Transform.get(parent).rotation
-      const invParent = Quaternion.create(-parentRot.x, -parentRot.y, -parentRot.z, parentRot.w)
-      targetRot = Quaternion.multiply(invParent, lookRotWorld)
-    } else {
-      targetRot = lookRotWorld
-    }
+    mutableTransform.position = barWorldPos
     const currentRot = barTransform.rotation
-    mutableTransform.rotation = Quaternion.slerp(currentRot, targetRot, smoothFactor)
+    mutableTransform.rotation = Quaternion.slerp(currentRot, lookRotWorld, smoothFactor)
     const width = isPlayer ? PLAYER_BAR_WIDTH : BAR_WIDTH
     const height = isPlayer ? PLAYER_BAR_HEIGHT : BAR_HEIGHT
     const depth = isPlayer ? PLAYER_BAR_DEPTH : BAR_DEPTH
@@ -180,7 +249,7 @@ function healthBarSystem(dt: number) {
     let colors = getHealthColor(ratio)
     let emissiveIntensity = 0.25
     let styleVariant = ratio > 0.6 ? 0 : ratio > 0.33 ? 1 : 2
-    if (isPlayer && getGameTime() < getHealGlowEndTime()) {
+    if (isPlayer && (!barData.playerAddress || barData.playerAddress === localAddress) && getGameTime() < getHealGlowEndTime()) {
       const glowPhase = (getGameTime() * 4) % (2 * Math.PI)
       const pulse = 0.5 + 0.5 * Math.sin(glowPhase)
       emissiveIntensity = 0.4 + pulse * 0.5
