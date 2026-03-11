@@ -2,13 +2,10 @@ import {
   engine,
   TextAlignMode,
   Transform,
-  MeshRenderer,
-  Material,
   TextShape,
   TriggerArea,
   triggerAreaEventsSystem
 } from '@dcl/sdk/ecs'
-import { syncEntity } from '@dcl/sdk/network'
 import { Color4, Color3, Vector3, Quaternion } from '@dcl/sdk/math'
 import { MATCH_MAX_PLAYERS } from './shared/matchConfig'
 import {
@@ -32,15 +29,8 @@ const TRIGGER_LOCAL_POSITION = Vector3.create(0, -3, -2.2)
 const TRIGGER_SCALE = Vector3.create(5.4, 2.6, 4.6)
 const TRIGGER_HALF_EXTENTS = Vector3.create(TRIGGER_SCALE.x * 0.5, TRIGGER_SCALE.y * 0.5, TRIGGER_SCALE.z * 0.5)
 const TRIGGER_BOUNDS_EPSILON = 0.15
-const TRIGGER_SHADOW_SCALE_VISIBLE = Vector3.create(1.9, 0.06, 1.9)
-const TRIGGER_SHADOW_HIDDEN_POSITION = Vector3.create(0, -1000, 0)
 const ROOT_INVERSE_ROTATION = Quaternion.fromEulerDegrees(0, 90, 0)
 const LOBBY_REQUEST_COOLDOWN_MS = 1000
-const TRIGGER_SHADOW_SYNC_COMPONENT_IDS = [
-  Transform.componentId,
-  MeshRenderer.componentId,
-  Material.componentId
-]
 
 export class LobbyWorldPanel {
   private rootEntity = engine.addEntity()
@@ -48,7 +38,6 @@ export class LobbyWorldPanel {
   private textEntity = engine.addEntity()
   private countdownTextEntity = engine.addEntity()
   private triggerEntity = engine.addEntity()
-  private triggerShadowEntity = engine.addEntity()
   private updateAccumulator = 0
   private triggerReconcileAccumulator = 0
   private lastRenderedPlayersText = ''
@@ -59,7 +48,6 @@ export class LobbyWorldPanel {
 
   constructor() {
     this.createPanel()
-    this.createSyncedTriggerShadow()
     engine.addSystem((dt) => this.updateSystem(dt), undefined, 'lobby-world-panel-system')
   }
 
@@ -178,23 +166,6 @@ export class LobbyWorldPanel {
     return !!(lobby?.arenaIntroEndTimeMs && lobby.arenaIntroEndTimeMs > getServerTime())
   }
 
-  private createSyncedTriggerShadow(): void {
-    Transform.create(this.triggerShadowEntity, {
-      position: TRIGGER_SHADOW_HIDDEN_POSITION,
-      rotation: Quaternion.Identity(),
-      scale: Vector3.Zero()
-    })
-    MeshRenderer.setSphere(this.triggerShadowEntity)
-    Material.setPbrMaterial(this.triggerShadowEntity, {
-      albedoColor: Color4.create(0.04, 0.32, 0.1, 0.72),
-      emissiveColor: Color3.create(0.02, 0.12, 0.04),
-      emissiveIntensity: 0.08,
-      metallic: 0,
-      roughness: 1
-    })
-    syncEntity(this.triggerShadowEntity, TRIGGER_SHADOW_SYNC_COMPONENT_IDS)
-  }
-
   private buildPlayersText(): string {
     const lobby = getLobbyState()
     const joinedCount = lobby?.players.length ?? 0
@@ -211,7 +182,6 @@ export class LobbyWorldPanel {
 
   private updateSystem(dt: number): void {
     this.reconcileLocalTriggerState(dt)
-    this.updateTriggerShadow()
 
     this.updateAccumulator += dt
     if (this.updateAccumulator < PANEL_UPDATE_INTERVAL_SECONDS) return
@@ -262,19 +232,6 @@ export class LobbyWorldPanel {
       Math.abs(localOffset.y) <= TRIGGER_HALF_EXTENTS.y + TRIGGER_BOUNDS_EPSILON &&
       Math.abs(localOffset.z) <= TRIGGER_HALF_EXTENTS.z + TRIGGER_BOUNDS_EPSILON
     )
-  }
-
-  private updateTriggerShadow(): void {
-    const mutableShadowTransform = Transform.getMutable(this.triggerShadowEntity)
-    if (!this.isLocalPlayerInsideTrigger || !Transform.has(engine.PlayerEntity)) {
-      mutableShadowTransform.position = TRIGGER_SHADOW_HIDDEN_POSITION
-      mutableShadowTransform.scale = Vector3.Zero()
-      return
-    }
-
-    const playerPosition = Transform.get(engine.PlayerEntity).position
-    mutableShadowTransform.position = Vector3.create(playerPosition.x, 0.05, playerPosition.z)
-    mutableShadowTransform.scale = TRIGGER_SHADOW_SCALE_VISIBLE
   }
 }
 
