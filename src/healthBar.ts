@@ -37,6 +37,15 @@ const PLAYER_BAR_HEIGHT = 0.2
 const PLAYER_BAR_DEPTH = 0.16
 const remotePlayerBarByAddress = new Map<string, Entity>()
 
+function removeRemotePlayerBar(address: string): void {
+  const normalized = address.toLowerCase()
+  const barEntity = remotePlayerBarByAddress.get(normalized)
+  if (barEntity !== undefined) {
+    engine.removeEntity(barEntity)
+    remotePlayerBarByAddress.delete(normalized)
+  }
+}
+
 function getHealthColor(ratio: number): { albedo: Color4; emissive: Color3 } {
   if (ratio > 0.6) {
     return {
@@ -142,8 +151,7 @@ function syncRemotePlayerHealthBars(): void {
 
   for (const [address, barEntity] of remotePlayerBarByAddress) {
     if (expectedAddresses.has(address) && HealthBarComponent.has(barEntity)) continue
-    engine.removeEntity(barEntity)
-    remotePlayerBarByAddress.delete(address)
+    removeRemotePlayerBar(address)
   }
 
   if (!shouldShowTeammateBars) return
@@ -175,14 +183,14 @@ function healthBarSystem(dt: number) {
 
     if (isPlayer) {
       if (!Transform.has(parent)) {
-        toRemove.push(barEntity)
+        if (barData.playerAddress) removeRemotePlayerBar(barData.playerAddress)
+        else toRemove.push(barEntity)
         continue
       }
       if (barData.playerAddress) {
         const identity = PlayerIdentityData.getOrNull(parent)
         if (!identity || identity.address.toLowerCase() !== barData.playerAddress) {
-          toRemove.push(barEntity)
-          remotePlayerBarByAddress.delete(barData.playerAddress)
+          removeRemotePlayerBar(barData.playerAddress)
           continue
         }
       }
@@ -208,7 +216,8 @@ function healthBarSystem(dt: number) {
       currentHp = ZombieComponent.get(parent).health
     }
     if (isPlayer && playerIsDead) {
-      mutableHideBar(barEntity)
+      if (barData.playerAddress) removeRemotePlayerBar(barData.playerAddress)
+      else toRemove.push(barEntity)
       continue
     }
     const ratio = Math.max(0, Math.min(1, currentHp / maxHp))
@@ -263,12 +272,6 @@ function healthBarSystem(dt: number) {
   }
 
   for (const e of toRemove) engine.removeEntity(e)
-}
-
-function mutableHideBar(barEntity: Entity): void {
-  if (!Transform.has(barEntity)) return
-  const mutableTransform = Transform.getMutable(barEntity)
-  mutableTransform.scale = Vector3.create(0.001, 0.001, 0.001)
 }
 
 export function initHealthBarSystem(): void {
