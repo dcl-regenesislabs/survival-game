@@ -34,6 +34,28 @@ const LobbyMessages = {
   zombieDied: Schemas.Map({
     zombieId: Schemas.String
   }),
+  potionSpawned: Schemas.Map({
+    potionId: Schemas.String,
+    potionType: Schemas.String,
+    positionX: Schemas.Number,
+    positionY: Schemas.Number,
+    positionZ: Schemas.Number,
+    expiresAtMs: Schemas.Int64
+  }),
+  potionClaimRequest: Schemas.Map({
+    potionId: Schemas.String
+  }),
+  potionClaimed: Schemas.Map({
+    potionId: Schemas.String,
+    claimerAddress: Schemas.String
+  }),
+  potionExpired: Schemas.Map({
+    potionId: Schemas.String
+  }),
+  potionClaimRejected: Schemas.Map({
+    potionId: Schemas.String
+  }),
+  potionsCleared: Schemas.Map({}),
   playerDamageRequest: Schemas.Map({
     amount: Schemas.Number
   }),

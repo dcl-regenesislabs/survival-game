@@ -1,4 +1,4 @@
-import { engine, AvatarBase, PlayerIdentityData } from '@dcl/sdk/ecs'
+import { engine, AvatarBase, PlayerIdentityData, Transform } from '@dcl/sdk/ecs'
 import { syncEntity } from '@dcl/sdk/network'
 import { LobbyPhase, LobbyStateComponent, LobbyPlayer } from '../shared/lobbySchemas'
 import { MatchRuntimeStateComponent, WaveCyclePhase } from '../shared/matchRuntimeSchemas'
@@ -33,6 +33,10 @@ const PLAYER_RESPAWN_SECONDS = 5
 const PLAYER_DAMAGE_REQUEST_COOLDOWN_MS = 250
 const PLAYER_HEAL_REQUEST_COOLDOWN_MS = 250
 const HEALTH_POTION_HEAL_AMOUNT = PLAYER_MAX_HP
+const HEALTH_POTION_DROP_CHANCE = 0.05
+const RAGE_POTION_DROP_CHANCE = 0.05
+const POTION_LIFETIME_MS = 20_000
+const POTION_PICKUP_RADIUS = 2.5
 const DISCONNECTED_PLAYER_GRACE_MS = 3000
 const DISCONNECTED_PLAYER_RECONCILE_INTERVAL_SECONDS = 0.5
 const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
@@ -54,9 +58,16 @@ const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
 ]
 
 type ZombieType = 'basic' | 'quick' | 'tank'
+type PotionType = 'health' | 'rage'
 type WavePlanSpawn = {
   zombieId: string
   zombieType: ZombieType
+  spawnX: number
+  spawnY: number
+  spawnZ: number
+  spawnAtMs: number
+}
+type ZombieSpawnState = {
   spawnX: number
   spawnY: number
   spawnZ: number
@@ -69,10 +80,20 @@ type PlayerCombatState = {
   lastDamageRequestAtMs: number
   lastHealRequestAtMs: number
 }
+type ActivePotionState = {
+  potionId: string
+  potionType: PotionType
+  positionX: number
+  positionY: number
+  positionZ: number
+  expiresAtMs: number
+}
 
 let nextZombieSequence = 0
-const zombieSpawnAtById = new Map<string, number>()
+let nextPotionSequence = 0
+const zombieSpawnAtById = new Map<string, ZombieSpawnState>()
 const deadZombieIds = new Set<string>()
+const activePotionsById = new Map<string, ActivePotionState>()
 const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
@@ -179,6 +200,7 @@ function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>)
   runtime.zombiesAlive = 0
   runtime.zombiesPlanned = 0
   awardedWaveGoldMilestones.clear()
+  clearActivePotions(true)
 }
 
 function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
@@ -227,6 +249,88 @@ function sendPlayerHealthState(address: string): void {
   })
 }
 
+function distanceXZ(ax: number, az: number, bx: number, bz: number): number {
+  const dx = ax - bx
+  const dz = az - bz
+  return Math.sqrt(dx * dx + dz * dz)
+}
+
+function getPlayerPosition(address: string): { x: number; y: number; z: number } | null {
+  const normalizedAddress = address.toLowerCase()
+  for (const [_entity, identity, transform] of engine.getEntitiesWith(PlayerIdentityData, Transform)) {
+    if (identity.address.toLowerCase() !== normalizedAddress) continue
+    return {
+      x: transform.position.x,
+      y: transform.position.y,
+      z: transform.position.z
+    }
+  }
+  return null
+}
+
+function sendPotionSpawn(potion: ActivePotionState, to?: string[]): void {
+  if (to && to.length === 0) return
+  const payload = {
+    potionId: potion.potionId,
+    potionType: potion.potionType,
+    positionX: potion.positionX,
+    positionY: potion.positionY,
+    positionZ: potion.positionZ,
+    expiresAtMs: potion.expiresAtMs
+  }
+  if (to) {
+    void room.send('potionSpawned', payload, { to })
+    return
+  }
+  void room.send('potionSpawned', payload)
+}
+
+function sendActivePotionsTo(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  for (const potion of activePotionsById.values()) {
+    sendPotionSpawn(potion, [normalizedAddress])
+  }
+}
+
+function clearActivePotions(notifyClients: boolean): void {
+  if (activePotionsById.size === 0) return
+  activePotionsById.clear()
+  if (notifyClients) {
+    void room.send('potionsCleared', {})
+  }
+}
+
+function spawnPotionAt(positionX: number, positionY: number, positionZ: number, potionType: PotionType): void {
+  nextPotionSequence += 1
+  const potion: ActivePotionState = {
+    potionId: `p${nextPotionSequence}`,
+    potionType,
+    positionX,
+    positionY,
+    positionZ,
+    expiresAtMs: getServerTime() + POTION_LIFETIME_MS
+  }
+  activePotionsById.set(potion.potionId, potion)
+  sendPotionSpawn(potion)
+}
+
+function trySpawnPotionDrops(positionX: number, positionY: number, positionZ: number): void {
+  if (Math.random() < HEALTH_POTION_DROP_CHANCE) {
+    spawnPotionAt(positionX, positionY, positionZ, 'health')
+  }
+  if (Math.random() < RAGE_POTION_DROP_CHANCE) {
+    spawnPotionAt(positionX, positionY, positionZ, 'rage')
+  }
+}
+
+function expirePotions(now: number): void {
+  for (const [potionId, potion] of activePotionsById) {
+    if (potion.expiresAtMs > now) continue
+    activePotionsById.delete(potionId)
+    void room.send('potionExpired', { potionId })
+  }
+}
+
 function sendPlayerHealthStatesForLobbyPlayers(players: LobbyPlayer[]): void {
   for (const player of players) {
     sendPlayerHealthState(player.address)
@@ -271,8 +375,8 @@ function resetArenaToLobby(message: string): void {
 
 function recomputeZombiesAlive(runtime: ReturnType<typeof getMatchRuntimeMutable>, nowMs: number): void {
   let alive = 0
-  for (const [zombieId, spawnAtMs] of zombieSpawnAtById) {
-    if (spawnAtMs > nowMs) continue
+  for (const [_zombieId, spawnState] of zombieSpawnAtById) {
+    if (spawnState.spawnAtMs > nowMs) continue
     alive += 1
   }
   runtime.zombiesAlive = alive
@@ -631,7 +735,12 @@ function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
   const plan = buildWaveSpawnPlan(waveNumber, startAtMs, runtime.activeDurationSeconds)
 
   for (const spawn of plan.spawns) {
-    zombieSpawnAtById.set(spawn.zombieId, spawn.spawnAtMs)
+    zombieSpawnAtById.set(spawn.zombieId, {
+      spawnX: spawn.spawnX,
+      spawnY: spawn.spawnY,
+      spawnZ: spawn.spawnZ,
+      spawnAtMs: spawn.spawnAtMs
+    })
     deadZombieIds.delete(spawn.zombieId)
   }
 
@@ -712,6 +821,7 @@ function waveRuntimeSystem(dt: number): void {
   const runtime = getMatchRuntimeMutable()
   const now = getServerTime()
   runtime.serverNowMs = now
+  expirePotions(now)
   recomputeZombiesAlive(runtime, now)
 
   if (lobbyState.arenaPlayers.length === 0) {
@@ -795,6 +905,9 @@ export function setupLobbyServer(): void {
     if (!context) return
     await ensurePlayerLoadedAndInLobby(context.from)
     sendPlayerHealthState(context.from)
+    if (isPlayerInArena(context.from)) {
+      sendActivePotionsTo(context.from)
+    }
   })
 
   room.onMessage('playerLeaveLobby', async (_data, context) => {
@@ -900,6 +1013,9 @@ export function setupLobbyServer(): void {
       createMatch(context.from)
     }
     sendPlayerHealthState(context.from)
+    if (isPlayerInArena(context.from)) {
+      sendActivePotionsTo(context.from)
+    }
   })
 
   room.onMessage('zombieDieRequest', (data, context) => {
@@ -908,14 +1024,50 @@ export function setupLobbyServer(): void {
     const lobbyState = getLobbyState()
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
     if (!data.zombieId) return
-    const spawnAtMs = zombieSpawnAtById.get(data.zombieId)
-    if (spawnAtMs === undefined) return
-    if (spawnAtMs > getServerTime()) return
+    const spawnState = zombieSpawnAtById.get(data.zombieId)
+    if (!spawnState) return
+    if (spawnState.spawnAtMs > getServerTime()) return
     zombieSpawnAtById.delete(data.zombieId)
     deadZombieIds.delete(data.zombieId)
     const runtime = getMatchRuntimeMutable()
     recomputeZombiesAlive(runtime, getServerTime())
     void room.send('zombieDied', { zombieId: data.zombieId })
+    trySpawnPotionDrops(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ)
+  })
+
+  room.onMessage('potionClaimRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+    if (!data.potionId) return
+
+    const potion = activePotionsById.get(data.potionId)
+    if (!potion) {
+      void room.send('potionClaimRejected', { potionId: data.potionId }, { to: [normalizedAddress] })
+      return
+    }
+
+    const now = getServerTime()
+    if (potion.expiresAtMs <= now) {
+      activePotionsById.delete(data.potionId)
+      void room.send('potionExpired', { potionId: data.potionId })
+      return
+    }
+
+    const playerPosition = getPlayerPosition(normalizedAddress)
+    if (
+      playerPosition &&
+      distanceXZ(playerPosition.x, playerPosition.z, potion.positionX, potion.positionZ) > POTION_PICKUP_RADIUS
+    ) {
+      void room.send('potionClaimRejected', { potionId: data.potionId }, { to: [normalizedAddress] })
+      return
+    }
+
+    activePotionsById.delete(data.potionId)
+    void room.send('potionClaimed', {
+      potionId: data.potionId,
+      claimerAddress: normalizedAddress
+    })
   })
 
   room.onMessage('playerDamageRequest', (data, context) => {

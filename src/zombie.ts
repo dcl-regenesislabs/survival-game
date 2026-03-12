@@ -14,7 +14,6 @@ import {
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
 import { createHealthBarForZombie } from './healthBar'
-import { tryDropPotions } from './potions'
 import { getLobbyState, getPlayerCombatSnapshot } from './multiplayer/lobbyClient'
 
 // Animation clip names from Zombie.glb
@@ -421,7 +420,6 @@ export function damageZombie(entity: Entity, amount: number): boolean {
       reportServerZombieDeath?.(zombie.networkId)
     }
     spawnBloodBurst(burstCenter, DEATH_BURST_COUNT, DEATH_BURST_SPEED, BLOOD_BURST_DURATION, DEATH_BURST_SCALE)
-    tryDropPotions(Vector3.create(pos.x, pos.y, pos.z))
     engine.removeEntity(entity)
     return true
   }
