@@ -4,7 +4,6 @@ import {
   Transform,
   inputSystem,
   InputAction,
-  PointerEventType,
   GltfContainer,
   Animator,
   MeshRenderer,
@@ -212,8 +211,8 @@ export function miniGunSystem(dt: number) {
   if (shootTimer < effectiveFireRate) return
 
   const didShoot =
-    inputSystem.isTriggered(InputAction.IA_POINTER, PointerEventType.PET_DOWN) ||
-    inputSystem.isTriggered(InputAction.IA_PRIMARY, PointerEventType.PET_DOWN)
+    inputSystem.isPressed(InputAction.IA_POINTER) ||
+    inputSystem.isPressed(InputAction.IA_PRIMARY)
   if (!didShoot) return
 
   shootTimer = 0
