@@ -85,7 +85,9 @@ const SHOTGUN_SPREAD_TAN = Math.tan((SHOTGUN_SPREAD_DEG * Math.PI) / 180)
 function spawnProjectile(
   gunWorldPos: Vector3,
   gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number },
-  canDamage: boolean = true
+  canDamage: boolean = true,
+  weaponType: 'gun' | 'shotgun' | 'minigun' = 'shotgun',
+  shotSeq: number = 0
 ): Vector3 {
   const baseDirection = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
   const right = Vector3.normalize(Vector3.rotate(Vector3.Right(), gunWorldRot))
@@ -123,7 +125,9 @@ function spawnProjectile(
     ProjectileComponent.create(projectile, {
       direction,
       startPosition: Vector3.clone(spawnPos),
-      canDamage
+      canDamage,
+      weaponType,
+      shotSeq
     })
     if (canDamage) {
       MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
@@ -224,8 +228,9 @@ export function shotGunSystem(dt: number) {
 
   shootTimer = 0
   playGunAnimation()
-  const direction = spawnProjectile(gunWorldPos, gunWorldRot, true)
-  localShotSeq += 1
+  const nextShotSeq = localShotSeq + 1
+  const direction = spawnProjectile(gunWorldPos, gunWorldRot, true, 'shotgun', nextShotSeq)
+  localShotSeq = nextShotSeq
   sendPlayerShotRequest('shotgun', gunWorldPos, direction, localShotSeq)
 }
 
@@ -234,7 +239,7 @@ export function spawnReplicatedShotGunShotVisual(origin: Vector3, direction: Vec
   const lenSq = directionXZ.x * directionXZ.x + directionXZ.z * directionXZ.z
   if (lenSq <= 0.0001) return
   const rotation = Quaternion.lookRotation(Vector3.normalize(directionXZ))
-  spawnProjectile(origin, rotation, false)
+  spawnProjectile(origin, rotation, false, 'shotgun', 0)
 }
 
 export function initShotGunSystems() {

@@ -47,7 +47,9 @@ const GUN_ROTATION_SMOOTH_SPEED = 12
 const ProjectileComponentSchema = {
   direction: Schemas.Vector3,
   startPosition: Schemas.Vector3,
-  canDamage: Schemas.Boolean
+  canDamage: Schemas.Boolean,
+  weaponType: Schemas.String,
+  shotSeq: Schemas.Number
 }
 export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
 
@@ -90,7 +92,9 @@ function playGunAnimation() {
 function spawnProjectile(
   gunWorldPos: Vector3,
   gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number },
-  canDamage: boolean = true
+  canDamage: boolean = true,
+  weaponType: 'gun' | 'shotgun' | 'minigun' = 'gun',
+  shotSeq: number = 0
 ): Vector3 {
   // Bullet direction = gun forward (where the barrel points), so bullet always matches gun aim
   const direction = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
@@ -121,7 +125,9 @@ function spawnProjectile(
   ProjectileComponent.create(projectile, {
     direction,
     startPosition: Vector3.clone(spawnPos),
-    canDamage
+    canDamage,
+    weaponType,
+    shotSeq
   })
   return direction
 }
@@ -193,7 +199,7 @@ function projectileSystem(dt: number) {
       const distSq = dx * dx + dy * dy + dz * dz
       if (distSq > PROJECTILE_HIT_RADIUS_SQ) continue
 
-      damageZombie(zombie, 1)
+      damageZombie(zombie, 1, { weaponType: projData.weaponType as 'gun' | 'shotgun' | 'minigun', shotSeq: Math.floor(projData.shotSeq) })
       engine.removeEntity(projectile)
       break
     }
@@ -257,8 +263,9 @@ export function gunSystem(dt: number) {
 
   shootTimer = 0
   playGunAnimation()
-  const direction = spawnProjectile(gunWorldPos, gunWorldRot, true)
-  localShotSeq += 1
+  const nextShotSeq = localShotSeq + 1
+  const direction = spawnProjectile(gunWorldPos, gunWorldRot, true, 'gun', nextShotSeq)
+  localShotSeq = nextShotSeq
   sendPlayerShotRequest('gun', gunWorldPos, direction, localShotSeq)
 }
 
@@ -267,7 +274,7 @@ export function spawnReplicatedGunShotVisual(origin: Vector3, direction: Vector3
   const lenSq = directionXZ.x * directionXZ.x + directionXZ.z * directionXZ.z
   if (lenSq <= 0.0001) return
   const rotation = Quaternion.lookRotation(Vector3.normalize(directionXZ))
-  spawnProjectile(origin, rotation, false)
+  spawnProjectile(origin, rotation, false, 'gun', 0)
 }
 
 export function initGunSystems() {

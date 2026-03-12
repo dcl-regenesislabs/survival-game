@@ -98,10 +98,14 @@ type SpawnZombieOptions = {
   networkId?: string
 }
 
-let reportServerZombieHit: ((zombieId: string, damage: number) => void) | null = null
+type ZombieHitWeaponType = 'gun' | 'shotgun' | 'minigun'
+
+let reportServerZombieHit: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null = null
 let zombieDeathSoundEntity: Entity | null = null
 let reportPlayerDamageToServer: ((amount: number) => void) | null = null
-export function setZombieHitReporter(reporter: ((zombieId: string, damage: number) => void) | null): void {
+export function setZombieHitReporter(
+  reporter: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null
+): void {
   reportServerZombieHit = reporter
 }
 export function setPlayerDamageReporter(reporter: ((amount: number) => void) | null): void {
@@ -436,11 +440,17 @@ export function applyZombieHealthUpdateByNetworkId(zombieId: string, hp: number)
 }
 
 /** Apply damage to a zombie. Networked zombies report hits to the server; local-only zombies resolve immediately. */
-export function damageZombie(entity: Entity, amount: number): boolean {
+export function damageZombie(
+  entity: Entity,
+  amount: number,
+  hitSource?: { weaponType: ZombieHitWeaponType; shotSeq: number }
+): boolean {
   if (!ZombieComponent.has(entity)) return false
   const zombie = ZombieComponent.get(entity)
   if (zombie.networkId) {
-    reportServerZombieHit?.(zombie.networkId, amount)
+    if (hitSource) {
+      reportServerZombieHit?.(zombie.networkId, amount, hitSource.weaponType, hitSource.shotSeq)
+    }
     return false
   }
 

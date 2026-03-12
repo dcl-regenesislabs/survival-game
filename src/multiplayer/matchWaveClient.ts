@@ -116,10 +116,15 @@ function plannedSpawnSystem(): void {
   }
 }
 
-function requestZombieHitToServer(zombieId: string, damage: number): void {
+function requestZombieHitToServer(
+  zombieId: string,
+  damage: number,
+  weaponType: 'gun' | 'shotgun' | 'minigun',
+  shotSeq: number
+): void {
   if (!zombieId) return
   if (!isLocalPlayerInCurrentMatch()) return
-  void room.send('zombieHitRequest', { zombieId, damage })
+  void room.send('zombieHitRequest', { zombieId, damage, weaponType, shotSeq })
 }
 
 export function initMatchWaveClientSystem(): void {

@@ -30,7 +30,9 @@ const LobbyMessages = {
   }),
   zombieHitRequest: Schemas.Map({
     zombieId: Schemas.String,
-    damage: Schemas.Number
+    damage: Schemas.Number,
+    weaponType: Schemas.String,
+    shotSeq: Schemas.Number
   }),
   zombieHealthChanged: Schemas.Map({
     zombieId: Schemas.String,
