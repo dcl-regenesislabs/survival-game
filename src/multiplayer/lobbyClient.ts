@@ -14,13 +14,24 @@ let latestLobbyEventType = ''
 let latestLobbyEventAtMs = 0
 let hasProfileLoadSent = false
 let localReadyForMatch = false
+let lastTeamWipeAffectedLocalPlayer = false
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
+    const localAddress = getLocalAddress()
+    const lobbyState = getLobbyState()
+    const localWasInArena =
+      !!localAddress && !!lobbyState?.arenaPlayers.some((player) => player.address === localAddress)
+
     latestLobbyEvent = data.message
     latestLobbyEventType = data.type
     latestLobbyEventAtMs = Date.now()
+    if (data.type === 'team_wipe') {
+      lastTeamWipeAffectedLocalPlayer = localReadyForMatch || localWasInArena
+    } else {
+      lastTeamWipeAffectedLocalPlayer = false
+    }
     if (data.type === 'team_wipe' || data.type === 'lobby') {
       resetToIdle()
       resetArenaWeaponProgress()
@@ -204,6 +215,7 @@ export function getLatestLobbyEvent(): string {
 
 export function shouldShowGameOverOverlay(windowMs: number = 3000): boolean {
   if (latestLobbyEventType !== 'team_wipe') return false
+  if (!lastTeamWipeAffectedLocalPlayer) return false
   return Date.now() - latestLobbyEventAtMs <= windowMs
 }
 
