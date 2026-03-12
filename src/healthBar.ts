@@ -10,7 +10,7 @@ import {
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { ZombieComponent, getGameTime } from './zombie'
 import { getPlayerHp, MAX_HP, getHealGlowEndTime } from './playerHealth'
-import { getLocalAddress, getLobbyState, getPlayerCombatSnapshot } from './multiplayer/lobbyClient'
+import { getLocalAddress, getLobbyState, getPlayerCombatSnapshot, isLocalReadyForMatch } from './multiplayer/lobbyClient'
 
 const HealthBarSchema = {
   parent: Schemas.Entity,
@@ -36,6 +36,15 @@ const PLAYER_BAR_WIDTH = 1.2
 const PLAYER_BAR_HEIGHT = 0.2
 const PLAYER_BAR_DEPTH = 0.16
 const remotePlayerBarByAddress = new Map<string, Entity>()
+
+function canShowArenaPlayerBars(): boolean {
+  const localAddress = getLocalAddress()
+  const lobby = getLobbyState()
+  if (!localAddress || !lobby) return false
+  if (lobby.phase !== 'match_created') return false
+  if (!isLocalReadyForMatch()) return false
+  return lobby.arenaPlayers.some((player) => player.address.toLowerCase() === localAddress)
+}
 
 function removeRemotePlayerBar(address: string): void {
   const normalized = address.toLowerCase()
@@ -134,11 +143,7 @@ export function removeAllHealthBars(): void {
 function syncRemotePlayerHealthBars(): void {
   const localAddress = getLocalAddress()
   const lobby = getLobbyState()
-  const shouldShowTeammateBars =
-    !!localAddress &&
-    !!lobby &&
-    lobby.phase === 'match_created' &&
-    lobby.arenaPlayers.some((player) => player.address.toLowerCase() === localAddress)
+  const shouldShowTeammateBars = !!localAddress && !!lobby && canShowArenaPlayerBars()
 
   const expectedAddresses = new Set<string>()
   if (shouldShowTeammateBars) {

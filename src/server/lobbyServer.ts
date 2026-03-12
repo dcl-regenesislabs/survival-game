@@ -112,6 +112,7 @@ const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
 const lastShotAtMsByPlayerAndWeapon = new Map<string, number>()
 const zombieHitAllowanceByShotKey = new Map<string, number>()
 const disconnectedLobbyPlayerSinceMs = new Map<string, number>()
+const arenaWeaponByAddress = new Map<string, ArenaWeaponType>()
 let disconnectedPlayerReconcileAccumulator = 0
 let isDisconnectReconcileInFlight = false
 
@@ -166,6 +167,31 @@ function sendPlayerLoadoutState(address: string): void {
     ownedWeaponIds: getOwnedWeaponIds(normalizedAddress),
     equippedWeaponIds: getEquippedWeaponIds(normalizedAddress)
   })
+}
+
+function getPlayerArenaWeaponState(address: string): ArenaWeaponType {
+  return arenaWeaponByAddress.get(address.toLowerCase()) ?? 'gun'
+}
+
+function sendPlayerArenaWeaponState(address: string, to?: string[]): void {
+  const normalizedAddress = address.toLowerCase()
+  const payload = {
+    address: normalizedAddress,
+    weaponType: getPlayerArenaWeaponState(normalizedAddress)
+  }
+  if (to) {
+    void room.send('playerArenaWeaponState', payload, { to })
+    return
+  }
+  void room.send('playerArenaWeaponState', payload)
+}
+
+function sendArenaWeaponStatesTo(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const lobbyState = getLobbyState()
+  for (const player of lobbyState.arenaPlayers) {
+    sendPlayerArenaWeaponState(player.address, [normalizedAddress])
+  }
 }
 
 function getPlayerDisplayName(address: string): string {
@@ -241,15 +267,19 @@ function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
 
 function resetPlayerCombatState(address: string): void {
   const state = getOrCreatePlayerCombatState(address)
+  const normalizedAddress = address.toLowerCase()
   state.hp = PLAYER_MAX_HP
   state.isDead = false
   state.respawnAtMs = 0
   state.lastDamageRequestAtMs = 0
   state.lastHealRequestAtMs = 0
+  arenaWeaponByAddress.set(normalizedAddress, 'gun')
 }
 
 function removePlayerCombatState(address: string): void {
-  playerCombatStateByAddress.delete(address.toLowerCase())
+  const normalizedAddress = address.toLowerCase()
+  playerCombatStateByAddress.delete(normalizedAddress)
+  arenaWeaponByAddress.delete(normalizedAddress)
 }
 
 function clearPlayerShotRateLimitState(address: string): void {
@@ -380,6 +410,7 @@ function endMatchAndReturnToLobby(message: string): void {
   for (const player of players) {
     resetPlayerCombatState(player.address)
     sendPlayerHealthState(player.address)
+    sendPlayerArenaWeaponState(player.address)
   }
 
   sendLobbyReturnTeleport(players)
@@ -419,6 +450,7 @@ function resetMatchRuntime() {
   runtime.restDurationSeconds = WAVE_REST_SECONDS
   runtime.startedByAddress = ''
   clearZombieTracking(runtime)
+  arenaWeaponByAddress.clear()
 }
 
 function resetMatchToLobbyKeepingPlayers(): void {
@@ -824,6 +856,9 @@ function startZombieWaves(address: string, startReason: 'manual' | 'auto' = 'man
     resetPlayerCombatState(player.address)
   }
   sendPlayerHealthStatesForLobbyPlayers(state.arenaPlayers)
+  for (const player of state.arenaPlayers) {
+    sendPlayerArenaWeaponState(player.address)
+  }
 
   for (const player of state.arenaPlayers) {
     playerProgressStore.mutate(player.address, (progress) => {
@@ -933,6 +968,7 @@ export function setupLobbyServer(): void {
     if (!context) return
     await ensurePlayerLoadedAndInLobby(context.from)
     sendPlayerHealthState(context.from)
+    sendArenaWeaponStatesTo(context.from)
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
     }
@@ -1041,9 +1077,20 @@ export function setupLobbyServer(): void {
       createMatch(context.from)
     }
     sendPlayerHealthState(context.from)
+    sendArenaWeaponStatesTo(context.from)
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
     }
+  })
+
+  room.onMessage('playerArenaWeaponChanged', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+    if (!isArenaWeaponType(data.weaponType)) return
+
+    arenaWeaponByAddress.set(normalizedAddress, data.weaponType)
+    sendPlayerArenaWeaponState(normalizedAddress)
   })
 
   room.onMessage('zombieHitRequest', (data, context) => {

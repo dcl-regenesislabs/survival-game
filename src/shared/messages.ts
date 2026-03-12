@@ -81,6 +81,13 @@ const LobbyMessages = {
     directionZ: Schemas.Number,
     firedAtMs: Schemas.Int64
   }),
+  playerArenaWeaponChanged: Schemas.Map({
+    weaponType: Schemas.String
+  }),
+  playerArenaWeaponState: Schemas.Map({
+    address: Schemas.String,
+    weaponType: Schemas.String
+  }),
   playerShotBroadcast: Schemas.Map({
     shooterAddress: Schemas.String,
     seq: Schemas.Number,

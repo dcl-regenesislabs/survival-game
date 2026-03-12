@@ -4,6 +4,7 @@ import { createShotGun, destroyShotGun } from './shotGun'
 import { createMiniGun, destroyMiniGun } from './miniGun'
 import { isPlayerDead } from './playerHealth'
 import { spendZombieCoins } from './zombieCoins'
+import { sendPlayerArenaWeaponChanged } from './multiplayer/lobbyClient'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
 export const SHOTGUN_UNLOCK_COST_ZC = 50
@@ -67,6 +68,7 @@ function createWeapon(type: WeaponType): void {
   else if (type === 'shotgun') createShotGun()
   else if (type === 'minigun') createMiniGun()
   hasSpawnedWeapon = true
+  sendPlayerArenaWeaponChanged(type)
 }
 
 export function switchTo(type: WeaponType): boolean {
