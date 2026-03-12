@@ -37,7 +37,7 @@ import {
 import { getGameTime } from './zombie'
 import { rageEffectSystem } from './rageEffect'
 import { initRageAura } from './rageAura'
-import { potionPickupSystem, potionVisualSystem } from './potions'
+import { initPotionSyncClient, potionPickupSystem, potionVisualSystem } from './potions'
 import { EntityNames } from '../assets/scene/entity-names'
 import { setupLobbyServer } from './server/lobbyServer'
 import {
@@ -194,6 +194,7 @@ export function main() {
   initTimeSync({ isServer: false })
   setupLobbyClient()
   setupShotReplicationClient()
+  initPotionSyncClient()
   setPlayerDamageReporter((amount) => {
     if (isPlayerDead()) return
     sendPlayerDamageRequest(amount)
