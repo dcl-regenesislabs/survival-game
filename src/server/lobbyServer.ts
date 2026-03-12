@@ -44,6 +44,16 @@ const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
   shotgun: 450,
   minigun: 120
 }
+const ZOMBIE_HITS_ALLOWED_PER_SHOT: Record<ArenaWeaponType, number> = {
+  gun: 1,
+  shotgun: 3,
+  minigun: 1
+}
+const ZOMBIE_MAX_HP_BY_TYPE: Record<ZombieType, number> = {
+  basic: 3,
+  quick: 2,
+  tank: 10
+}
 const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
 const ARENA_TELEPORT_POSITION = { x: 32, y: 0, z: 32 }
@@ -68,6 +78,8 @@ type WavePlanSpawn = {
   spawnAtMs: number
 }
 type ZombieSpawnState = {
+  zombieType: ZombieType
+  hp: number
   spawnX: number
   spawnY: number
   spawnZ: number
@@ -98,6 +110,7 @@ const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
 const lastShotAtMsByPlayerAndWeapon = new Map<string, number>()
+const zombieHitAllowanceByShotKey = new Map<string, number>()
 const disconnectedLobbyPlayerSinceMs = new Map<string, number>()
 let disconnectedPlayerReconcileAccumulator = 0
 let isDisconnectReconcileInFlight = false
@@ -122,6 +135,14 @@ function getOwnedWeaponIds(address: string): LoadoutWeaponId[] {
 
 function isArenaWeaponType(value: string): value is ArenaWeaponType {
   return value === 'gun' || value === 'shotgun' || value === 'minigun'
+}
+
+function getZombieMaxHp(zombieType: ZombieType): number {
+  return ZOMBIE_MAX_HP_BY_TYPE[zombieType]
+}
+
+function getShotAllowanceKey(address: string, weaponType: ArenaWeaponType, shotSeq: number): string {
+  return `${address.toLowerCase()}:${weaponType}:${Math.floor(shotSeq)}`
 }
 
 function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
@@ -235,6 +256,11 @@ function clearPlayerShotRateLimitState(address: string): void {
   const normalizedAddress = address.toLowerCase()
   for (const weaponType of Object.keys(SHOT_RATE_LIMIT_MS_BY_WEAPON) as ArenaWeaponType[]) {
     lastShotAtMsByPlayerAndWeapon.delete(`${normalizedAddress}:${weaponType}`)
+  }
+  for (const shotKey of zombieHitAllowanceByShotKey.keys()) {
+    if (shotKey.startsWith(`${normalizedAddress}:`)) {
+      zombieHitAllowanceByShotKey.delete(shotKey)
+    }
   }
 }
 
@@ -736,6 +762,8 @@ function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
 
   for (const spawn of plan.spawns) {
     zombieSpawnAtById.set(spawn.zombieId, {
+      zombieType: spawn.zombieType,
+      hp: getZombieMaxHp(spawn.zombieType),
       spawnX: spawn.spawnX,
       spawnY: spawn.spawnY,
       spawnZ: spawn.spawnZ,
@@ -1018,20 +1046,42 @@ export function setupLobbyServer(): void {
     }
   })
 
-  room.onMessage('zombieDieRequest', (data, context) => {
+  room.onMessage('zombieHitRequest', (data, context) => {
     if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
     if (!isPlayerInArena(context.from)) return
     const lobbyState = getLobbyState()
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning) return
     if (!data.zombieId) return
+    if (!isArenaWeaponType(data.weaponType)) return
+
+    const shotSeq = Number.isFinite(data.shotSeq) ? Math.floor(data.shotSeq) : -1
+    if (shotSeq < 0) return
+
+    const allowanceKey = getShotAllowanceKey(normalizedAddress, data.weaponType, shotSeq)
+    const remainingHits = zombieHitAllowanceByShotKey.get(allowanceKey) ?? 0
+    if (remainingHits <= 0) return
+
     const spawnState = zombieSpawnAtById.get(data.zombieId)
     if (!spawnState) return
-    if (spawnState.spawnAtMs > getServerTime()) return
+    const now = getServerTime()
+    if (spawnState.spawnAtMs > now) return
+
+    const damage = 1
+    zombieHitAllowanceByShotKey.set(allowanceKey, remainingHits - 1)
+    spawnState.hp = Math.max(0, spawnState.hp - damage)
+
+    if (spawnState.hp > 0) {
+      void room.send('zombieHealthChanged', { zombieId: data.zombieId, hp: spawnState.hp })
+      return
+    }
+
     zombieSpawnAtById.delete(data.zombieId)
     deadZombieIds.delete(data.zombieId)
-    const runtime = getMatchRuntimeMutable()
-    recomputeZombiesAlive(runtime, getServerTime())
-    void room.send('zombieDied', { zombieId: data.zombieId })
+    recomputeZombiesAlive(runtime, now)
+    void room.send('zombieDied', { zombieId: data.zombieId, killerAddress: normalizedAddress })
     trySpawnPotionDrops(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ)
   })
 
@@ -1168,9 +1218,14 @@ export function setupLobbyServer(): void {
     const directionLen = Math.sqrt(directionLenSq)
 
     lastShotAtMsByPlayerAndWeapon.set(rateLimitKey, now)
+    const shotSeq = Number.isFinite(data.seq) ? Math.floor(data.seq) : 0
+    zombieHitAllowanceByShotKey.set(
+      getShotAllowanceKey(normalizedAddress, weaponType, shotSeq),
+      ZOMBIE_HITS_ALLOWED_PER_SHOT[weaponType]
+    )
     void room.send('playerShotBroadcast', {
       shooterAddress: normalizedAddress,
-      seq: Number.isFinite(data.seq) ? Math.floor(data.seq) : 0,
+      seq: shotSeq,
       weaponType,
       originX,
       originY,

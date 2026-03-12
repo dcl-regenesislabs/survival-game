@@ -98,11 +98,15 @@ type SpawnZombieOptions = {
   networkId?: string
 }
 
-let reportServerZombieDeath: ((zombieId: string) => void) | null = null
+type ZombieHitWeaponType = 'gun' | 'shotgun' | 'minigun'
+
+let reportServerZombieHit: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null = null
 let zombieDeathSoundEntity: Entity | null = null
 let reportPlayerDamageToServer: ((amount: number) => void) | null = null
-export function setZombieDeathReporter(reporter: ((zombieId: string) => void) | null): void {
-  reportServerZombieDeath = reporter
+export function setZombieHitReporter(
+  reporter: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null
+): void {
+  reportServerZombieHit = reporter
 }
 export function setPlayerDamageReporter(reporter: ((amount: number) => void) | null): void {
   reportPlayerDamageToServer = reporter
@@ -397,7 +401,12 @@ export function despawnAllZombies(): void {
 export function despawnZombieByNetworkId(zombieId: string): boolean {
   for (const [entity, zombieData] of engine.getEntitiesWith(ZombieComponent)) {
     if (zombieData.networkId === zombieId) {
+      const pos = Transform.has(entity) ? Transform.get(entity).position : null
       playZombieDeathSound()
+      if (pos) {
+        const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
+        spawnBloodBurst(burstCenter, DEATH_BURST_COUNT, DEATH_BURST_SPEED, BLOOD_BURST_DURATION, DEATH_BURST_SCALE)
+      }
       engine.removeEntity(entity)
       return true
     }
@@ -405,20 +414,54 @@ export function despawnZombieByNetworkId(zombieId: string): boolean {
   return false
 }
 
-/** Apply damage to a zombie. Returns true if zombie died. Spawns blood burst on hit and on death. */
-export function damageZombie(entity: Entity, amount: number): boolean {
+export function getZombiePositionByNetworkId(zombieId: string): Vector3 | null {
+  for (const [entity, zombieData] of engine.getEntitiesWith(ZombieComponent, Transform)) {
+    if (zombieData.networkId !== zombieId) continue
+    return Vector3.clone(Transform.get(entity).position)
+  }
+  return null
+}
+
+export function applyZombieHealthUpdateByNetworkId(zombieId: string, hp: number): boolean {
+  const nextHp = Math.max(0, Math.floor(hp))
+  for (const [entity, zombieData] of engine.getEntitiesWith(ZombieComponent, Transform)) {
+    if (zombieData.networkId !== zombieId) continue
+    const mutableZombie = ZombieComponent.getMutable(entity)
+    const previousHp = mutableZombie.health
+    mutableZombie.health = nextHp
+    if (nextHp < previousHp) {
+      const pos = Transform.get(entity).position
+      const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
+      spawnBloodBurst(burstCenter, HIT_BURST_COUNT, HIT_BURST_SPEED, BLOOD_BURST_DURATION, HIT_BURST_SCALE)
+    }
+    return true
+  }
+  return false
+}
+
+/** Apply damage to a zombie. Networked zombies report hits to the server; local-only zombies resolve immediately. */
+export function damageZombie(
+  entity: Entity,
+  amount: number,
+  hitSource?: { weaponType: ZombieHitWeaponType; shotSeq: number }
+): boolean {
   if (!ZombieComponent.has(entity)) return false
-  const zombie = ZombieComponent.getMutable(entity)
-  zombie.health -= amount
+  const zombie = ZombieComponent.get(entity)
+  if (zombie.networkId) {
+    if (hitSource) {
+      reportServerZombieHit?.(zombie.networkId, amount, hitSource.weaponType, hitSource.shotSeq)
+    }
+    return false
+  }
+
+  const mutableZombie = ZombieComponent.getMutable(entity)
+  mutableZombie.health -= amount
 
   const pos = Transform.get(entity).position
   const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
 
-  if (zombie.health <= 0) {
+  if (mutableZombie.health <= 0) {
     playZombieDeathSound()
-    if (zombie.networkId) {
-      reportServerZombieDeath?.(zombie.networkId)
-    }
     spawnBloodBurst(burstCenter, DEATH_BURST_COUNT, DEATH_BURST_SPEED, BLOOD_BURST_DURATION, DEATH_BURST_SCALE)
     engine.removeEntity(entity)
     return true

@@ -3,13 +3,17 @@ import { Vector3 } from '@dcl/sdk/math'
 import { room } from '../shared/messages'
 import { getServerTime } from '../shared/timeSync'
 import {
+  applyZombieHealthUpdateByNetworkId,
   despawnZombieByNetworkId,
-  setZombieDeathReporter,
+  getZombiePositionByNetworkId,
+  setZombieHitReporter,
   spawnQuickZombie,
   spawnTankZombie,
-  spawnZombie
+  spawnZombie,
+  spawnZcRewardTextAtPosition
 } from '../zombie'
 import { getLocalAddress, getLobbyState } from './lobbyClient'
+import { addZombieCoins, COINS_PER_KILL } from '../zombieCoins'
 
 type ZombieType = 'basic' | 'quick' | 'tank'
 
@@ -26,6 +30,7 @@ type PlannedSpawn = {
 let isWaveSpawnListenerRegistered = false
 let pendingSpawns: PlannedSpawn[] = []
 const spawnedZombieIds = new Set<string>()
+const pendingZombieHpById = new Map<string, number>()
 
 function isLocalPlayerInCurrentMatch(): boolean {
   const lobbyState = getLobbyState()
@@ -89,11 +94,17 @@ function spawnPlannedZombie(spawn: PlannedSpawn): void {
   }
 
   spawnedZombieIds.add(spawn.zombieId)
+  const pendingHp = pendingZombieHpById.get(spawn.zombieId)
+  if (typeof pendingHp === 'number') {
+    applyZombieHealthUpdateByNetworkId(spawn.zombieId, pendingHp)
+    pendingZombieHpById.delete(spawn.zombieId)
+  }
 }
 
 function plannedSpawnSystem(): void {
   if (!isLocalPlayerInCurrentMatch()) {
     pendingSpawns = []
+    pendingZombieHpById.clear()
     return
   }
 
@@ -105,25 +116,42 @@ function plannedSpawnSystem(): void {
   }
 }
 
-function requestZombieDeathToServer(zombieId: string): void {
+function requestZombieHitToServer(
+  zombieId: string,
+  damage: number,
+  weaponType: 'gun' | 'shotgun' | 'minigun',
+  shotSeq: number
+): void {
   if (!zombieId) return
   if (!isLocalPlayerInCurrentMatch()) return
-  void room.send('zombieDieRequest', { zombieId })
+  void room.send('zombieHitRequest', { zombieId, damage, weaponType, shotSeq })
 }
 
 export function initMatchWaveClientSystem(): void {
   if (isWaveSpawnListenerRegistered) return
   isWaveSpawnListenerRegistered = true
 
-  setZombieDeathReporter(requestZombieDeathToServer)
+  setZombieHitReporter(requestZombieHitToServer)
 
   room.onMessage('waveSpawnPlan', (data) => {
     queueWavePlan(data)
   })
 
+  room.onMessage('zombieHealthChanged', (data) => {
+    if (!applyZombieHealthUpdateByNetworkId(data.zombieId, data.hp)) {
+      pendingZombieHpById.set(data.zombieId, data.hp)
+    }
+  })
+
   room.onMessage('zombieDied', (data) => {
+    const zombiePos = getZombiePositionByNetworkId(data.zombieId)
     pendingSpawns = pendingSpawns.filter((spawn) => spawn.zombieId !== data.zombieId)
     spawnedZombieIds.delete(data.zombieId)
+    pendingZombieHpById.delete(data.zombieId)
+    if (data.killerAddress && data.killerAddress.toLowerCase() === getLocalAddress() && zombiePos) {
+      addZombieCoins(COINS_PER_KILL)
+      spawnZcRewardTextAtPosition(zombiePos, COINS_PER_KILL)
+    }
     despawnZombieByNetworkId(data.zombieId)
   })
 
