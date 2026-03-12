@@ -19,15 +19,16 @@ const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
+    const localAddress = getLocalAddress()
+    const lobbyState = getLobbyState()
+    const localIsInArena =
+      !!localAddress && !!lobbyState?.arenaPlayers.some((player) => player.address === localAddress)
+
     latestLobbyEvent = data.message
     latestLobbyEventType = data.type
     latestLobbyEventAtMs = Date.now()
     if (data.type === 'team_wipe') {
-      const localAddress = getLocalAddress()
-      const lobbyState = getLobbyState()
-      const localWasInArena =
-        !!localAddress && !!lobbyState?.arenaPlayers.some((player) => player.address === localAddress)
-      lastTeamWipeAffectedLocalPlayer = localReadyForMatch || localWasInArena
+      lastTeamWipeAffectedLocalPlayer = localReadyForMatch || localIsInArena
     } else {
       lastTeamWipeAffectedLocalPlayer = false
     }
@@ -36,6 +37,7 @@ export function setupLobbyClient(): void {
       resetArenaWeaponProgress()
     }
     if (data.type === 'waves_started') {
+      if (!localIsInArena || !localReadyForMatch) return
       enableArenaWeapon()
     }
     console.log(`[Lobby] ${data.type}: ${data.message}`)
