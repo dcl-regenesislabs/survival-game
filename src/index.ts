@@ -51,6 +51,7 @@ import {
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
 import { initDeathAnimationSystem } from './deathAnimation'
+import { initArenaRemoteDefaultWeapons } from './arenaRemoteDefaultWeapons'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
@@ -198,6 +199,7 @@ export function main() {
     sendPlayerDamageRequest(amount)
   })
   initLobbyWorldPanel()
+  initArenaRemoteDefaultWeapons()
   // Loadout panel disabled
   // initLoadoutWorldPanel()
   setupUi()
