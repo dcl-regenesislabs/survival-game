@@ -19,15 +19,14 @@ const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
-    const localAddress = getLocalAddress()
-    const lobbyState = getLobbyState()
-    const localWasInArena =
-      !!localAddress && !!lobbyState?.arenaPlayers.some((player) => player.address === localAddress)
-
     latestLobbyEvent = data.message
     latestLobbyEventType = data.type
     latestLobbyEventAtMs = Date.now()
     if (data.type === 'team_wipe') {
+      const localAddress = getLocalAddress()
+      const lobbyState = getLobbyState()
+      const localWasInArena =
+        !!localAddress && !!lobbyState?.arenaPlayers.some((player) => player.address === localAddress)
       lastTeamWipeAffectedLocalPlayer = localReadyForMatch || localWasInArena
     } else {
       lastTeamWipeAffectedLocalPlayer = false
