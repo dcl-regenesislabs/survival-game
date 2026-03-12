@@ -1,8 +1,17 @@
 import { Animator, engine, Entity, GltfContainer, PlayerIdentityData, Transform } from '@dcl/sdk/ecs'
 import { Quaternion, Vector3 } from '@dcl/sdk/math'
-import { getLobbyState, getLocalAddress, getPlayerCombatSnapshot } from './multiplayer/lobbyClient'
+import {
+  getLobbyState,
+  getLocalAddress,
+  getPlayerArenaWeapon,
+  getPlayerCombatSnapshot,
+  isLocalReadyForMatch
+} from './multiplayer/lobbyClient'
+import { ArenaWeaponType } from './shared/loadoutCatalog'
 
 const DEFAULT_GUN_MODEL = 'assets/scene/Models/Gun01/Gun01.glb'
+const SHOTGUN_MODEL = 'assets/scene/Models/ShotGun01/ShotGun01.glb'
+const MINIGUN_MODEL = 'assets/scene/Models/MiniGun01/MiniGun01.glb'
 const REMOTE_GUN_OFFSET = Vector3.create(0, 0, 0)
 const REMOTE_GUN_ROTATION = Quaternion.Identity()
 const REMOTE_GUN_SCALE = Vector3.One()
@@ -10,6 +19,16 @@ const REMOTE_GUN_SCALE = Vector3.One()
 type RemoteWeaponEntry = {
   avatarEntity: Entity
   weaponRootEntity: Entity
+  weaponType: ArenaWeaponType
+}
+
+function canShowArenaRemoteWeapons(): boolean {
+  const lobbyState = getLobbyState()
+  const localAddress = getLocalAddress()
+  if (!lobbyState || !localAddress) return false
+  if (lobbyState.phase !== 'match_created') return false
+  if (!isLocalReadyForMatch()) return false
+  return lobbyState.arenaPlayers.some((player) => player.address.toLowerCase() === localAddress)
 }
 
 class ArenaRemoteDefaultWeapons {
@@ -25,6 +44,13 @@ class ArenaRemoteDefaultWeapons {
   private syncRoster(): void {
     const lobbyState = getLobbyState()
     const localAddress = getLocalAddress()
+    if (!canShowArenaRemoteWeapons()) {
+      for (const address of [...this.entriesByAddress.keys()]) {
+        this.removeEntry(address)
+      }
+      return
+    }
+
     const arenaAddresses = new Set((lobbyState?.arenaPlayers ?? []).map((player) => player.address.toLowerCase()))
     const visibleRemoteAddresses = new Set<string>()
 
@@ -33,6 +59,7 @@ class ArenaRemoteDefaultWeapons {
       if (!address || address === localAddress) continue
 
       const isDead = !!getPlayerCombatSnapshot(address)?.isDead
+      const weaponType = getPlayerArenaWeapon(address)
       if (!arenaAddresses.has(address) || isDead) {
         this.removeEntry(address)
         continue
@@ -43,12 +70,17 @@ class ArenaRemoteDefaultWeapons {
       const existing = this.entriesByAddress.get(address)
       if (existing) {
         existing.avatarEntity = avatarEntity
+        if (existing.weaponType !== weaponType) {
+          existing.weaponType = weaponType
+          applyRemoteWeaponModel(existing.weaponRootEntity, weaponType)
+        }
         continue
       }
 
       this.entriesByAddress.set(address, {
         avatarEntity,
-        weaponRootEntity: createRemoteDefaultWeapon()
+        weaponRootEntity: createRemoteDefaultWeapon(weaponType),
+        weaponType
       })
     }
 
@@ -81,7 +113,19 @@ class ArenaRemoteDefaultWeapons {
   }
 }
 
-function createRemoteDefaultWeapon(): Entity {
+function getRemoteWeaponModel(weaponType: ArenaWeaponType): string {
+  if (weaponType === 'shotgun') return SHOTGUN_MODEL
+  if (weaponType === 'minigun') return MINIGUN_MODEL
+  return DEFAULT_GUN_MODEL
+}
+
+function applyRemoteWeaponModel(weaponRootEntity: Entity, weaponType: ArenaWeaponType): void {
+  GltfContainer.createOrReplace(weaponRootEntity, {
+    src: getRemoteWeaponModel(weaponType)
+  })
+}
+
+function createRemoteDefaultWeapon(weaponType: ArenaWeaponType): Entity {
   const weaponRootEntity = engine.addEntity()
 
   Transform.create(weaponRootEntity, {
@@ -90,9 +134,7 @@ function createRemoteDefaultWeapon(): Entity {
     scale: REMOTE_GUN_SCALE
   })
 
-  GltfContainer.create(weaponRootEntity, {
-    src: DEFAULT_GUN_MODEL
-  })
+  applyRemoteWeaponModel(weaponRootEntity, weaponType)
   Animator.createOrReplace(weaponRootEntity)
   Animator.stopAllAnimations(weaponRootEntity)
 

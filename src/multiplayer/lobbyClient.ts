@@ -8,6 +8,7 @@ import { applyAuthoritativeHealthState } from '../playerHealth'
 import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
+import { ArenaWeaponType } from '../shared/loadoutCatalog'
 
 let latestLobbyEvent = ''
 let latestLobbyEventType = ''
@@ -16,6 +17,7 @@ let hasProfileLoadSent = false
 let localReadyForMatch = false
 let lastTeamWipeAffectedLocalPlayer = false
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
+const playerArenaWeaponByAddress = new Map<string, ArenaWeaponType>()
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
@@ -33,6 +35,7 @@ export function setupLobbyClient(): void {
       lastTeamWipeAffectedLocalPlayer = false
     }
     if (data.type === 'team_wipe' || data.type === 'lobby') {
+      playerArenaWeaponByAddress.clear()
       resetToIdle()
       resetArenaWeaponProgress()
     }
@@ -59,6 +62,10 @@ export function setupLobbyClient(): void {
     const localAddress = getLocalAddress()
     if (!localAddress || data.address !== localAddress) return
     applyPlayerLoadoutSnapshot(data)
+  })
+  room.onMessage('playerArenaWeaponState', (data) => {
+    if (data.weaponType !== 'gun' && data.weaponType !== 'shotgun' && data.weaponType !== 'minigun') return
+    playerArenaWeaponByAddress.set(data.address.toLowerCase(), data.weaponType)
   })
   room.onMessage('matchAutoTeleport', (data) => {
     const localAddress = getLocalAddress()
@@ -153,6 +160,10 @@ export function sendPlayerShotRequest(
   })
 }
 
+export function sendPlayerArenaWeaponChanged(weaponType: ArenaWeaponType): void {
+  void room.send('playerArenaWeaponChanged', { weaponType })
+}
+
 export function getLocalAddress(): string {
   const identity = PlayerIdentityData.getOrNull(engine.PlayerEntity)
   return identity?.address?.toLowerCase() || ''
@@ -232,4 +243,8 @@ export function getPlayerCombatSnapshot(address: string): { hp: number; isDead: 
     isDead: state.isDead,
     respawnAtMs: state.respawnAtMs
   }
+}
+
+export function getPlayerArenaWeapon(address: string): ArenaWeaponType {
+  return playerArenaWeaponByAddress.get(address.toLowerCase()) ?? 'gun'
 }
