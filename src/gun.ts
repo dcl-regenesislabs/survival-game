@@ -12,8 +12,7 @@ import {
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
-import { ZombieComponent, damageZombie, spawnZcRewardTextAtPosition } from './zombie'
-import { addZombieCoins, COINS_PER_KILL } from './zombieCoins'
+import { ZombieComponent, damageZombie } from './zombie'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
@@ -194,11 +193,7 @@ function projectileSystem(dt: number) {
       const distSq = dx * dx + dy * dy + dz * dz
       if (distSq > PROJECTILE_HIT_RADIUS_SQ) continue
 
-      const rewardAnchor = Vector3.clone(zombiePos)
-      if (damageZombie(zombie, 1)) {
-        addZombieCoins(COINS_PER_KILL)
-        spawnZcRewardTextAtPosition(rewardAnchor, COINS_PER_KILL)
-      }
+      damageZombie(zombie, 1)
       engine.removeEntity(projectile)
       break
     }

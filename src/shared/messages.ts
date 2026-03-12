@@ -28,11 +28,17 @@ const LobbyMessages = {
       })
     )
   }),
-  zombieDieRequest: Schemas.Map({
-    zombieId: Schemas.String
+  zombieHitRequest: Schemas.Map({
+    zombieId: Schemas.String,
+    damage: Schemas.Number
+  }),
+  zombieHealthChanged: Schemas.Map({
+    zombieId: Schemas.String,
+    hp: Schemas.Number
   }),
   zombieDied: Schemas.Map({
-    zombieId: Schemas.String
+    zombieId: Schemas.String,
+    killerAddress: Schemas.String
   }),
   potionSpawned: Schemas.Map({
     potionId: Schemas.String,

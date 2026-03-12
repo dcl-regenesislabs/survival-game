@@ -44,6 +44,11 @@ const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
   shotgun: 450,
   minigun: 120
 }
+const ZOMBIE_MAX_HP_BY_TYPE: Record<ZombieType, number> = {
+  basic: 3,
+  quick: 2,
+  tank: 10
+}
 const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
 const ARENA_TELEPORT_POSITION = { x: 32, y: 0, z: 32 }
@@ -68,6 +73,8 @@ type WavePlanSpawn = {
   spawnAtMs: number
 }
 type ZombieSpawnState = {
+  zombieType: ZombieType
+  hp: number
   spawnX: number
   spawnY: number
   spawnZ: number
@@ -122,6 +129,10 @@ function getOwnedWeaponIds(address: string): LoadoutWeaponId[] {
 
 function isArenaWeaponType(value: string): value is ArenaWeaponType {
   return value === 'gun' || value === 'shotgun' || value === 'minigun'
+}
+
+function getZombieMaxHp(zombieType: ZombieType): number {
+  return ZOMBIE_MAX_HP_BY_TYPE[zombieType]
 }
 
 function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
@@ -736,6 +747,8 @@ function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
 
   for (const spawn of plan.spawns) {
     zombieSpawnAtById.set(spawn.zombieId, {
+      zombieType: spawn.zombieType,
+      hp: getZombieMaxHp(spawn.zombieType),
       spawnX: spawn.spawnX,
       spawnY: spawn.spawnY,
       spawnZ: spawn.spawnZ,
@@ -1018,20 +1031,33 @@ export function setupLobbyServer(): void {
     }
   })
 
-  room.onMessage('zombieDieRequest', (data, context) => {
+  room.onMessage('zombieHitRequest', (data, context) => {
     if (!context) return
-    if (!isPlayerInArena(context.from)) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
     const lobbyState = getLobbyState()
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning) return
     if (!data.zombieId) return
     const spawnState = zombieSpawnAtById.get(data.zombieId)
     if (!spawnState) return
-    if (spawnState.spawnAtMs > getServerTime()) return
+    const now = getServerTime()
+    if (spawnState.spawnAtMs > now) return
+
+    const requestedDamage = Number.isFinite(data.damage) ? Math.floor(data.damage) : 1
+    const damage = Math.max(1, Math.min(10, requestedDamage))
+    spawnState.hp = Math.max(0, spawnState.hp - damage)
+
+    if (spawnState.hp > 0) {
+      void room.send('zombieHealthChanged', { zombieId: data.zombieId, hp: spawnState.hp })
+      return
+    }
+
     zombieSpawnAtById.delete(data.zombieId)
     deadZombieIds.delete(data.zombieId)
-    const runtime = getMatchRuntimeMutable()
-    recomputeZombiesAlive(runtime, getServerTime())
-    void room.send('zombieDied', { zombieId: data.zombieId })
+    recomputeZombiesAlive(runtime, now)
+    void room.send('zombieDied', { zombieId: data.zombieId, killerAddress: normalizedAddress })
     trySpawnPotionDrops(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ)
   })
 
