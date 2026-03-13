@@ -218,7 +218,7 @@ export function main() {
   engine.addSystem(rewardTextSystem)
   // Rage potion duration decay
   engine.addSystem(() => rageEffectSystem(getGameTime()))
-  // Red aura around player when enraged
+  // Segmented ring on the floor while enraged
   initRageAura()
   // Deferred brick placement (spawn from game loop, not from UI callback)
   initBrickSystem()

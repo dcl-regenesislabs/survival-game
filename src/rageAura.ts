@@ -9,68 +9,108 @@ import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { isRaging } from './rageEffect'
 import { getGameTime } from './zombie'
 
-let auraEntity: Entity | null = null
+let ringRootEntity: Entity | null = null
+const ringSegments: Entity[] = []
 
-const AURA_BASE_SCALE = 2.4
-const AURA_PULSE_MIN = 0.92
-const AURA_PULSE_MAX = 1.08
-const AURA_HEIGHT_OFFSET = 1.0
-const AURA_EMISSIVE_INTENSITY_MIN = 0.5
-const AURA_EMISSIVE_INTENSITY_MAX = 1.2
+const RING_SEGMENT_COUNT = 8
+const RING_RADIUS = 1.55
+const RING_HEIGHT = 0.05
+const RING_SEGMENT_WIDTH = 0.62
+const RING_SEGMENT_DEPTH = 0.14
+const RING_SEGMENT_THICKNESS = 0.045
+const RING_ROTATION_SPEED = 1.3
+const RING_BOB_HEIGHT = 0.02
+const RING_PULSE_MIN = 0.92
+const RING_PULSE_MAX = 1.08
+const RING_EMISSIVE_MIN = 0.8
+const RING_EMISSIVE_MAX = 1.75
 
 function ensureAuraEntity(): Entity {
-  if (auraEntity !== null && Transform.has(auraEntity)) {
-    return auraEntity
+  if (ringRootEntity !== null && Transform.has(ringRootEntity)) {
+    return ringRootEntity
   }
-  const entity = engine.addEntity()
-  Transform.create(entity, {
+
+  const root = engine.addEntity()
+  Transform.create(root, {
     parent: engine.PlayerEntity,
-    position: Vector3.create(0, AURA_HEIGHT_OFFSET, 0),
+    position: Vector3.create(0, RING_HEIGHT, 0),
     rotation: Quaternion.Identity(),
     scale: Vector3.Zero()
   })
-  MeshRenderer.setSphere(entity)
-  Material.setPbrMaterial(entity, {
-    albedoColor: Color4.create(0.95, 0.15, 0.2, 0.35),
-    emissiveColor: Color3.create(1, 0.25, 0.3),
-    emissiveIntensity: AURA_EMISSIVE_INTENSITY_MAX,
-    metallic: 0,
-    roughness: 1
-  })
-  auraEntity = entity
-  return entity
+
+  for (let i = 0; i < RING_SEGMENT_COUNT; i++) {
+    const segment = engine.addEntity()
+    Transform.create(segment, {
+      parent: root,
+      position: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
+      scale: Vector3.One()
+    })
+    MeshRenderer.setBox(segment)
+    Material.setPbrMaterial(segment, {
+      albedoColor: Color4.create(0.55, 0.05, 0.04, 0.95),
+      emissiveColor: Color3.create(1, 0.18, 0.08),
+      emissiveIntensity: RING_EMISSIVE_MAX,
+      metallic: 0,
+      roughness: 0.95
+    })
+    ringSegments.push(segment)
+  }
+
+  ringRootEntity = root
+  return root
 }
 
-/** Show/hide and animate the red rage aura around the player. */
+/** Show/hide and animate a segmented rage ring on the floor around the player. */
 export function rageAuraSystem(): void {
   if (!Transform.has(engine.PlayerEntity)) return
 
   if (!isRaging()) {
-    if (auraEntity !== null && Transform.has(auraEntity)) {
-      Transform.getMutable(auraEntity).scale = Vector3.Zero()
+    if (ringRootEntity !== null && Transform.has(ringRootEntity)) {
+      Transform.getMutable(ringRootEntity).scale = Vector3.Zero()
     }
     return
   }
 
   const entity = ensureAuraEntity()
   const t = getGameTime()
-  const pulse = 0.5 + 0.5 * Math.sin(t * 5)
-  const scaleMul = AURA_PULSE_MIN + (AURA_PULSE_MAX - AURA_PULSE_MIN) * pulse
-  const scale = AURA_BASE_SCALE * scaleMul
-  const emissive =
-    AURA_EMISSIVE_INTENSITY_MIN +
-    (AURA_EMISSIVE_INTENSITY_MAX - AURA_EMISSIVE_INTENSITY_MIN) * pulse
+  const pulse = 0.5 + 0.5 * Math.sin(t * 6.5)
+  const rootScale = RING_PULSE_MIN + (RING_PULSE_MAX - RING_PULSE_MIN) * pulse
+  const emissive = RING_EMISSIVE_MIN + (RING_EMISSIVE_MAX - RING_EMISSIVE_MIN) * pulse
 
   const mutableTransform = Transform.getMutable(entity)
-  mutableTransform.scale = Vector3.create(scale, scale, scale)
+  mutableTransform.position = Vector3.create(0, RING_HEIGHT + Math.sin(t * 9) * 0.006, 0)
+  mutableTransform.rotation = Quaternion.fromEulerDegrees(0, (t * 180 * RING_ROTATION_SPEED) % 360, 0)
+  mutableTransform.scale = Vector3.create(rootScale, 1, rootScale)
 
-  Material.setPbrMaterial(entity, {
-    albedoColor: Color4.create(0.95, 0.15, 0.2, 0.35),
-    emissiveColor: Color3.create(1, 0.25, 0.3),
-    emissiveIntensity: emissive,
-    metallic: 0,
-    roughness: 1
-  })
+  for (let i = 0; i < ringSegments.length; i++) {
+    const segment = ringSegments[i]
+    if (!Transform.has(segment)) continue
+
+    const angle = (i / RING_SEGMENT_COUNT) * Math.PI * 2
+    const wobble = Math.sin(t * 8 + i * 0.9)
+    const radialScale = 0.92 + 0.12 * pulse
+    const segmentTransform = Transform.getMutable(segment)
+    segmentTransform.position = Vector3.create(
+      Math.cos(angle) * RING_RADIUS * radialScale,
+      wobble * RING_BOB_HEIGHT,
+      Math.sin(angle) * RING_RADIUS * radialScale
+    )
+    segmentTransform.rotation = Quaternion.fromEulerDegrees(0, (-angle * 180) / Math.PI, 0)
+    segmentTransform.scale = Vector3.create(
+      RING_SEGMENT_WIDTH * (0.96 + pulse * 0.12),
+      RING_SEGMENT_THICKNESS,
+      RING_SEGMENT_DEPTH * (0.9 + (1 - pulse) * 0.18)
+    )
+
+    Material.setPbrMaterial(segment, {
+      albedoColor: Color4.create(0.5 + pulse * 0.16, 0.04, 0.04, 0.98),
+      emissiveColor: Color3.create(1, 0.16 + pulse * 0.08, 0.06),
+      emissiveIntensity: emissive + (i % 2 === 0 ? 0.15 : 0),
+      metallic: 0,
+      roughness: 0.95
+    })
+  }
 }
 
 export function initRageAura(): void {
