@@ -32,6 +32,34 @@ const TRIGGER_BOUNDS_EPSILON = 0.15
 const ROOT_INVERSE_ROTATION = Quaternion.fromEulerDegrees(0, 90, 0)
 const LOBBY_REQUEST_COOLDOWN_MS = 1000
 
+type LobbyLeaveDebugState = {
+  localAddress: string | null
+  isAlreadyJoined: boolean
+  ignoreBecauseReadyForMatch: boolean
+  ignoreBecauseMatchRunning: boolean
+  ignoreBecauseArenaIntro: boolean
+  shouldIgnoreTriggerExitLeave: boolean
+  cooldownActive: boolean
+  cooldownRemainingMs: number
+  lastOutcome: 'idle' | 'blocked:not_joined' | 'blocked:ignore_trigger_exit' | 'blocked:cooldown' | 'sent'
+}
+
+const lobbyLeaveDebugState: LobbyLeaveDebugState = {
+  localAddress: null,
+  isAlreadyJoined: false,
+  ignoreBecauseReadyForMatch: false,
+  ignoreBecauseMatchRunning: false,
+  ignoreBecauseArenaIntro: false,
+  shouldIgnoreTriggerExitLeave: false,
+  cooldownActive: false,
+  cooldownRemainingMs: 0,
+  lastOutcome: 'idle'
+}
+
+export function getLobbyLeaveDebugState(): LobbyLeaveDebugState {
+  return lobbyLeaveDebugState
+}
+
 export class LobbyWorldPanel {
   private rootEntity = engine.addEntity()
   private panelEntity = engine.addEntity()
@@ -146,13 +174,43 @@ export class LobbyWorldPanel {
   private requestLobbyLeaveIfNeeded(): void {
     const localAddress = getLocalAddress()
     const lobby = getLobbyState()
+    const matchRuntime = getMatchRuntimeState()
     const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
-    if (!isAlreadyJoined) return
-    if (this.shouldIgnoreTriggerExitLeave()) return
-
     const nowMs = Date.now()
-    if (nowMs - this.lastLeaveRequestAtMs < LOBBY_REQUEST_COOLDOWN_MS) return
+    const ignoreBecauseReadyForMatch = isLocalReadyForMatch()
+    const ignoreBecauseMatchRunning = !!matchRuntime?.isRunning
+    const ignoreBecauseArenaIntro = !!(lobby?.arenaIntroEndTimeMs && lobby.arenaIntroEndTimeMs > getServerTime())
+    const shouldIgnoreTriggerExitLeave =
+      ignoreBecauseReadyForMatch || ignoreBecauseMatchRunning || ignoreBecauseArenaIntro
+    const cooldownRemainingMs = Math.max(0, LOBBY_REQUEST_COOLDOWN_MS - (nowMs - this.lastLeaveRequestAtMs))
+    const cooldownActive = cooldownRemainingMs > 0
+
+    lobbyLeaveDebugState.localAddress = localAddress
+    lobbyLeaveDebugState.isAlreadyJoined = isAlreadyJoined
+    lobbyLeaveDebugState.ignoreBecauseReadyForMatch = ignoreBecauseReadyForMatch
+    lobbyLeaveDebugState.ignoreBecauseMatchRunning = ignoreBecauseMatchRunning
+    lobbyLeaveDebugState.ignoreBecauseArenaIntro = ignoreBecauseArenaIntro
+    lobbyLeaveDebugState.shouldIgnoreTriggerExitLeave = shouldIgnoreTriggerExitLeave
+    lobbyLeaveDebugState.cooldownActive = cooldownActive
+    lobbyLeaveDebugState.cooldownRemainingMs = cooldownRemainingMs
+
+    if (!isAlreadyJoined) {
+      lobbyLeaveDebugState.lastOutcome = 'blocked:not_joined'
+      return
+    }
+    if (shouldIgnoreTriggerExitLeave) {
+      lobbyLeaveDebugState.lastOutcome = 'blocked:ignore_trigger_exit'
+      return
+    }
+    if (cooldownActive) {
+      lobbyLeaveDebugState.lastOutcome = 'blocked:cooldown'
+      return
+    }
+
     this.lastLeaveRequestAtMs = nowMs
+    lobbyLeaveDebugState.cooldownActive = true
+    lobbyLeaveDebugState.cooldownRemainingMs = LOBBY_REQUEST_COOLDOWN_MS
+    lobbyLeaveDebugState.lastOutcome = 'sent'
     sendLeaveLobby()
   }
 

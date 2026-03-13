@@ -1,4 +1,5 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
+import { myProfile } from '@dcl/sdk/network'
 import { Color4 } from '@dcl/sdk/math'
 import { movePlayerTo } from '~system/RestrictedActions'
 import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
@@ -36,6 +37,7 @@ import {
 import { LobbyPhase } from './shared/lobbySchemas'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 import { getServerTime } from './shared/timeSync'
+import { getLobbyLeaveDebugState } from './lobbyWorldPanel'
 
 const ENABLE_LEGACY_LOBBY_ROUND_UI = false
 const PLAYER_HP_FRAME_WIDTH = 581
@@ -83,8 +85,11 @@ export function setupUi() {
 
 export const uiMenu = () => {
   const state = getWaveUiState()
+  const profileUserId = myProfile?.userId ?? 'undefined'
   const lobbyState = getLobbyState()
   const localAddress = getLocalAddress()
+  const isAlreadyJoined = !!localAddress && !!lobbyState?.players.find((player) => player.address === localAddress)
+  const leaveDebugState = getLobbyLeaveDebugState()
   const isInLobby = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
   const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const isHost = !!localAddress && lobbyState?.hostAddress === localAddress
@@ -140,6 +145,89 @@ export const uiMenu = () => {
         justifyContent: 'flex-start'
       }}
     >
+      <UiEntity
+        uiTransform={{
+          width: '100%',
+          height: '100%',
+          positionType: 'absolute',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <UiEntity
+          uiTransform={{
+            width: 820,
+            minHeight: 170,
+            padding: { top: 10, bottom: 10, left: 14, right: 14 },
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          uiBackground={{ color: Color4.create(0, 0, 0, 0.65) }}
+        >
+          <UiEntity
+            uiTransform={{ width: '100%', height: 24 }}
+            uiText={{
+              value: `myProfile.userId: ${profileUserId}`,
+              fontSize: 18,
+              color: Color4.White(),
+              textAlign: 'middle-center'
+            }}
+          />
+          <UiEntity
+            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
+            uiText={{
+              value: `getLocalAddress(): ${localAddress ?? 'undefined'}`,
+              fontSize: 18,
+              color: Color4.create(0.85, 0.95, 1, 1),
+              textAlign: 'middle-center'
+            }}
+          />
+          <UiEntity
+            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
+            uiText={{
+              value: `isAlreadyJoined: ${isAlreadyJoined}`,
+              fontSize: 18,
+              color: Color4.create(1, 0.88, 0.62, 1),
+              textAlign: 'middle-center'
+            }}
+          />
+          <UiEntity
+            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
+            uiText={{
+              value: `leave.lastOutcome: ${leaveDebugState.lastOutcome}`,
+              fontSize: 18,
+              color: Color4.create(1, 0.72, 0.72, 1),
+              textAlign: 'middle-center'
+            }}
+          />
+          <UiEntity
+            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
+            uiText={{
+              value:
+                `leave.ignore = ${leaveDebugState.shouldIgnoreTriggerExitLeave}` +
+                ` | readyForMatch = ${leaveDebugState.ignoreBecauseReadyForMatch}` +
+                ` | matchRunning = ${leaveDebugState.ignoreBecauseMatchRunning}` +
+                ` | arenaIntro = ${leaveDebugState.ignoreBecauseArenaIntro}`,
+              fontSize: 16,
+              color: Color4.create(0.95, 0.9, 0.7, 1),
+              textAlign: 'middle-center'
+            }}
+          />
+          <UiEntity
+            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
+            uiText={{
+              value:
+                `leave.cooldownActive = ${leaveDebugState.cooldownActive}` +
+                ` | cooldownRemainingMs = ${leaveDebugState.cooldownRemainingMs}`,
+              fontSize: 16,
+              color: Color4.create(0.82, 0.92, 1, 1),
+              textAlign: 'middle-center'
+            }}
+          />
+        </UiEntity>
+      </UiEntity>
       {ENABLE_LEGACY_LOBBY_ROUND_UI && (
         <UiEntity
           uiTransform={{
