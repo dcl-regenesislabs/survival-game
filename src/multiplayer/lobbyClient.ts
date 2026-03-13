@@ -9,6 +9,7 @@ import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
 import { ArenaWeaponType } from '../shared/loadoutCatalog'
+import { logNetworkReceive, logNetworkSend } from '../networkDebug'
 
 let latestLobbyEvent = ''
 let latestLobbyEventType = ''
@@ -21,6 +22,9 @@ const playerArenaWeaponByAddress = new Map<string, ArenaWeaponType>()
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
+    if (data.type === 'player_joined' || data.type === 'player_joined_match') {
+      logNetworkReceive('lobbyEvent', data)
+    }
     const localAddress = getLocalAddress()
     const lobbyState = getLobbyState()
     const localIsInArena =
@@ -46,6 +50,7 @@ export function setupLobbyClient(): void {
     console.log(`[Lobby] ${data.type}: ${data.message}`)
   })
   room.onMessage('playerHealthState', (data) => {
+    logNetworkReceive('playerHealthState', data)
     const address = data.address.toLowerCase()
     playerCombatStateByAddress.set(address, {
       hp: data.hp,
@@ -59,15 +64,18 @@ export function setupLobbyClient(): void {
     applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs)
   })
   room.onMessage('playerLoadoutState', (data) => {
+    logNetworkReceive('playerLoadoutState', data)
     const localAddress = getLocalAddress()
     if (!localAddress || data.address !== localAddress) return
     applyPlayerLoadoutSnapshot(data)
   })
   room.onMessage('playerArenaWeaponState', (data) => {
+    logNetworkReceive('playerArenaWeaponState', data)
     if (data.weaponType !== 'gun' && data.weaponType !== 'shotgun' && data.weaponType !== 'minigun') return
     playerArenaWeaponByAddress.set(data.address.toLowerCase(), data.weaponType)
   })
   room.onMessage('matchAutoTeleport', (data) => {
+    logNetworkReceive('matchAutoTeleport', data)
     const localAddress = getLocalAddress()
     if (!localAddress || !data.addresses.includes(localAddress)) return
     localReadyForMatch = true
@@ -85,6 +93,7 @@ export function setupLobbyClient(): void {
     })
   })
   room.onMessage('lobbyReturnTeleport', (data) => {
+    logNetworkReceive('lobbyReturnTeleport', data)
     const localAddress = getLocalAddress()
     if (!localAddress || !data.addresses.includes(localAddress)) return
     localReadyForMatch = false
@@ -106,30 +115,37 @@ export function setupLobbyClient(): void {
 }
 
 export function sendLoadProfile(): void {
+  logNetworkSend('playerLoadProfile', {})
   void room.send('playerLoadProfile', {})
 }
 
 export function sendJoinLobby(): void {
+  logNetworkSend('playerJoinLobby', {})
   void room.send('playerJoinLobby', {})
 }
 
 export function sendLeaveLobby(): void {
+  logNetworkSend('playerLeaveLobby', {})
   void room.send('playerLeaveLobby', {})
 }
 
 export function sendBuyLoadoutWeapon(weaponId: string): void {
+  logNetworkSend('buyLoadoutWeapon', { weaponId })
   void room.send('buyLoadoutWeapon', { weaponId })
 }
 
 export function sendEquipLoadoutWeapon(weaponId: string): void {
+  logNetworkSend('equipLoadoutWeapon', { weaponId })
   void room.send('equipLoadoutWeapon', { weaponId })
 }
 
 export function sendCreateMatch(): void {
+  logNetworkSend('createMatch', {})
   void room.send('createMatch', {})
 }
 
 export function sendCreateMatchAndJoin(): void {
+  logNetworkSend('createMatchAndJoin', {})
   void room.send('createMatchAndJoin', {})
 }
 
@@ -147,7 +163,7 @@ export function sendPlayerShotRequest(
   direction: Vector3,
   seq: number
 ): void {
-  void room.send('playerShotRequest', {
+  const payload = {
     seq,
     weaponType,
     originX: origin.x,
@@ -157,7 +173,8 @@ export function sendPlayerShotRequest(
     directionY: direction.y,
     directionZ: direction.z,
     firedAtMs: Date.now()
-  })
+  }
+  void room.send('playerShotRequest', payload)
 }
 
 export function sendPlayerArenaWeaponChanged(weaponType: ArenaWeaponType): void {

@@ -42,6 +42,7 @@ type LobbyLeaveDebugState = {
   cooldownActive: boolean
   cooldownRemainingMs: number
   lastOutcome: 'idle' | 'blocked:not_joined' | 'blocked:ignore_trigger_exit' | 'blocked:cooldown' | 'sent'
+  traceLines: string[]
 }
 
 const lobbyLeaveDebugState: LobbyLeaveDebugState = {
@@ -53,7 +54,18 @@ const lobbyLeaveDebugState: LobbyLeaveDebugState = {
   shouldIgnoreTriggerExitLeave: false,
   cooldownActive: false,
   cooldownRemainingMs: 0,
-  lastOutcome: 'idle'
+  lastOutcome: 'idle',
+  traceLines: []
+}
+
+const MAX_LEAVE_TRACE_LINES = 10
+
+function pushLobbyLeaveTrace(message: string): void {
+  const timestamp = new Date().toISOString().slice(11, 23)
+  lobbyLeaveDebugState.traceLines.push(`${timestamp} ${message}`)
+  if (lobbyLeaveDebugState.traceLines.length > MAX_LEAVE_TRACE_LINES) {
+    lobbyLeaveDebugState.traceLines.shift()
+  }
 }
 
 export function getLobbyLeaveDebugState(): LobbyLeaveDebugState {
@@ -172,6 +184,7 @@ export class LobbyWorldPanel {
   }
 
   private requestLobbyLeaveIfNeeded(): void {
+    pushLobbyLeaveTrace('requestLobbyLeaveIfNeeded() start')
     const localAddress = getLocalAddress()
     const lobby = getLobbyState()
     const matchRuntime = getMatchRuntimeState()
@@ -194,16 +207,27 @@ export class LobbyWorldPanel {
     lobbyLeaveDebugState.cooldownActive = cooldownActive
     lobbyLeaveDebugState.cooldownRemainingMs = cooldownRemainingMs
 
+    pushLobbyLeaveTrace(`localAddress=${localAddress ?? 'undefined'}`)
+    pushLobbyLeaveTrace(`isAlreadyJoined=${isAlreadyJoined}`)
+
     if (!isAlreadyJoined) {
       lobbyLeaveDebugState.lastOutcome = 'blocked:not_joined'
+      pushLobbyLeaveTrace('return: !isAlreadyJoined')
       return
     }
+    pushLobbyLeaveTrace(`ignore.readyForMatch=${ignoreBecauseReadyForMatch}`)
+    pushLobbyLeaveTrace(`ignore.matchRunning=${ignoreBecauseMatchRunning}`)
+    pushLobbyLeaveTrace(`ignore.arenaIntro=${ignoreBecauseArenaIntro}`)
+    pushLobbyLeaveTrace(`shouldIgnoreTriggerExitLeave=${shouldIgnoreTriggerExitLeave}`)
     if (shouldIgnoreTriggerExitLeave) {
       lobbyLeaveDebugState.lastOutcome = 'blocked:ignore_trigger_exit'
+      pushLobbyLeaveTrace('return: shouldIgnoreTriggerExitLeave()')
       return
     }
+    pushLobbyLeaveTrace(`cooldownRemainingMs=${cooldownRemainingMs}`)
     if (cooldownActive) {
       lobbyLeaveDebugState.lastOutcome = 'blocked:cooldown'
+      pushLobbyLeaveTrace('return: cooldown active')
       return
     }
 
@@ -211,6 +235,7 @@ export class LobbyWorldPanel {
     lobbyLeaveDebugState.cooldownActive = true
     lobbyLeaveDebugState.cooldownRemainingMs = LOBBY_REQUEST_COOLDOWN_MS
     lobbyLeaveDebugState.lastOutcome = 'sent'
+    pushLobbyLeaveTrace('sendLeaveLobby()')
     sendLeaveLobby()
   }
 

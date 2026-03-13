@@ -38,6 +38,7 @@ import { LobbyPhase } from './shared/lobbySchemas'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 import { getServerTime } from './shared/timeSync'
 import { getLobbyLeaveDebugState } from './lobbyWorldPanel'
+import { getNetworkTraceLines } from './networkDebug'
 
 const ENABLE_LEGACY_LOBBY_ROUND_UI = false
 const PLAYER_HP_FRAME_WIDTH = 581
@@ -90,6 +91,7 @@ export const uiMenu = () => {
   const localAddress = getLocalAddress()
   const isAlreadyJoined = !!localAddress && !!lobbyState?.players.find((player) => player.address === localAddress)
   const leaveDebugState = getLobbyLeaveDebugState()
+  const networkTraceLines = getNetworkTraceLines()
   const isInLobby = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
   const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const isHost = !!localAddress && lobbyState?.hostAddress === localAddress
@@ -158,7 +160,7 @@ export const uiMenu = () => {
         <UiEntity
           uiTransform={{
             width: 820,
-            minHeight: 170,
+            minHeight: 620,
             padding: { top: 10, bottom: 10, left: 14, right: 14 },
             flexDirection: 'column',
             alignItems: 'center',
@@ -226,7 +228,69 @@ export const uiMenu = () => {
               textAlign: 'middle-center'
             }}
           />
+          <UiEntity
+            uiTransform={{ width: '100%', height: 24, margin: { top: 10 } }}
+            uiText={{
+              value: 'leave.trace',
+              fontSize: 18,
+              color: Color4.create(0.9, 1, 0.9, 1),
+              textAlign: 'middle-center'
+            }}
+          />
+          <UiEntity
+            uiTransform={{
+              width: '100%',
+              minHeight: 180,
+              margin: { top: 4 },
+              padding: { top: 8, bottom: 8, left: 10, right: 10 },
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              justifyContent: 'flex-start'
+            }}
+            uiBackground={{ color: Color4.create(0.04, 0.04, 0.04, 0.7) }}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', minHeight: 160 }}
+              uiText={{
+                value: leaveDebugState.traceLines.length > 0 ? leaveDebugState.traceLines.join('\n') : 'No traces yet',
+                fontSize: 14,
+                color: Color4.create(0.82, 1, 0.84, 1),
+              textAlign: 'top-left'
+            }}
+          />
+          <UiEntity
+            uiTransform={{ width: '100%', height: 24, margin: { top: 10 } }}
+            uiText={{
+              value: 'network.trace',
+              fontSize: 18,
+              color: Color4.create(0.9, 0.96, 1, 1),
+              textAlign: 'middle-center'
+            }}
+          />
+          <UiEntity
+            uiTransform={{
+              width: '100%',
+              minHeight: 200,
+              margin: { top: 4 },
+              padding: { top: 8, bottom: 8, left: 10, right: 10 },
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              justifyContent: 'flex-start'
+            }}
+            uiBackground={{ color: Color4.create(0.03, 0.05, 0.09, 0.72) }}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', minHeight: 180 }}
+              uiText={{
+                value: networkTraceLines.length > 0 ? networkTraceLines.join('\n') : 'No network traces yet',
+                fontSize: 13,
+                color: Color4.create(0.8, 0.92, 1, 1),
+                textAlign: 'top-left'
+              }}
+            />
+          </UiEntity>
         </UiEntity>
+      </UiEntity>
       </UiEntity>
       {ENABLE_LEGACY_LOBBY_ROUND_UI && (
         <UiEntity
