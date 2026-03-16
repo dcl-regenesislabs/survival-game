@@ -1,5 +1,4 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
-import { myProfile } from '@dcl/sdk/network'
 import { Color4 } from '@dcl/sdk/math'
 import { movePlayerTo } from '~system/RestrictedActions'
 import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
@@ -32,13 +31,14 @@ import {
   isLocalReadyForMatch,
   sendCreateMatch,
   sendJoinLobby,
-  sendLeaveLobby
+  sendLeaveLobby,
+  getRoomReadyDebugState
 } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 import { getServerTime } from './shared/timeSync'
 import { getLobbyLeaveDebugState } from './lobbyWorldPanel'
-import { getNetworkTraceLines } from './networkDebug'
+import { getNetworkTraceLines, getProfileLoadDebugState } from './networkDebug'
 
 const ENABLE_LEGACY_LOBBY_ROUND_UI = false
 const PLAYER_HP_FRAME_WIDTH = 581
@@ -86,12 +86,16 @@ export function setupUi() {
 
 export const uiMenu = () => {
   const state = getWaveUiState()
-  const profileUserId = myProfile?.userId ?? 'undefined'
   const lobbyState = getLobbyState()
   const localAddress = getLocalAddress()
-  const isAlreadyJoined = !!localAddress && !!lobbyState?.players.find((player) => player.address === localAddress)
   const leaveDebugState = getLobbyLeaveDebugState()
   const networkTraceLines = getNetworkTraceLines()
+  const profileLoadDebug = getProfileLoadDebugState()
+  const profileLoadSummary = profileLoadDebug.attempts.length === 0
+    ? 'no attempts yet'
+    : profileLoadDebug.attempts.map((a, i) => `#${i + 1} ${a.sentAt} connected=${a.isConnectedSceneRoom}`).join(' | ')
+  const profileRecvSummary = profileLoadDebug.firstRecvAt ?? 'no response yet'
+  const roomReady = getRoomReadyDebugState()
   const isInLobby = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
   const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const isHost = !!localAddress && lobbyState?.hostAddress === localAddress
@@ -159,80 +163,56 @@ export const uiMenu = () => {
       >
         <UiEntity
           uiTransform={{
-            width: 820,
-            minHeight: 620,
-            padding: { top: 10, bottom: 10, left: 14, right: 14 },
+            width: '90%',
+            minHeight: 700,
+            padding: { top: 16, bottom: 16, left: 20, right: 20 },
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center'
           }}
-          uiBackground={{ color: Color4.create(0, 0, 0, 0.65) }}
+          uiBackground={{ color: Color4.create(0, 0, 0, 0.82) }}
         >
           <UiEntity
-            uiTransform={{ width: '100%', height: 24 }}
+            uiTransform={{ width: '100%', height: 36 }}
             uiText={{
-              value: `myProfile.userId: ${profileUserId}`,
+              value: `room.isReady=${roomReady.roomIsReady} | crdtAttempts=${roomReady.crdtAttempts}`,
+              fontSize: 20,
+              color: Color4.create(1, 0.7, 1, 1),
+              textAlign: 'middle-center'
+            }}
+          />
+          <UiEntity
+            uiTransform={{ width: '100%', height: 36, margin: { top: 4 } }}
+            uiText={{
+              value: `commsAdapter=${roomReady.commsAdapter || 'EMPTY'} | realm.room=${roomReady.realmRoom}`,
               fontSize: 18,
-              color: Color4.White(),
+              color: Color4.create(1, 0.7, 1, 1),
               textAlign: 'middle-center'
             }}
           />
           <UiEntity
-            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
+            uiTransform={{ width: '100%', height: 36, margin: { top: 6 } }}
             uiText={{
-              value: `getLocalAddress(): ${localAddress ?? 'undefined'}`,
+              value: `loadProfile.attempts: ${profileLoadSummary}`,
               fontSize: 18,
-              color: Color4.create(0.85, 0.95, 1, 1),
+              color: Color4.create(1, 0.95, 0.6, 1),
               textAlign: 'middle-center'
             }}
           />
           <UiEntity
-            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
+            uiTransform={{ width: '100%', height: 36, margin: { top: 4 } }}
             uiText={{
-              value: `isAlreadyJoined: ${isAlreadyJoined}`,
+              value: `loadProfile.firstRecv: ${profileRecvSummary}`,
               fontSize: 18,
-              color: Color4.create(1, 0.88, 0.62, 1),
+              color: Color4.create(0.6, 1, 0.7, 1),
               textAlign: 'middle-center'
             }}
           />
           <UiEntity
-            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
-            uiText={{
-              value: `leave.lastOutcome: ${leaveDebugState.lastOutcome}`,
-              fontSize: 18,
-              color: Color4.create(1, 0.72, 0.72, 1),
-              textAlign: 'middle-center'
-            }}
-          />
-          <UiEntity
-            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
-            uiText={{
-              value:
-                `leave.ignore = ${leaveDebugState.shouldIgnoreTriggerExitLeave}` +
-                ` | readyForMatch = ${leaveDebugState.ignoreBecauseReadyForMatch}` +
-                ` | matchRunning = ${leaveDebugState.ignoreBecauseMatchRunning}` +
-                ` | arenaIntro = ${leaveDebugState.ignoreBecauseArenaIntro}`,
-              fontSize: 16,
-              color: Color4.create(0.95, 0.9, 0.7, 1),
-              textAlign: 'middle-center'
-            }}
-          />
-          <UiEntity
-            uiTransform={{ width: '100%', height: 24, margin: { top: 4 } }}
-            uiText={{
-              value:
-                `leave.cooldownActive = ${leaveDebugState.cooldownActive}` +
-                ` | cooldownRemainingMs = ${leaveDebugState.cooldownRemainingMs}`,
-              fontSize: 16,
-              color: Color4.create(0.82, 0.92, 1, 1),
-              textAlign: 'middle-center'
-            }}
-          />
-          <UiEntity
-            uiTransform={{ width: '100%', height: 24, margin: { top: 10 } }}
+            uiTransform={{ width: '100%', height: 36, margin: { top: 14 } }}
             uiText={{
               value: 'leave.trace',
-              fontSize: 18,
+              fontSize: 22,
               color: Color4.create(0.9, 1, 0.9, 1),
               textAlign: 'middle-center'
             }}
@@ -240,9 +220,9 @@ export const uiMenu = () => {
           <UiEntity
             uiTransform={{
               width: '100%',
-              minHeight: 180,
-              margin: { top: 4 },
-              padding: { top: 8, bottom: 8, left: 10, right: 10 },
+              minHeight: 160,
+              margin: { top: 6 },
+              padding: { top: 10, bottom: 10, left: 12, right: 12 },
               flexDirection: 'column',
               alignItems: 'flex-start',
               justifyContent: 'flex-start'
@@ -250,19 +230,20 @@ export const uiMenu = () => {
             uiBackground={{ color: Color4.create(0.04, 0.04, 0.04, 0.7) }}
           >
             <UiEntity
-              uiTransform={{ width: '100%', minHeight: 160 }}
+              uiTransform={{ width: '100%', minHeight: 140 }}
               uiText={{
                 value: leaveDebugState.traceLines.length > 0 ? leaveDebugState.traceLines.join('\n') : 'No traces yet',
-                fontSize: 14,
+                fontSize: 18,
                 color: Color4.create(0.82, 1, 0.84, 1),
-              textAlign: 'top-left'
-            }}
-          />
+                textAlign: 'top-left'
+              }}
+            />
+          </UiEntity>
           <UiEntity
-            uiTransform={{ width: '100%', height: 24, margin: { top: 10 } }}
+            uiTransform={{ width: '100%', height: 36, margin: { top: 14 } }}
             uiText={{
               value: 'network.trace',
-              fontSize: 18,
+              fontSize: 22,
               color: Color4.create(0.9, 0.96, 1, 1),
               textAlign: 'middle-center'
             }}
@@ -271,8 +252,8 @@ export const uiMenu = () => {
             uiTransform={{
               width: '100%',
               minHeight: 200,
-              margin: { top: 4 },
-              padding: { top: 8, bottom: 8, left: 10, right: 10 },
+              margin: { top: 6 },
+              padding: { top: 10, bottom: 10, left: 12, right: 12 },
               flexDirection: 'column',
               alignItems: 'flex-start',
               justifyContent: 'flex-start'
@@ -283,14 +264,13 @@ export const uiMenu = () => {
               uiTransform={{ width: '100%', minHeight: 180 }}
               uiText={{
                 value: networkTraceLines.length > 0 ? networkTraceLines.join('\n') : 'No network traces yet',
-                fontSize: 13,
+                fontSize: 17,
                 color: Color4.create(0.8, 0.92, 1, 1),
                 textAlign: 'top-left'
               }}
             />
           </UiEntity>
         </UiEntity>
-      </UiEntity>
       </UiEntity>
       {ENABLE_LEGACY_LOBBY_ROUND_UI && (
         <UiEntity

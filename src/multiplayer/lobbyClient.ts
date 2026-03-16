@@ -1,4 +1,6 @@
 import { engine, PlayerIdentityData, RealmInfo } from '@dcl/sdk/ecs'
+import { binaryMessageBus } from '@dcl/sdk/network'
+import { CommsMessage } from '@dcl/sdk/network/binary-message-bus'
 import { room } from '../shared/messages'
 import { LobbyStateComponent, LobbyStateSnapshot } from '../shared/lobbySchemas'
 import { MatchRuntimeSnapshot, MatchRuntimeStateComponent } from '../shared/matchRuntimeSchemas'
@@ -9,12 +11,19 @@ import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
 import { ArenaWeaponType } from '../shared/loadoutCatalog'
-import { logNetworkReceive, logNetworkSend } from '../networkDebug'
+import { logNetworkReceive, logNetworkSend, logProfileLoadAttempt, notifyFirstRecv, getProfileLoadDebugState } from '../networkDebug'
 
 let latestLobbyEvent = ''
 let latestLobbyEventType = ''
 let latestLobbyEventAtMs = 0
 let hasProfileLoadSent = false
+let profileLoadSentAtMs = 0
+const PROFILE_LOAD_RETRY_INTERVAL_MS = 4000
+const PROFILE_LOAD_MAX_RETRIES = 6
+let crdtStateRequestElapsedMs = 0
+const CRDT_STATE_REQUEST_INTERVAL_MS = 3000
+const CRDT_STATE_REQUEST_MAX_ATTEMPTS = 10
+let crdtStateRequestAttempts = 0
 let localReadyForMatch = false
 let lastTeamWipeAffectedLocalPlayer = false
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
@@ -22,6 +31,7 @@ const playerArenaWeaponByAddress = new Map<string, ArenaWeaponType>()
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
+    notifyFirstRecv()
     if (data.type === 'player_joined' || data.type === 'player_joined_match') {
       logNetworkReceive('lobbyEvent', data)
     }
@@ -112,9 +122,11 @@ export function setupLobbyClient(): void {
   })
 
   engine.addSystem(autoJoinLobbySystem, undefined, 'auto-join-lobby-client-system')
+  engine.addSystem(forceCrdtStateRequestSystem, undefined, 'force-crdt-state-request-system')
 }
 
-export function sendLoadProfile(): void {
+export function sendLoadProfile(isConnectedSceneRoom: boolean): void {
+  logProfileLoadAttempt(isConnectedSceneRoom)
   logNetworkSend('playerLoadProfile', {})
   void room.send('playerLoadProfile', {})
 }
@@ -186,16 +198,56 @@ export function getLocalAddress(): string {
   return identity?.address?.toLowerCase() || ''
 }
 
+export function getRoomReadyDebugState() {
+  const realmInfo = RealmInfo.getOrNull(engine.RootEntity)
+  return {
+    roomIsReady: room.isReady(),
+    realmRoom: realmInfo?.room ?? 'null',
+    commsAdapter: realmInfo?.commsAdapter ?? 'null',
+    isConnectedSceneRoom: realmInfo?.isConnectedSceneRoom ?? false,
+    crdtAttempts: crdtStateRequestAttempts
+  }
+}
+
 function autoJoinLobbySystem(): void {
-  if (hasProfileLoadSent) return
   const localAddress = getLocalAddress()
   if (!localAddress) return
 
   const realmInfo = RealmInfo.getOrNull(engine.RootEntity)
   if (!realmInfo?.isConnectedSceneRoom) return
 
+  if (hasProfileLoadSent) {
+    const alreadyInLobby = !!getLobbyState()?.players.find((p) => p.address === localAddress)
+    if (alreadyInLobby) return
+
+    const { attempts } = getProfileLoadDebugState()
+    if (attempts.length >= PROFILE_LOAD_MAX_RETRIES) return
+
+    const elapsed = Date.now() - profileLoadSentAtMs
+    if (elapsed < PROFILE_LOAD_RETRY_INTERVAL_MS) return
+
+    hasProfileLoadSent = false
+  }
+
   hasProfileLoadSent = true
-  sendLoadProfile()
+  profileLoadSentAtMs = Date.now()
+  sendLoadProfile(!!realmInfo.isConnectedSceneRoom)
+}
+
+function forceCrdtStateRequestSystem(dt: number): void {
+  if (room.isReady()) return
+  if (crdtStateRequestAttempts >= CRDT_STATE_REQUEST_MAX_ATTEMPTS) return
+
+  const realmInfo = RealmInfo.getOrNull(engine.RootEntity)
+  if (!realmInfo?.isConnectedSceneRoom) return
+
+  crdtStateRequestElapsedMs += dt * 1000
+  if (crdtStateRequestElapsedMs < CRDT_STATE_REQUEST_INTERVAL_MS) return
+
+  crdtStateRequestElapsedMs = 0
+  crdtStateRequestAttempts++
+  console.log(`[RoomReady] Forcing REQ_CRDT_STATE attempt ${crdtStateRequestAttempts}`)
+  binaryMessageBus.emit(CommsMessage.REQ_CRDT_STATE, new Uint8Array())
 }
 
 export function getLobbyState(): LobbyStateSnapshot | null {
