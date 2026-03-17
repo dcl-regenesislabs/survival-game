@@ -16,6 +16,7 @@ import { ZombieComponent, damageZombie } from './zombie'
 import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
+import { getLocalRotationFromWorld } from './shared/weaponMath'
 
 const GUN_MODEL = 'assets/scene/Models/drones/gun/DroneGun.glb'
 const DEBUG_SHOW_GUN_IN_LOBBY = false
@@ -33,7 +34,6 @@ const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = ch
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
 const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
 // How long to freeze gun rotation after shooting (so bullet spawn looks correct). Tweak to match your shoot clip length.
-const SHOOT_ANIM_FREEZE_DURATION = 0
 const GUN_ROTATION_SMOOTH_SPEED = 14
 // Bullet flies straight; remove after this distance from spawn (out of scene)
 const BULLET_MAX_DISTANCE = 40
@@ -54,8 +54,6 @@ export const ProjectileComponent = engine.defineComponent('ProjectileComponent',
 let gunEntity: Entity | null = null
 let gunModelEntity: Entity | null = null
 let shootTimer = 0
-/** Seconds left to freeze gun rotation after shoot (animator.playing may not clear when clip ends) */
-let rotationFreezeRemaining = 0
 let localShotSeq = 0
 
 function isLocalPlayerInArena(): boolean {
@@ -67,13 +65,6 @@ function isLocalPlayerInArena(): boolean {
     lobbyState.phase === 'match_created' &&
     lobbyState.arenaPlayers.some((player) => player.address === localAddress) &&
     isLocalReadyForMatch()
-  )
-}
-
-function getLocalRotationFromWorld(parentRotation: Quaternion, worldRotation: Quaternion): Quaternion {
-  return Quaternion.multiply(
-    Quaternion.create(-parentRotation.x, -parentRotation.y, -parentRotation.z, parentRotation.w),
-    worldRotation
   )
 }
 
@@ -104,7 +95,6 @@ function playGunAnimation() {
       shootState.shouldReset = true
     }
   }
-  rotationFreezeRemaining = SHOOT_ANIM_FREEZE_DURATION
 }
 
 function spawnProjectile(
@@ -155,13 +145,6 @@ export function createGun(): Entity {
 
   const gun = engine.addEntity()
   const gunModel = engine.addEntity()
-  const startPos =
-    Transform.has(engine.PlayerEntity)
-      ? Vector3.add(
-          Transform.get(engine.PlayerEntity).position,
-          Vector3.rotate(GUN_OFFSET, Transform.get(engine.PlayerEntity).rotation)
-        )
-      : Vector3.create(0, 0, 0)
   Transform.create(gun, {
     parent: Transform.has(engine.PlayerEntity) ? engine.PlayerEntity : undefined,
     position: GUN_OFFSET,
@@ -255,14 +238,12 @@ export function gunSystem(dt: number) {
 
   if (!gunEntity) return
 
-  if (rotationFreezeRemaining > 0) rotationFreezeRemaining -= dt
-
   const playerTransform = Transform.get(engine.PlayerEntity)
   const gunWorldPos = Vector3.add(
     playerTransform.position,
     Vector3.rotate(GUN_OFFSET, playerTransform.rotation)
   )
-  const visibleGunPos = Vector3.clone(gunWorldPos)
+  const visibleGunPos = gunWorldPos
 
   const nearestZombie = getNearestZombie(visibleGunPos)
   const aimDir = nearestZombie
