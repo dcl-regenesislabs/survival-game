@@ -18,7 +18,7 @@ import { getFireRateMultiplier } from './rageEffect'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
 
 const GUN_MODEL = 'assets/scene/Models/drones/gun/DroneGun.glb'
-const DEBUG_SHOW_GUN_IN_LOBBY = true
+const DEBUG_SHOW_GUN_IN_LOBBY = false
 const GUN_MODEL_VISUAL_OFFSET = Vector3.create(0.45, 1.15, 0.35)
 
 const GUN_SHOOT_ANIM = 'DroneGunShoot'
@@ -236,9 +236,12 @@ export function gunSystem(dt: number) {
 
   const isInArena = isLocalPlayerInArena()
   const shouldShowDebugLobbyGun = DEBUG_SHOW_GUN_IN_LOBBY && !isInArena
-  const shouldTrackGun = shouldShowDebugLobbyGun || getCurrentWeapon() === 'gun'
+  const shouldTrackGun = shouldShowDebugLobbyGun || (isInArena && getCurrentWeapon() === 'gun')
 
-  if (!shouldTrackGun) return
+  if (!shouldTrackGun) {
+    if (gunEntity) destroyGun()
+    return
+  }
 
   if (!gunEntity) {
     if (!shouldShowDebugLobbyGun && getCurrentWeapon() !== 'gun') return
