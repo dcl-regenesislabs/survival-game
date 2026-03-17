@@ -3,6 +3,7 @@ import { getGameTime, spawnZombie, spawnQuickZombie, spawnTankZombie, despawnAll
 import { ZombieComponent } from './zombie'
 import { resetZombieCoins } from './zombieCoins'
 import { despawnAllBricks } from './brick'
+import { getLobbyState } from './multiplayer/lobbyClient'
 
 const MAX_WAVES = 100
 const COUNTDOWN_SECONDS = 5 // Give players more time to prepare
@@ -37,6 +38,7 @@ const state: {
   waveStartTime: number
   spawnSchedule: SpawnGroup[]
   nextSpawnIndex: number
+  matchPlayerCount: number
 } = {
   phase: 'idle',
   currentWave: 0,
@@ -45,7 +47,8 @@ const state: {
   waveCompleteEndTime: 0,
   waveStartTime: 0,
   spawnSchedule: [],
-  nextSpawnIndex: 0
+  nextSpawnIndex: 0,
+  matchPlayerCount: 1
 }
 
 export function getWaveUiState(): WaveUiState {
@@ -103,9 +106,15 @@ function countZombiesAlive(): number {
   return count
 }
 
+/** Reads arena player count from lobby — only called once at match start. */
+function getArenaPlayerCount(): number {
+  return Math.max(1, getLobbyState()?.arenaPlayers.length ?? 1)
+}
+
 /**
  * Generate spawn schedule for a given wave.
  * Uses exponential scaling and varied compositions for engaging gameplay.
+ * Zombie count scales with player count locked in at match start: +50% per additional player (1p=1x, 2p=1.5x, 3p=2x, 4p=2.5x).
  */
 function buildSpawnSchedule(wave: number): SpawnGroup[] {
   const isBossWave = wave % 10 === 0
@@ -119,7 +128,11 @@ function buildSpawnSchedule(wave: number): SpawnGroup[] {
   
   const scaleFactor = Math.pow(1 + wave / 10, 1.3)
   let totalZombies = Math.floor(baseCount * scaleFactor)
-  
+
+  // Scale with player count locked in at match start: +50% per additional player (1p=1x, 2p=1.5x, 3p=2x, 4p=2.5x)
+  const playerMultiplier = 0.5 + state.matchPlayerCount * 0.5
+  totalZombies = Math.floor(totalZombies * playerMultiplier)
+
   // Cap at reasonable numbers to avoid performance issues
   totalZombies = Math.min(totalZombies, 80)
   
@@ -243,6 +256,7 @@ function shuffleArray<T>(array: T[]): T[] {
 export function onStartPressed(): void {
   if (state.phase === 'idle' || state.phase === 'game_complete') {
     resetZombieCoins()
+    state.matchPlayerCount = getArenaPlayerCount()
     state.currentWave = 1
     state.phase = 'countdown'
     state.countdownValue = COUNTDOWN_SECONDS
@@ -270,6 +284,7 @@ export function resetToIdle(): void {
   state.countdownValue = 0
   state.spawnSchedule = []
   state.nextSpawnIndex = 0
+  state.matchPlayerCount = 1
   despawnAllZombies()
   despawnAllBricks()
   resetZombieCoins()

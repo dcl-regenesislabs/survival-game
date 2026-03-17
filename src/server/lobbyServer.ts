@@ -758,10 +758,12 @@ function randomSpawnPoint() {
   return { spawnX, spawnY: 0, spawnZ }
 }
 
-function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDurationSeconds: number) {
+function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDurationSeconds: number, playerCount: number) {
   const intervalMs = Math.floor(CLIENT_SPAWN_INTERVAL_SECONDS * 1000)
   const activeMs = Math.floor(activeDurationSeconds * 1000)
-  const groupSize = getSpawnGroupSize(waveNumber)
+  // Scale group size with player count: +50% per additional player (1p=1x, 2p=1.5x, 3p=2x, 4p=2.5x)
+  const playerMultiplier = 0.5 + Math.max(1, playerCount) * 0.5
+  const groupSize = Math.round(getSpawnGroupSize(waveNumber) * playerMultiplier)
   const spawns: WavePlanSpawn[] = []
 
   for (let offsetMs = 0; offsetMs < activeMs; offsetMs += intervalMs) {
@@ -790,7 +792,8 @@ function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDuratio
 
 function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
   const runtime = getMatchRuntimeMutable()
-  const plan = buildWaveSpawnPlan(waveNumber, startAtMs, runtime.activeDurationSeconds)
+  const playerCount = getLobbyState()?.arenaPlayers.length ?? 1
+  const plan = buildWaveSpawnPlan(waveNumber, startAtMs, runtime.activeDurationSeconds, playerCount)
 
   for (const spawn of plan.spawns) {
     zombieSpawnAtById.set(spawn.zombieId, {
