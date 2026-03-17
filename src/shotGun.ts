@@ -25,7 +25,7 @@ const GUN_MODEL_VISUAL_OFFSET = Vector3.create(0.45, 1.15, 0.35)
 const GUN_SHOOT_ANIM = 'DroneShotGunShoot'
 
 // Gun config - tweak these to your liking
-const GUN_OFFSET = Vector3.create(0, 0, 0) // Local offset from player (right, up, forward)
+const GUN_OFFSET = Vector3.create(0.18, 0, 0) // Local offset from player (right, up, forward)
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
 const SHOOT_RANGE = 100
@@ -34,21 +34,26 @@ const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = ch
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
 const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
 // How long to freeze gun rotation after shooting (so bullet spawn looks correct). Tweak to match your shoot clip length.
-const SHOOT_ANIM_FREEZE_DURATION = 0.4
+const SHOOT_ANIM_FREEZE_DURATION = 0
+const GUN_ROTATION_SMOOTH_SPEED = 14
 // Bullet flies straight; remove after this distance from spawn (out of scene)
 const BULLET_MAX_DISTANCE = 40
 const GUN_SYSTEM_PRIORITY_LAST = -1000
 
 // Unparented gun: we set position and rotation every frame (lerp/slerp to reduce jitter). Bullet spawns at exact gunWorldPos/gunWorldRot.
-const GUN_POSITION_SMOOTH_SPEED = 12
-const GUN_ROTATION_SMOOTH_SPEED = 12
-
 let gunEntity: Entity | null = null
 let gunModelEntity: Entity | null = null
 let shootTimer = 0
 /** Seconds left to freeze gun rotation after shoot (animator.playing may not clear when clip ends) */
 let rotationFreezeRemaining = 0
 let localShotSeq = 0
+
+function getLocalRotationFromWorld(parentRotation: Quaternion, worldRotation: Quaternion): Quaternion {
+  return Quaternion.multiply(
+    Quaternion.create(-parentRotation.x, -parentRotation.y, -parentRotation.z, parentRotation.w),
+    worldRotation
+  )
+}
 
 function getNearestZombie(fromPosition: Vector3): Entity | null {
   let nearest: Entity | null = null
@@ -151,7 +156,8 @@ export function createShotGun(): Entity {
         )
       : Vector3.create(0, 0, 0)
   Transform.create(gun, {
-    position: startPos,
+    parent: Transform.has(engine.PlayerEntity) ? engine.PlayerEntity : undefined,
+    position: GUN_OFFSET,
     rotation: Quaternion.Identity(),
     scale: Vector3.One()
   })
@@ -203,11 +209,7 @@ export function shotGunSystem(dt: number) {
     playerTransform.position,
     Vector3.rotate(GUN_OFFSET, playerTransform.rotation)
   )
-  const mutableGunTransform = Transform.getMutable(gunEntity)
-  const currentPos = Transform.get(gunEntity).position
-  const posSmooth = 1 - Math.exp(-GUN_POSITION_SMOOTH_SPEED * dt)
-  mutableGunTransform.position = Vector3.lerp(currentPos, gunWorldPos, posSmooth)
-  const visibleGunPos = Vector3.clone(mutableGunTransform.position)
+  const visibleGunPos = Vector3.clone(gunWorldPos)
 
   const nearestZombie = getNearestZombie(visibleGunPos)
   const aimDir = nearestZombie
@@ -224,12 +226,15 @@ export function shotGunSystem(dt: number) {
   const lenSqXZ = aimDirXZ.x * aimDirXZ.x + aimDirXZ.z * aimDirXZ.z
   let visibleGunRot = Transform.get(gunEntity).rotation
 
-  if (rotationFreezeRemaining <= 0 && lenSqXZ > 0.001) {
-    visibleGunRot = Quaternion.lookRotation(Vector3.normalize(aimDirXZ))
-    const currentRot = Transform.get(gunEntity).rotation
+  if (lenSqXZ > 0.001) {
+    const desiredWorldRot = Quaternion.lookRotation(Vector3.normalize(aimDirXZ))
+    visibleGunRot = desiredWorldRot
+    const desiredLocalRot = getLocalRotationFromWorld(playerTransform.rotation, desiredWorldRot)
+    const mutableGunTransform = Transform.getMutable(gunEntity)
+    const currentLocalRot = Transform.get(gunEntity).rotation
     const rotSmooth = 1 - Math.exp(-GUN_ROTATION_SMOOTH_SPEED * dt)
-    mutableGunTransform.rotation = Quaternion.slerp(currentRot, visibleGunRot, rotSmooth)
-    visibleGunRot = mutableGunTransform.rotation
+    mutableGunTransform.rotation = Quaternion.slerp(currentLocalRot, desiredLocalRot, rotSmooth)
+    visibleGunRot = Quaternion.multiply(playerTransform.rotation, mutableGunTransform.rotation)
   }
 
   const effectiveFireRate = FIRE_RATE / getFireRateMultiplier()
