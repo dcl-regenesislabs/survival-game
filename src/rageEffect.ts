@@ -3,7 +3,7 @@
  * Weapons read getFireRateMultiplier() when deciding shoot interval.
  */
 
-const RAGE_DURATION_SEC = 10
+export const RAGE_DURATION_SEC = 10
 let rageEndTime = 0
 
 export function getFireRateMultiplier(): number {
