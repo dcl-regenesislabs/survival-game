@@ -95,6 +95,24 @@ export function damageBrick(entity: Entity, amount: number): boolean {
 
 const PLACE_DISTANCE = 1
 const BRICK_TARGET_TIMEOUT_MS = 5000
+
+// Grid snapping – all bricks align to a 1-unit grid so forts can be built cleanly
+const GRID_SIZE = 1
+// Arena play area bounds (arena center 32,32, size 48×48 → [8,56]; leave 1 unit margin)
+const ARENA_MIN_X = 9
+const ARENA_MAX_X = 55
+const ARENA_MIN_Z = 9
+const ARENA_MAX_Z = 55
+
+function snapToGrid(v: Vector3): Vector3 {
+  const snappedX = Math.round(v.x / GRID_SIZE) * GRID_SIZE
+  const snappedZ = Math.round(v.z / GRID_SIZE) * GRID_SIZE
+  return Vector3.create(
+    Math.max(ARENA_MIN_X, Math.min(ARENA_MAX_X, snappedX)),
+    v.y,
+    Math.max(ARENA_MIN_Z, Math.min(ARENA_MAX_Z, snappedZ))
+  )
+}
 const BRICK_TARGET_PREVIEW_SCALE = 1.05
 const BRICK_TARGET_PREVIEW_THICKNESS = 0.03
 const BRICK_TARGET_PREVIEW_Y = BRICK_TARGET_PREVIEW_THICKNESS / 2
@@ -120,7 +138,8 @@ function getPlacementPositionFromPlayer(): Vector3 | null {
   const dir = Vector3.normalize(forward)
   const placePos = Vector3.add(t.position, Vector3.scale(dir, PLACE_DISTANCE))
   placePos.y = 0
-  return Vector3.create(placePos.x, placePos.y, placePos.z)
+  const snapped = snapToGrid(placePos)
+  return Vector3.create(snapped.x, 0, snapped.z)
 }
 
 function isTargetModeStillActive(nowMs: number): boolean {
