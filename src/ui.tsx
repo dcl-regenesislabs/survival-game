@@ -5,7 +5,7 @@ import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
 import { getPlayerHp, isPlayerDead, MAX_HP, getRespawnAtMs, getRespawnDelay } from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
 import { getGameTime } from './zombie'
-import { isRaging, getRageTimeLeft } from './rageEffect'
+import { isRaging, getRageTimeLeft, RAGE_DURATION_SEC } from './rageEffect'
 import { getHealthPickupFeedback } from './potions'
 import {
   getCurrentWeapon,
@@ -98,6 +98,7 @@ export const uiMenu = () => {
   const localReadyForMatch = isLocalReadyForMatch()
   const showGameplayHud = inMatchContext && localReadyForMatch
   const showBackToLobbyButton = isInArenaRoster && localReadyForMatch
+  const showPlayerHealthHud = showGameplayHud
   const timerNowMs = getServerTime()
   const arenaIntroSeconds =
     lobbyState?.arenaIntroEndTimeMs && lobbyState.arenaIntroEndTimeMs > timerNowMs
@@ -128,6 +129,13 @@ export const uiMenu = () => {
   const playerHpFillVisibleWidth = Math.max(0, Math.min(playerHpFillWidth, PLAYER_HP_FRAME_WIDTH - playerHpFillOffsetX))
   const playerHpFillVisibleHeight = Math.max(0, Math.min(playerHpFillHeight, PLAYER_HP_FRAME_HEIGHT - playerHpFillOffsetY))
   const playerHpFillCurrentWidth = Math.max(0, Math.round(playerHpFillVisibleWidth * playerHpRatio))
+  const rageActive = showGameplayHud && isRaging()
+  const rageFillRatio = rageActive ? Math.max(0, Math.min(1, getRageTimeLeft(getGameTime()) / RAGE_DURATION_SEC)) : 0
+  const rageBarWidth = Math.max(0, Math.round((playerHpFillVisibleWidth - 90) * 1.178))
+  const rageBarHeight = 6
+  const rageBarCurrentWidth = Math.max(0, Math.round(rageBarWidth * rageFillRatio))
+  const rageBarOffsetX = playerHpFillOffsetX + 10
+  const rageBarOffsetTop = playerHpFillOffsetY + playerHpFillVisibleHeight + 1
 
   return (
     <UiEntity
@@ -242,7 +250,7 @@ export const uiMenu = () => {
         </UiEntity>
       )}
 
-      {showGameplayHud && isRaging() && (
+      {rageActive && (
         <UiEntity
           uiTransform={{
             position: { top: 186, left: 0 },
@@ -273,7 +281,7 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
-      {showZcCounter && (
+      {showPlayerHealthHud && (
         <UiEntity
           uiTransform={{
             position: { left: 64, top: 206 },
@@ -283,13 +291,13 @@ export const uiMenu = () => {
             justifyContent: 'flex-start'
           }}
         >
-          <UiEntity
-            uiTransform={{
-              width: PLAYER_HP_FRAME_WIDTH,
-              height: PLAYER_HP_FRAME_HEIGHT,
-              positionType: 'relative'
-            }}
-          >
+            <UiEntity
+              uiTransform={{
+                width: PLAYER_HP_FRAME_WIDTH,
+                height: PLAYER_HP_FRAME_HEIGHT + rageBarHeight + 4,
+                positionType: 'relative'
+              }}
+            >
             <UiEntity
               uiTransform={{
                 width: PLAYER_HP_FRAME_WIDTH,
@@ -326,6 +334,28 @@ export const uiMenu = () => {
                 }}
               />
             </UiEntity>
+            {rageActive && (
+              <UiEntity
+                uiTransform={{
+                  width: rageBarWidth,
+                  height: rageBarHeight,
+                  positionType: 'absolute',
+                  position: { left: rageBarOffsetX, top: rageBarOffsetTop + 3 },
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start'
+                }}
+                uiBackground={{ color: Color4.create(0.16, 0.03, 0.05, 0.92) }}
+              >
+                <UiEntity
+                  uiTransform={{
+                    width: rageBarCurrentWidth,
+                    height: rageBarHeight
+                  }}
+                  uiBackground={{ color: Color4.create(0.5, 0.05, 0.12, 1) }}
+                />
+              </UiEntity>
+            )}
           </UiEntity>
         </UiEntity>
       )}
