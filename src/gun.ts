@@ -114,13 +114,13 @@ function spawnProjectile(
     scale: Vector3.create(0.18, 0.18, 0.18)
   })
   MeshRenderer.setSphere(projectile)
-  // Red material like blood (no emissive glow) – matches zombie/player blood style
+  // Yellow-orange tracer – high contrast against red arena
   Material.setPbrMaterial(projectile, {
-    albedoColor: Color4.create(0.55, 0.05, 0.05, 0.95),
-    emissiveColor: Color3.create(0.6, 0.1, 0.1),
-    emissiveIntensity: 0.2,
-    metallic: 0.1,
-    roughness: 0.8
+    albedoColor: Color4.create(1.0, 0.75, 0.0, 1.0),
+    emissiveColor: Color3.create(1.0, 0.6, 0.0),
+    emissiveIntensity: 1.5,
+    metallic: 0.0,
+    roughness: 0.3
   })
   ProjectileComponent.create(projectile, {
     direction,
