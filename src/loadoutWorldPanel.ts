@@ -41,8 +41,8 @@ const ACTION_BUTTON_TEXT_OFFSET = Vector3.create(1.45, -1.35, -0.28)
 const PREVIEW_MODEL_SCALE = Vector3.create(0.95, 0.95, 0.95)
 
 const WEAPON_MODEL_BY_ID: Partial<Record<LoadoutWeaponId, string>> = {
-  shotgun_pump: 'assets/scene/Models/ShotGun01/ShotGun01.glb',
-  minigun_heavy: 'assets/scene/Models/MiniGun01/MiniGun01.glb'
+  shotgun_pump: 'assets/scene/Models/drones/shotgun/DroneShotGun.glb',
+  minigun_heavy: 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
 }
 
 type LoadoutSelectableSlot =

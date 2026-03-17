@@ -19,10 +19,10 @@ import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
 
-const GUN_MODEL = 'assets/scene/Models/ShotGun01/ShotGun01.glb'
+const GUN_MODEL = 'assets/scene/Models/drones/shotgun/DroneShotGun.glb'
+const GUN_MODEL_VISUAL_OFFSET = Vector3.create(0.45, 1.15, 0.35)
 
-// Animation name in Gun01.glb - change if your model uses a different name
-const GUN_SHOOT_ANIM = 'Key.001Action'
+const GUN_SHOOT_ANIM = 'DroneShotGunShoot'
 
 // Gun config - tweak these to your liking
 const GUN_OFFSET = Vector3.create(0, 0, 0) // Local offset from player (right, up, forward)
@@ -32,7 +32,7 @@ const SHOOT_RANGE = 100
 const PROJECTILE_SPEED = 10 // Meters per second - lower = slower bullets
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
-const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0, 1.27, 0.25)
+const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
 // How long to freeze gun rotation after shooting (so bullet spawn looks correct). Tweak to match your shoot clip length.
 const SHOOT_ANIM_FREEZE_DURATION = 0.4
 // Bullet flies straight; remove after this distance from spawn (out of scene)
@@ -44,6 +44,7 @@ const GUN_POSITION_SMOOTH_SPEED = 12
 const GUN_ROTATION_SMOOTH_SPEED = 12
 
 let gunEntity: Entity | null = null
+let gunModelEntity: Entity | null = null
 let shootTimer = 0
 /** Seconds left to freeze gun rotation after shoot (animator.playing may not clear when clip ends) */
 let rotationFreezeRemaining = 0
@@ -64,8 +65,8 @@ function getNearestZombie(fromPosition: Vector3): Entity | null {
 }
 
 function playGunAnimation() {
-  if (gunEntity && Animator.has(gunEntity)) {
-    const animator = Animator.getMutable(gunEntity)
+  if (gunModelEntity && Animator.has(gunModelEntity)) {
+    const animator = Animator.getMutable(gunModelEntity)
     const shootState = animator.states.find((s) => s.clip === GUN_SHOOT_ANIM)
     if (shootState) {
       for (const s of animator.states) {
@@ -138,7 +139,10 @@ function spawnProjectile(
 }
 
 export function createShotGun(): Entity {
+  if (gunEntity !== null) return gunEntity
+
   const gun = engine.addEntity()
+  const gunModel = engine.addEntity()
   const startPos =
     Transform.has(engine.PlayerEntity)
       ? Vector3.add(
@@ -152,23 +156,31 @@ export function createShotGun(): Entity {
     scale: Vector3.One()
   })
 
-  GltfContainer.create(gun, {
+  Transform.create(gunModel, {
+    parent: gun,
+    position: GUN_MODEL_VISUAL_OFFSET,
+    rotation: Quaternion.Identity(),
+    scale: Vector3.One()
+  })
+
+  GltfContainer.create(gunModel, {
     src: GUN_MODEL
   })
 
-  // Add animator - adjust clip name if Gun01.glb uses something different
-  Animator.create(gun, {
+  Animator.create(gunModel, {
     states: [{ clip: GUN_SHOOT_ANIM, playing: false, loop: false, speed: 1 }]
   })
 
   gunEntity = gun
+  gunModelEntity = gunModel
   return gun
 }
 
 export function destroyShotGun(): void {
   if (gunEntity !== null) {
-    engine.removeEntity(gunEntity)
+    engine.removeEntityWithChildren(gunEntity)
     gunEntity = null
+    gunModelEntity = null
   }
 }
 
@@ -195,8 +207,9 @@ export function shotGunSystem(dt: number) {
   const currentPos = Transform.get(gunEntity).position
   const posSmooth = 1 - Math.exp(-GUN_POSITION_SMOOTH_SPEED * dt)
   mutableGunTransform.position = Vector3.lerp(currentPos, gunWorldPos, posSmooth)
+  const visibleGunPos = Vector3.clone(mutableGunTransform.position)
 
-  const nearestZombie = getNearestZombie(gunWorldPos)
+  const nearestZombie = getNearestZombie(visibleGunPos)
   const aimDir = nearestZombie
     ? Vector3.subtract(
         Vector3.create(
@@ -204,18 +217,19 @@ export function shotGunSystem(dt: number) {
           Transform.get(nearestZombie).position.y + ZOMBIE_TARGET_HEIGHT,
           Transform.get(nearestZombie).position.z
         ),
-        gunWorldPos
+        visibleGunPos
       )
     : Vector3.rotate(Vector3.Forward(), playerTransform.rotation)
   const aimDirXZ = Vector3.create(aimDir.x, 0, aimDir.z)
   const lenSqXZ = aimDirXZ.x * aimDirXZ.x + aimDirXZ.z * aimDirXZ.z
-  let gunWorldRot = Transform.get(gunEntity).rotation
+  let visibleGunRot = Transform.get(gunEntity).rotation
 
   if (rotationFreezeRemaining <= 0 && lenSqXZ > 0.001) {
-    gunWorldRot = Quaternion.lookRotation(Vector3.normalize(aimDirXZ))
+    visibleGunRot = Quaternion.lookRotation(Vector3.normalize(aimDirXZ))
     const currentRot = Transform.get(gunEntity).rotation
     const rotSmooth = 1 - Math.exp(-GUN_ROTATION_SMOOTH_SPEED * dt)
-    mutableGunTransform.rotation = Quaternion.slerp(currentRot, gunWorldRot, rotSmooth)
+    mutableGunTransform.rotation = Quaternion.slerp(currentRot, visibleGunRot, rotSmooth)
+    visibleGunRot = mutableGunTransform.rotation
   }
 
   const effectiveFireRate = FIRE_RATE / getFireRateMultiplier()
@@ -230,9 +244,9 @@ export function shotGunSystem(dt: number) {
   shootTimer = 0
   playGunAnimation()
   const nextShotSeq = localShotSeq + 1
-  const direction = spawnProjectile(gunWorldPos, gunWorldRot, true, 'shotgun', nextShotSeq)
+  const direction = spawnProjectile(visibleGunPos, visibleGunRot, true, 'shotgun', nextShotSeq)
   localShotSeq = nextShotSeq
-  sendPlayerShotRequest('shotgun', gunWorldPos, direction, localShotSeq)
+  sendPlayerShotRequest('shotgun', visibleGunPos, direction, localShotSeq)
 }
 
 export function spawnReplicatedShotGunShotVisual(origin: Vector3, direction: Vector3): void {
