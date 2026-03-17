@@ -9,9 +9,9 @@ import {
 } from './multiplayer/lobbyClient'
 import { ArenaWeaponType } from './shared/loadoutCatalog'
 
-const DEFAULT_GUN_MODEL = 'assets/scene/Models/Gun01/Gun01.glb'
-const SHOTGUN_MODEL = 'assets/scene/Models/ShotGun01/ShotGun01.glb'
-const MINIGUN_MODEL = 'assets/scene/Models/MiniGun01/MiniGun01.glb'
+const DEFAULT_GUN_MODEL = 'assets/scene/Models/drones/gun/DroneGun.glb'
+const SHOTGUN_MODEL = 'assets/scene/Models/drones/shotgun/DroneShotGun.glb'
+const MINIGUN_MODEL = 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
 const REMOTE_GUN_OFFSET = Vector3.create(0, 0, 0)
 const REMOTE_GUN_ROTATION = Quaternion.Identity()
 const REMOTE_GUN_SCALE = Vector3.One()
