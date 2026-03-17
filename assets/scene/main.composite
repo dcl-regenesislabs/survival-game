@@ -90,23 +90,23 @@
         "serializationType": "transform"
       },
       "data": {
-        "516": {
+        "512": {
           "json": {
             "position": {
               "x": 0,
-              "y": 0.009999999776482582,
+              "y": 0,
               "z": 0
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
             },
             "rotation": {
               "x": 0,
               "y": 0,
               "z": 0,
               "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
             },
             "parent": 0
           }
@@ -118,16 +118,16 @@
               "y": 0,
               "z": 62
             },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
             "rotation": {
               "x": 0,
               "y": 0,
               "z": 0,
               "w": 1
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
             },
             "parent": 0
           }
@@ -160,16 +160,16 @@
               "y": 0,
               "z": 62
             },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
             "rotation": {
               "x": 0,
               "y": 0.707099974155426,
               "z": 0,
               "w": 0.707099974155426
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
             },
             "parent": 0
           }
@@ -181,16 +181,16 @@
               "y": 0,
               "z": 62
             },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
             "rotation": {
               "x": 0,
               "y": 0.707099974155426,
               "z": 0,
               "w": 0.707099974155426
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
             },
             "parent": 0
           }
@@ -202,16 +202,16 @@
               "y": 0,
               "z": 2
             },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
             "rotation": {
               "x": 0,
               "y": 0,
               "z": 0,
               "w": 1
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
             },
             "parent": 0
           }
@@ -227,9 +227,9 @@
         "protocolBuffer": "PBGltfContainer"
       },
       "data": {
-        "516": {
+        "512": {
           "json": {
-            "src": "assets/scene/Models/floor/floor.glb",
+            "src": "assets/scene/Models/Floor02/Floor02.glb",
             "visibleMeshesCollisionMask": 0,
             "invisibleMeshesCollisionMask": 3
           }
@@ -284,9 +284,9 @@
         "serializationType": "map"
       },
       "data": {
-        "516": {
+        "512": {
           "json": {
-            "value": "floor.glb"
+            "value": "Floor02.glb"
           }
         },
         "517": {
@@ -358,9 +358,9 @@
         "serializationType": "map"
       },
       "data": {
-        "520": {
+        "0": {
           "json": {
-            "gizmo": 1
+            "gizmo": 0
           }
         }
       }
@@ -411,12 +411,12 @@
                 "entity": 0,
                 "open": true,
                 "children": [
-                  516,
                   518,
                   517,
                   519,
                   520,
-                  521
+                  521,
+                  512
                 ]
               },
               {
@@ -425,10 +425,6 @@
               },
               {
                 "entity": 2,
-                "children": []
-              },
-              {
-                "entity": 516,
                 "children": []
               },
               {
@@ -449,6 +445,10 @@
               },
               {
                 "entity": 521,
+                "children": []
+              },
+              {
+                "entity": 512,
                 "children": []
               }
             ]
@@ -473,7 +473,7 @@
         "serializationType": "map"
       },
       "data": {
-        "516": {
+        "512": {
           "json": {}
         },
         "517": {
