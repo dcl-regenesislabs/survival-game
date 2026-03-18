@@ -15,6 +15,7 @@ import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
 import { createHealthBarForZombie } from './healthBar'
 import { getLobbyState, getPlayerCombatSnapshot, sendRageShieldHitRequest } from './multiplayer/lobbyClient'
+import { getCurrentWave } from './waveManager'
 import {
   getRageShieldContactDamage,
   getRageShieldHitIntervalSec,
@@ -44,7 +45,8 @@ const ZombieComponentSchema = {
   speed: Schemas.Number,
   walkAnimSpeed: Schemas.Number,
   spawnUpDuration: Schemas.Number,
-  networkId: Schemas.String
+  networkId: Schemas.String,
+  damage: Schemas.Number
 }
 
 export const ZombieComponent = engine.defineComponent('ZombieComponent', ZombieComponentSchema, {
@@ -56,8 +58,21 @@ export const ZombieComponent = engine.defineComponent('ZombieComponent', ZombieC
   speed: 1.5,
   walkAnimSpeed: 1,
   spawnUpDuration: 1.2,
-  networkId: ''
+  networkId: '',
+  damage: 1
 })
+
+// Hostility thresholds
+const HOSTILITY_WAVE_SPEED = 5   // wave where speed increases
+const HOSTILITY_WAVE_DAMAGE = 11 // wave where speed + damage increase
+
+type ZombieHostility = { speedMultiplier: number; damage: number }
+
+function getHostilityForWave(wave: number): ZombieHostility {
+  if (wave >= HOSTILITY_WAVE_DAMAGE) return { speedMultiplier: 2.0, damage: 2 }
+  if (wave >= HOSTILITY_WAVE_SPEED)  return { speedMultiplier: 1.5, damage: 1 }
+  return { speedMultiplier: 1, damage: 1 }
+}
 
 // Blood burst particles: fly outward and get removed when endTime is reached
 const BloodParticleSchema = {
@@ -182,6 +197,9 @@ export function spawnZombie(options?: SpawnZombieOptions): Entity {
     invisibleMeshesCollisionMask: 0
   })
 
+  const hostility = getHostilityForWave(getCurrentWave())
+  const speed = ZOMBIE_SPEED * hostility.speedMultiplier
+
   // Animator with all three animation states - start with ZombieUP
   Animator.create(zombie, {
     states: [
@@ -197,10 +215,11 @@ export function spawnZombie(options?: SpawnZombieOptions): Entity {
     attackRange: 1.2,
     attackCooldown: 0,
     health: 3,
-    speed: ZOMBIE_SPEED,
+    speed,
     walkAnimSpeed: 1,
     spawnUpDuration: ZOMBIE_UP_DURATION,
-    networkId: options?.networkId ?? ''
+    networkId: options?.networkId ?? '',
+    damage: hostility.damage
   })
 
   createHealthBarForZombie(zombie, 3) // default height
@@ -224,7 +243,8 @@ export function spawnQuickZombie(options?: SpawnZombieOptions): Entity {
     invisibleMeshesCollisionMask: 0
   })
 
-  const quickSpeed = 2.6
+  const hostility = getHostilityForWave(getCurrentWave())
+  const quickSpeed = 2.6 * hostility.speedMultiplier
   const quickWalkAnimSpeed = 1.7
 
   Animator.create(zombie, {
@@ -244,7 +264,8 @@ export function spawnQuickZombie(options?: SpawnZombieOptions): Entity {
     speed: quickSpeed,
     walkAnimSpeed: quickWalkAnimSpeed,
     spawnUpDuration: ZOMBIE_UP_DURATION,
-    networkId: options?.networkId ?? ''
+    networkId: options?.networkId ?? '',
+    damage: hostility.damage
   })
 
   createHealthBarForZombie(zombie, 2, 1.55) // a bit lower
@@ -268,8 +289,10 @@ export function spawnTankZombie(options?: SpawnZombieOptions): Entity {
     invisibleMeshesCollisionMask: 0
   })
 
-  const tankSpeed = 0.75
+  const hostility = getHostilityForWave(getCurrentWave())
+  const tankSpeed = 0.75 * hostility.speedMultiplier
   const tankWalkAnimSpeed = 0.6
+  const tankDamage = hostility.damage >= 2 ? 3 : 1
 
   Animator.create(zombie, {
     states: [
@@ -288,7 +311,8 @@ export function spawnTankZombie(options?: SpawnZombieOptions): Entity {
     speed: tankSpeed,
     walkAnimSpeed: tankWalkAnimSpeed,
     spawnUpDuration: ZOMBIE_UP_DURATION,
-    networkId: options?.networkId ?? ''
+    networkId: options?.networkId ?? '',
+    damage: tankDamage
   })
 
   createHealthBarForZombie(zombie, 10, 2.75) // a bit higher
@@ -662,7 +686,7 @@ export function zombieSystem(dt: number) {
         if (targetIsBrick && targetBrickEntity != null) {
           const burstCenter = Vector3.create(targetPos.x, targetPos.y + 0.5, targetPos.z)
           spawnBloodAtPosition(burstCenter)
-          damageBrick(targetBrickEntity, 1)
+          damageBrick(targetBrickEntity, mutableZombie.damage)
         } else {
           if (targetIsLocalPlayer && rageShieldActive) {
             continue
@@ -670,7 +694,7 @@ export function zombieSystem(dt: number) {
           const burstCenter = Vector3.create(targetPos.x, targetPos.y + 0.9, targetPos.z)
           spawnBloodAtPosition(burstCenter)
           if (targetIsLocalPlayer) {
-            reportPlayerDamageToServer?.(1)
+            reportPlayerDamageToServer?.(mutableZombie.damage)
           }
         }
       }
