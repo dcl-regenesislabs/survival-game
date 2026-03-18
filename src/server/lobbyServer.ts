@@ -1234,14 +1234,12 @@ export function setupLobbyServer(): void {
     const zombie = zombieSpawnAtById.get(data.zombieId)
     if (!zombie || zombie.spawnAtMs > now) return
 
-    const playerPosition = getPlayerPosition(normalizedAddress)
-    if (!playerPosition) return
-    if (distanceXZ(playerPosition.x, playerPosition.z, zombie.spawnX, zombie.spawnZ) > RAGE_SHIELD_RADIUS) return
-
     const hitKey = getRageShieldHitKey(normalizedAddress, data.zombieId)
     const lastHitAtMs = lastRageShieldHitAtMsByPlayerAndZombie.get(hitKey) ?? 0
     if (now - lastHitAtMs < RAGE_SHIELD_HIT_COOLDOWN_MS) return
 
+    // The server only tracks the zombie spawn point, not its live world position.
+    // Range gating is already performed client-side against the current zombie transform.
     lastRageShieldHitAtMsByPlayerAndZombie.set(hitKey, now)
     applyZombieDamage(data.zombieId, RAGE_SHIELD_DAMAGE, normalizedAddress, now)
   })

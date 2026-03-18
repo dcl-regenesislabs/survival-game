@@ -3,7 +3,6 @@ import {
   pointerEventsSystem,
   PointerEvents,
   InputAction,
-  PointerEventType,
   Transform,
   MainCamera,
   VirtualCamera,
