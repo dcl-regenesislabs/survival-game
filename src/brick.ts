@@ -14,7 +14,7 @@ import { Vector3, Quaternion, Color3, Color4 } from '@dcl/sdk/math'
 import { spendZombieCoins } from './zombieCoins'
 
 const BRICK_GLB = 'assets/asset-packs/bricks_-_red/brick_red.glb'
-export const BRICK_HP = 10
+export const BRICK_HP = 5
 export const BRICK_COST_ZC = 20
 
 // Obstacle radius for collision (brick footprint) – zombies cannot move inside this
