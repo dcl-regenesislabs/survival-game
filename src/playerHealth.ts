@@ -29,6 +29,13 @@ export function getRespawnAtMs(): number {
   return respawnAtMs
 }
 
+export function resetPlayerHealthState(): void {
+  currentHp = MAX_HP
+  isDead = false
+  respawnAtMs = 0
+  healGlowEndTime = 0
+}
+
 /** Restore player health (e.g. health potion). Caps at MAX_HP. No-op if dead. */
 export function healPlayer(amount: number): void {
   if (isDead) return
@@ -51,9 +58,7 @@ export function respawnPlayer(): void {
     newRelativePosition: { x: RESPAWN_POSITION.x, y: RESPAWN_POSITION.y, z: RESPAWN_POSITION.z },
     cameraTarget: { x: RESPAWN_POSITION.x, y: 1, z: RESPAWN_POSITION.z + 1 }
   })
-  currentHp = MAX_HP
-  isDead = false
-  respawnAtMs = 0
+  resetPlayerHealthState()
 }
 
 /** Apply server-authoritative player health snapshot. */
