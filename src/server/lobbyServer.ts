@@ -761,8 +761,8 @@ function randomSpawnPoint() {
 function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDurationSeconds: number, playerCount: number) {
   const intervalMs = Math.floor(CLIENT_SPAWN_INTERVAL_SECONDS * 1000)
   const activeMs = Math.floor(activeDurationSeconds * 1000)
-  // Scale group size with player count: +50% per additional player (1p=1x, 2p=1.5x, 3p=2x, 4p=2.5x)
-  const playerMultiplier = 0.5 + Math.max(1, playerCount) * 0.5
+  // Scale group size with player count: +10% per additional player (1p=1x, 2p=1.1x, 3p=1.2x, 4p=1.3x)
+  const playerMultiplier = 0.9 + Math.max(1, playerCount) * 0.1
   const groupSize = Math.round(getSpawnGroupSize(waveNumber) * playerMultiplier)
   const spawns: WavePlanSpawn[] = []
 
