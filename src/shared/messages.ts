@@ -34,6 +34,9 @@ const LobbyMessages = {
     weaponType: Schemas.String,
     shotSeq: Schemas.Number
   }),
+  rageShieldHitRequest: Schemas.Map({
+    zombieId: Schemas.String
+  }),
   zombieHealthChanged: Schemas.Map({
     zombieId: Schemas.String,
     hp: Schemas.Number

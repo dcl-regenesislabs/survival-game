@@ -1,24 +1,26 @@
-import { engine, Entity, GltfContainer, Schemas, Transform } from '@dcl/sdk/ecs'
+import { Animator, engine, Entity, GltfContainer, Schemas, Transform } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { room } from './shared/messages'
 import { getPlayerHp, healPlayer, MAX_HP, setHealGlowEndTime } from './playerHealth'
 import { applyRageEffect } from './rageEffect'
+import { applySpeedEffect } from './speedEffect'
 import { getGameTime } from './zombie'
 import { getServerTime } from './shared/timeSync'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerHealRequest } from './multiplayer/lobbyClient'
 
-const HEALTH_POTION_GLB = 'assets/asset-packs/green_plasma/PlasmaGreen_01/PlasmaGreen_01.glb'
-const RAGE_POTION_GLB = 'assets/asset-packs/pink_plasma/PlasmaPink_01/PlasmaPink_01.glb'
+const HEALTH_POTION_GLB = 'assets/scene/Models/pickups/PickUpHealth.glb'
+const RAGE_POTION_GLB = 'assets/scene/Models/pickups/PickUpRage.glb'
+const SPEED_POTION_GLB = 'assets/scene/Models/pickups/PickUpSpeed.glb'
 
-const HEALTH_POTION_SCALE = 3
-const RAGE_POTION_SCALE = 4
+const HEALTH_POTION_SCALE = 1
+const RAGE_POTION_SCALE = 1
+const SPEED_POTION_SCALE = 1
 const PICKUP_RADIUS = 2
-const POTION_HEIGHT_ABOVE_GROUND = 1.5
-const POTION_TILT_DEG = 45
-const POTION_SPIN_DEG_PER_SEC = 90
-const POTION_PIVOT_OFFSET_Y = -0.5
+const HEALTH_POTION_ANIMATION = 'Key.002Action'
+const RAGE_POTION_ANIMATION = 'Key.001Action'
+const SPEED_POTION_ANIMATION = 'KeyAction'
 
-type PotionType = 'health' | 'rage'
+type PotionType = 'health' | 'rage' | 'speed'
 
 const PotionPickupSchema = {
   potionId: Schemas.String,
@@ -40,11 +42,21 @@ export function getHealthPickupFeedback(now: number): string {
 }
 
 function getPotionGlb(potionType: PotionType): string {
-  return potionType === 'health' ? HEALTH_POTION_GLB : RAGE_POTION_GLB
+  if (potionType === 'health') return HEALTH_POTION_GLB
+  if (potionType === 'rage') return RAGE_POTION_GLB
+  return SPEED_POTION_GLB
 }
 
 function getPotionScale(potionType: PotionType): number {
-  return potionType === 'health' ? HEALTH_POTION_SCALE : RAGE_POTION_SCALE
+  if (potionType === 'health') return HEALTH_POTION_SCALE
+  if (potionType === 'rage') return RAGE_POTION_SCALE
+  return SPEED_POTION_SCALE
+}
+
+function getPotionAnimation(potionType: PotionType): string {
+  if (potionType === 'health') return HEALTH_POTION_ANIMATION
+  if (potionType === 'rage') return RAGE_POTION_ANIMATION
+  return SPEED_POTION_ANIMATION
 }
 
 function createPotionEntity(potionId: string, potionType: PotionType, position: Vector3, removeAtTime: number): void {
@@ -52,17 +64,16 @@ function createPotionEntity(potionId: string, potionType: PotionType, position: 
 
   const root = engine.addEntity()
   const child = engine.addEntity()
-  const centerY = position.y + POTION_HEIGHT_ABOVE_GROUND
   const scale = getPotionScale(potionType)
 
   Transform.create(root, {
-    position: Vector3.create(position.x, centerY, position.z),
+    position: Vector3.create(position.x, position.y, position.z),
     rotation: Quaternion.Identity(),
     scale: Vector3.create(scale, scale, scale)
   })
   Transform.create(child, {
     parent: root,
-    position: Vector3.create(0, POTION_PIVOT_OFFSET_Y, 0),
+    position: Vector3.Zero(),
     rotation: Quaternion.Identity(),
     scale: Vector3.One()
   })
@@ -70,6 +81,9 @@ function createPotionEntity(potionId: string, potionType: PotionType, position: 
     src: getPotionGlb(potionType),
     visibleMeshesCollisionMask: 0,
     invisibleMeshesCollisionMask: 0
+  })
+  Animator.create(child, {
+    states: [{ clip: getPotionAnimation(potionType), playing: true, loop: true, speed: 1 }]
   })
   PotionPickupComponent.create(root, {
     potionId,
@@ -110,6 +124,11 @@ function applyLocalPotionEffect(potionType: PotionType, now: number): void {
     return
   }
 
+  if (potionType === 'speed') {
+    applySpeedEffect(now)
+    return
+  }
+
   applyRageEffect(now)
 }
 
@@ -128,7 +147,7 @@ export function initPotionSyncClient(): void {
 
   room.onMessage('potionSpawned', (data) => {
     if (!isLocalPlayerInCurrentMatch()) return
-    if (data.potionType !== 'health' && data.potionType !== 'rage') return
+    if (data.potionType !== 'health' && data.potionType !== 'rage' && data.potionType !== 'speed') return
     createPotionEntity(
       data.potionId,
       data.potionType,
@@ -145,7 +164,11 @@ export function initPotionSyncClient(): void {
     if (entity && PotionPickupComponent.has(entity)) {
       const potion = PotionPickupComponent.get(entity)
       removePotion(entity, potion)
-      if (localAddress && data.claimerAddress.toLowerCase() === localAddress && (potion.potionType === 'health' || potion.potionType === 'rage')) {
+      if (
+        localAddress &&
+        data.claimerAddress.toLowerCase() === localAddress &&
+        (potion.potionType === 'health' || potion.potionType === 'rage' || potion.potionType === 'speed')
+      ) {
         applyLocalPotionEffect(potion.potionType, now)
       }
     }
@@ -167,14 +190,7 @@ export function initPotionSyncClient(): void {
 }
 
 export function potionVisualSystem(): void {
-  const t = getGameTime()
-  const spinY = (t * POTION_SPIN_DEG_PER_SEC) % 360
-  const tilt = Quaternion.fromEulerDegrees(POTION_TILT_DEG, 0, 0)
-  const spin = Quaternion.fromEulerDegrees(0, spinY, 0)
-  const rot = Quaternion.multiply(spin, tilt)
-  for (const [entity] of engine.getEntitiesWith(PotionPickupComponent, Transform)) {
-    Transform.getMutable(entity).rotation = rot
-  }
+  // Visual animation is handled by the GLB clip itself.
 }
 
 function distanceXZ(a: Vector3, b: Vector3): number {

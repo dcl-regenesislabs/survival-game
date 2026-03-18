@@ -14,7 +14,13 @@ import {
 import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
 import { createHealthBarForZombie } from './healthBar'
-import { getLobbyState, getPlayerCombatSnapshot } from './multiplayer/lobbyClient'
+import { getLobbyState, getPlayerCombatSnapshot, sendRageShieldHitRequest } from './multiplayer/lobbyClient'
+import {
+  getRageShieldContactDamage,
+  getRageShieldHitIntervalSec,
+  getRageShieldRadius,
+  isRaging
+} from './rageEffect'
 
 // Animation clip names from Zombie.glb
 const ANIM_ZOMBIE_UP = 'ZombieUP'
@@ -103,6 +109,7 @@ type ZombieHitWeaponType = 'gun' | 'shotgun' | 'minigun'
 let reportServerZombieHit: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null = null
 let zombieDeathSoundEntity: Entity | null = null
 let reportPlayerDamageToServer: ((amount: number) => void) | null = null
+const lastRageShieldHitAtByZombieKey = new Map<string, number>()
 export function setZombieHitReporter(
   reporter: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null
 ): void {
@@ -396,11 +403,13 @@ export function despawnAllZombies(): void {
     toRemove.push(entity)
   }
   for (const e of toRemove) engine.removeEntity(e)
+  lastRageShieldHitAtByZombieKey.clear()
 }
 
 export function despawnZombieByNetworkId(zombieId: string): boolean {
   for (const [entity, zombieData] of engine.getEntitiesWith(ZombieComponent)) {
     if (zombieData.networkId === zombieId) {
+      lastRageShieldHitAtByZombieKey.delete(zombieId)
       const pos = Transform.has(entity) ? Transform.get(entity).position : null
       playZombieDeathSound()
       if (pos) {
@@ -581,6 +590,9 @@ export function zombieSystem(dt: number) {
   if (!Transform.has(engine.PlayerEntity)) return
 
   const playerPos = Transform.get(engine.PlayerEntity).position
+  const rageShieldActive = isRaging()
+  const rageShieldRadius = getRageShieldRadius()
+  const rageShieldHitIntervalSec = getRageShieldHitIntervalSec()
   const bricks = getBricks()
 
   for (const [zombie, zombieData, transform] of engine.getEntitiesWith(
@@ -593,6 +605,19 @@ export function zombieSystem(dt: number) {
     const mutableTransform = Transform.getMutable(zombie)
 
     const zombiePos = transform.position
+
+    if (rageShieldActive && mutableZombie.state !== ZombieState.SPAWNING && distanceXZ(zombiePos, playerPos) <= rageShieldRadius) {
+      const zombieKey = zombieData.networkId || String(zombie)
+      const lastShieldHitAt = lastRageShieldHitAtByZombieKey.get(zombieKey) ?? 0
+      if (_gameTime - lastShieldHitAt >= rageShieldHitIntervalSec) {
+        lastRageShieldHitAtByZombieKey.set(zombieKey, _gameTime)
+        if (zombieData.networkId) {
+          sendRageShieldHitRequest(zombieData.networkId)
+        } else {
+          damageZombie(zombie, getRageShieldContactDamage())
+        }
+      }
+    }
 
     // Target: nearest brick within agro range, or nearest active match player
     const playerTarget = getNearestPlayerTarget(zombiePos, playerPos)
@@ -639,6 +664,9 @@ export function zombieSystem(dt: number) {
           spawnBloodAtPosition(burstCenter)
           damageBrick(targetBrickEntity, 1)
         } else {
+          if (targetIsLocalPlayer && rageShieldActive) {
+            continue
+          }
           const burstCenter = Vector3.create(targetPos.x, targetPos.y + 0.9, targetPos.z)
           spawnBloodAtPosition(burstCenter)
           if (targetIsLocalPlayer) {

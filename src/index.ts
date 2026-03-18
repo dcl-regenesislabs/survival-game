@@ -36,6 +36,7 @@ import {
 } from './playerHealth'
 import { getGameTime } from './zombie'
 import { rageEffectSystem } from './rageEffect'
+import { speedEffectSystem } from './speedEffect'
 import { initRageAura } from './rageAura'
 import { initPotionSyncClient, potionPickupSystem, potionVisualSystem } from './potions'
 import { EntityNames } from '../assets/scene/entity-names'
@@ -218,6 +219,8 @@ export function main() {
   engine.addSystem(rewardTextSystem)
   // Rage potion duration decay
   engine.addSystem(() => rageEffectSystem(getGameTime()))
+  // Speed potion duration decay
+  engine.addSystem(() => speedEffectSystem(getGameTime()))
   // Red aura around player when enraged
   initRageAura()
   // Deferred brick placement (spawn from game loop, not from UI callback)
