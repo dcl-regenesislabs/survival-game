@@ -51,6 +51,10 @@ const state: {
   matchPlayerCount: 1
 }
 
+export function getCurrentWave(): number {
+  return state.currentWave
+}
+
 export function getWaveUiState(): WaveUiState {
   const zombiesRemaining = countZombiesAlive()
   let message = ''
