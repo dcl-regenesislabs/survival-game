@@ -44,6 +44,9 @@ const RAGE_SHIELD_RADIUS = 1.6
 const RAGE_SHIELD_HIT_COOLDOWN_MS = 500
 const POTION_LIFETIME_MS = 20_000
 const POTION_PICKUP_RADIUS = 2.5
+const POTION_MIN_SEPARATION = 1.75
+const POTION_POSITION_SEARCH_ATTEMPTS = 16
+const POTION_POSITION_RING_STEP = 0.7
 const DISCONNECTED_PLAYER_GRACE_MS = 3000
 const DISCONNECTED_PLAYER_RECONCILE_INTERVAL_SECONDS = 0.5
 const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
@@ -375,6 +378,57 @@ function clearActivePotions(notifyClients: boolean): void {
   }
 }
 
+function clampPotionCoordinate(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function isPotionPositionFree(
+  positionX: number,
+  positionZ: number,
+  occupiedPositions: Array<{ x: number; z: number }>
+): boolean {
+  for (const occupied of occupiedPositions) {
+    if (distanceXZ(positionX, positionZ, occupied.x, occupied.z) < POTION_MIN_SEPARATION) return false
+  }
+  return true
+}
+
+function getAvailablePotionPosition(
+  originX: number,
+  originY: number,
+  originZ: number,
+  occupiedPositions: Array<{ x: number; z: number }>
+): { positionX: number; positionY: number; positionZ: number } {
+  const allOccupiedPositions = [
+    ...occupiedPositions,
+    ...[...activePotionsById.values()].map((potion) => ({ x: potion.positionX, z: potion.positionZ }))
+  ]
+
+  if (isPotionPositionFree(originX, originZ, allOccupiedPositions)) {
+    return { positionX: originX, positionY: originY, positionZ: originZ }
+  }
+
+  const angleOffset = Math.random() * Math.PI * 2
+  for (let attempt = 0; attempt < POTION_POSITION_SEARCH_ATTEMPTS; attempt += 1) {
+    const ring = Math.floor(attempt / 4) + 1
+    const angle = angleOffset + attempt * ((Math.PI * 2) / 4)
+    const radius = POTION_POSITION_RING_STEP * ring
+    const candidateX = clampPotionCoordinate(originX + Math.cos(angle) * radius, SPAWN_MIN_X, SPAWN_MAX_X)
+    const candidateZ = clampPotionCoordinate(originZ + Math.sin(angle) * radius, SPAWN_MIN_Z, SPAWN_MAX_Z)
+    if (isPotionPositionFree(candidateX, candidateZ, allOccupiedPositions)) {
+      return { positionX: candidateX, positionY: originY, positionZ: candidateZ }
+    }
+  }
+
+  const fallbackAngle = angleOffset + Math.random() * Math.PI * 2
+  const fallbackRadius = POTION_POSITION_RING_STEP * (Math.floor(POTION_POSITION_SEARCH_ATTEMPTS / 4) + 1)
+  return {
+    positionX: clampPotionCoordinate(originX + Math.cos(fallbackAngle) * fallbackRadius, SPAWN_MIN_X, SPAWN_MAX_X),
+    positionY: originY,
+    positionZ: clampPotionCoordinate(originZ + Math.sin(fallbackAngle) * fallbackRadius, SPAWN_MIN_Z, SPAWN_MAX_Z)
+  }
+}
+
 function spawnPotionAt(positionX: number, positionY: number, positionZ: number, potionType: PotionType): void {
   nextPotionSequence += 1
   const potion: ActivePotionState = {
@@ -390,14 +444,22 @@ function spawnPotionAt(positionX: number, positionY: number, positionZ: number, 
 }
 
 function trySpawnPotionDrops(positionX: number, positionY: number, positionZ: number): void {
+  const occupiedPositions: Array<{ x: number; z: number }> = []
+
   if (Math.random() < HEALTH_POTION_DROP_CHANCE) {
-    spawnPotionAt(positionX, positionY, positionZ, 'health')
+    const spawn = getAvailablePotionPosition(positionX, positionY, positionZ, occupiedPositions)
+    spawnPotionAt(spawn.positionX, spawn.positionY, spawn.positionZ, 'health')
+    occupiedPositions.push({ x: spawn.positionX, z: spawn.positionZ })
   }
   if (Math.random() < RAGE_POTION_DROP_CHANCE) {
-    spawnPotionAt(positionX, positionY, positionZ, 'rage')
+    const spawn = getAvailablePotionPosition(positionX, positionY, positionZ, occupiedPositions)
+    spawnPotionAt(spawn.positionX, spawn.positionY, spawn.positionZ, 'rage')
+    occupiedPositions.push({ x: spawn.positionX, z: spawn.positionZ })
   }
   if (Math.random() < SPEED_POTION_DROP_CHANCE) {
-    spawnPotionAt(positionX, positionY, positionZ, 'speed')
+    const spawn = getAvailablePotionPosition(positionX, positionY, positionZ, occupiedPositions)
+    spawnPotionAt(spawn.positionX, spawn.positionY, spawn.positionZ, 'speed')
+    occupiedPositions.push({ x: spawn.positionX, z: spawn.positionZ })
   }
 }
 

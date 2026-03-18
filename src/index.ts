@@ -37,6 +37,7 @@ import { getGameTime } from './zombie'
 import { rageEffectSystem } from './rageEffect'
 import { speedEffectSystem } from './speedEffect'
 import { initRageAura } from './rageAura'
+import { initSpeedAura } from './speedAura'
 import { initPotionSyncClient, potionPickupSystem, potionVisualSystem } from './potions'
 import { EntityNames } from '../assets/scene/entity-names'
 import { setupLobbyServer } from './server/lobbyServer'
@@ -227,6 +228,8 @@ export function main() {
   engine.addSystem(() => speedEffectSystem(getGameTime()))
   // Red aura around player when enraged
   initRageAura()
+  // Yellow speed aura + pickup flash around player
+  initSpeedAura()
   // Deferred brick placement (spawn from game loop, not from UI callback)
   initBrickSystem()
   // Health bar billboards above zombies
