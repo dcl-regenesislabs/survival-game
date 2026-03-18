@@ -22,6 +22,7 @@ import {
   confirmBrickPlacementFromTargetMode,
   isBrickTargetModeActive
 } from './brick'
+import { OutlinedText } from './outlineComponent'
 import {
   getLobbyState,
   getMatchRuntimeState,
@@ -40,11 +41,11 @@ import { getServerTime } from './shared/timeSync'
 const ENABLE_LEGACY_LOBBY_ROUND_UI = false
 const PLAYER_HP_FRAME_WIDTH = 581
 const PLAYER_HP_FRAME_HEIGHT = 86
-const PLAYER_HP_FRAME_UVS = [0.033237, 0.709231, 0.033237, 0.929231, 0.732659, 0.929231, 0.732659, 0.709231]
+const PLAYER_HP_FRAME_UVS = [0.033237, 0.704231, 0.033237, 0.935231, 0.732659, 0.935231, 0.732659, 0.704231]
 const PLAYER_HP_FILL_SOURCE_W = 770
 const PLAYER_HP_FILL_SOURCE_H = 76
-const PLAYER_HP_FILL_OFFSET_X = 170
-const PLAYER_HP_FILL_OFFSET_Y = 30
+const PLAYER_HP_FILL_OFFSET_X = 177
+const PLAYER_HP_FILL_OFFSET_Y = 37
 const PLAYER_HP_FILL_UVS = [0.290462, 0.238462, 0.290462, 0.355385, 0.846821, 0.355385, 0.846821, 0.238462]
 const WAVE_ZOMBIES_PANEL_WIDTH = 992
 const WAVE_ZOMBIES_PANEL_HEIGHT = 152
@@ -52,30 +53,31 @@ const WAVE_ZOMBIES_PANEL_UVS = [0.032514, 0.358462, 0.032514, 0.650769, 0.928468
 const BACK_TO_LOBBY_BUTTON_WIDTH = 127
 const BACK_TO_LOBBY_BUTTON_HEIGHT = 94
 const BACK_TO_LOBBY_BUTTON_UVS = [0.03396, 0.046154, 0.03396, 0.252308, 0.16474, 0.252308, 0.16474, 0.046154]
-const WEAPONS_SHEET_SRC = 'assets/images/WEAPONS.png'
-const WEAPONS_LOCK_SHEET_SRC = 'assets/images/WEAPONS_LOCK.png'
-const GUN_BUTTON_WIDTH = 180
-const GUN_BUTTON_HEIGHT = 139
-const GUN_BUTTON_UVS = [0.010417, 0.416016, 0.010417, 0.6875, 0.244141, 0.6875, 0.244141, 0.416016]
-const SHOTGUN_BUTTON_WIDTH = 184
-const SHOTGUN_BUTTON_HEIGHT = 138
-const SHOTGUN_BUTTON_UVS = [0.257813, 0.418945, 0.257813, 0.6875, 0.497396, 0.6875, 0.497396, 0.418945]
-const MINIGUN_BUTTON_WIDTH = 187
-const MINIGUN_BUTTON_HEIGHT = 139
-const MINIGUN_BUTTON_UVS = [0.748698, 0.416992, 0.748698, 0.6875, 0.992188, 0.6875, 0.992188, 0.416992]
-const BRICK_BUTTON_WIDTH = 180
-const BRICK_BUTTON_HEIGHT = 137
-const BRICK_BUTTON_UVS = [0.503906, 0.418945, 0.503906, 0.686523, 0.73763, 0.686523, 0.73763, 0.418945]
+const WEAPONS_SHEET_SRC = 'assets/images/WEAPONS2.png'
+const WEAPONS_LOCK_SHEET_SRC = 'assets/images/WEAPONS_LOCK2.png'
+const GUN_BUTTON_WIDTH = 184
+const GUN_BUTTON_HEIGHT = 143
+const GUN_BUTTON_UVS = [0.007813, 0.412109, 0.007813, 0.691406, 0.246745, 0.691406, 0.246745, 0.412109]
+const SHOTGUN_BUTTON_WIDTH = 188
+const SHOTGUN_BUTTON_HEIGHT = 142
+const SHOTGUN_BUTTON_UVS = [0.255209, 0.415039, 0.255209, 0.691406, 0.5, 0.691406, 0.5, 0.415039]
+const MINIGUN_BUTTON_WIDTH = 191
+const MINIGUN_BUTTON_HEIGHT = 143
+const MINIGUN_BUTTON_UVS = [0.746094, 0.413086, 0.746094, 0.691406, 0.994792, 0.691406, 0.994792, 0.413086]
+const BRICK_BUTTON_WIDTH = 184
+const BRICK_BUTTON_HEIGHT = 141
+const BRICK_BUTTON_UVS = [0.501302, 0.415039, 0.501302, 0.690429, 0.740234, 0.690429, 0.740234, 0.415039]
 const LOBBY_RETURN_POSITION = { x: 78.4, y: 3, z: 31.5 }
 const LOBBY_RETURN_LOOK_TARGET = { x: 76.2, y: 3, z: 31 }
 const BRICK_TARGET_RETICLE_WIDTH = 106
 const BRICK_TARGET_RETICLE_HEIGHT = 98
 const WEAPON_SELECTION_BAR_WIDTH = 92
 const WEAPON_SELECTION_BAR_HEIGHT = 6
-// WEAPONS_LOCK.png region: x=853, y=92, w=213, h=196 (1536x1024 atlas, V axis bottom-up in UI UVs)
+// WEAPONS_LOCK2.png region: x=853, y=92, w=213, h=196 (1536x1024 atlas, V axis bottom-up in UI UVs)
 const BRICK_TARGET_RETICLE_UVS = [0.555339, 0.71875, 0.555339, 0.910156, 0.69401, 0.910156, 0.69401, 0.71875]
 const LOADOUT_TELEPORT_POSITION = { x: 94, y: 3, z: 38.5 }
 const LOADOUT_LOOK_TARGET = { x: 94, y: 3, z: 41.5 }
+const DEBUG_FORCE_GAMEPLAY_HUD = true
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
@@ -96,7 +98,7 @@ export const uiMenu = () => {
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInArenaRoster
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
-  const showGameplayHud = inMatchContext && localReadyForMatch
+  const showGameplayHud = DEBUG_FORCE_GAMEPLAY_HUD || (inMatchContext && localReadyForMatch) || isInLobby
   const showBackToLobbyButton = isInArenaRoster && localReadyForMatch
   const showPlayerHealthHud = showGameplayHud
   const timerNowMs = getServerTime()
@@ -115,7 +117,7 @@ export const uiMenu = () => {
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
   const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
-  const showArenaIntroOverlay = showGameplayHud && !matchRuntime?.isRunning
+  const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
 
   const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
@@ -307,7 +309,7 @@ export const uiMenu = () => {
               }}
               uiBackground={{
                 textureMode: 'stretch',
-                texture: { src: 'assets/images/HUD.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
+                texture: { src: 'assets/images/HUD2.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
                 uvs: PLAYER_HP_FRAME_UVS
               }}
             />
@@ -329,7 +331,7 @@ export const uiMenu = () => {
                 }}
                 uiBackground={{
                   textureMode: 'stretch',
-                  texture: { src: 'assets/images/HUD.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
+                  texture: { src: 'assets/images/HUD2.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
                   uvs: PLAYER_HP_FILL_UVS
                 }}
               />
@@ -399,7 +401,7 @@ export const uiMenu = () => {
             }}
             uiBackground={{
               textureMode: 'stretch',
-              texture: { src: 'assets/images/HUD.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
+              texture: { src: 'assets/images/HUD2.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
               uvs: WAVE_ZOMBIES_PANEL_UVS
             }}
           >
@@ -467,7 +469,7 @@ export const uiMenu = () => {
             }}
             uiBackground={{
               textureMode: 'stretch',
-              texture: { src: 'assets/images/HUD.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
+              texture: { src: 'assets/images/HUD2.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
               uvs: [0.765896, 0.72, 0.765896, 0.926154, 0.983382, 0.926154, 0.983382, 0.72]
             }}
           >
@@ -539,7 +541,7 @@ export const uiMenu = () => {
             uiTransform={{ width: BACK_TO_LOBBY_BUTTON_WIDTH, height: BACK_TO_LOBBY_BUTTON_HEIGHT }}
             uiBackground={{
               textureMode: 'stretch',
-              texture: { src: 'assets/images/HUD.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
+              texture: { src: 'assets/images/HUD2.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
               uvs: BACK_TO_LOBBY_BUTTON_UVS
             }}
             onMouseDown={() => {
@@ -847,7 +849,7 @@ export const uiMenu = () => {
                       }}
                     >
                       {weaponCost > 0 && ((weapon === 'brick' && !canUse) || (weapon !== 'brick' && !isPurchased)) && (
-                        <UiEntity
+                        <OutlinedText
                           uiTransform={{
                             width: 64,
                             height: 20,
@@ -857,11 +859,11 @@ export const uiMenu = () => {
                           uiText={{
                             value: `${weaponCost} ZC`,
                             fontSize: 15,
-                            color: canAfford
-                              ? Color4.create(1, 0.84, 0.18, 1)
-                              : Color4.create(0.78, 0.62, 0.12, 1),
+                            color: Color4.create(1, 1, 1, 1),
                             textAlign: 'middle-right'
                           }}
+                          outlineColor={Color4.create(0, 0, 0, 1)}
+                          outlineKeyPrefix={`weapon-cost-${weapon}`}
                         />
                       )}
                     </UiEntity>
@@ -872,8 +874,17 @@ export const uiMenu = () => {
                           height: WEAPON_SELECTION_BAR_HEIGHT,
                           margin: { top: 8 }
                         }}
-                        uiBackground={{ color: Color4.create(0.96, 0.78, 0.18, 0.95) }}
-                      />
+                        uiBackground={{ color: Color4.create(0, 0, 0, 1) }}
+                      >
+                        <UiEntity
+                          uiTransform={{
+                            width: '100%',
+                            height: 4,
+                            margin: { top: 1, left: 1, right: 1 }
+                          }}
+                          uiBackground={{ color: Color4.create(0.529, 0.737, 0.627, 1) }}
+                        />
+                      </UiEntity>
                     )}
                   </UiEntity>
                 )
