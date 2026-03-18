@@ -4,7 +4,7 @@ import { LobbyStateComponent, LobbyStateSnapshot } from '../shared/lobbySchemas'
 import { MatchRuntimeSnapshot, MatchRuntimeStateComponent } from '../shared/matchRuntimeSchemas'
 import { movePlayerTo } from '~system/RestrictedActions'
 import { Vector3 } from '@dcl/sdk/math'
-import { applyAuthoritativeHealthState } from '../playerHealth'
+import { applyAuthoritativeHealthState, resetPlayerHealthState } from '../playerHealth'
 import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
@@ -18,6 +18,14 @@ let localReadyForMatch = false
 let lastTeamWipeAffectedLocalPlayer = false
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
 const playerArenaWeaponByAddress = new Map<string, ArenaWeaponType>()
+
+function resetLocalMatchUiState(): void {
+  localReadyForMatch = false
+  lastTeamWipeAffectedLocalPlayer = false
+  resetToIdle()
+  resetArenaWeaponProgress()
+  resetPlayerHealthState()
+}
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
@@ -87,7 +95,7 @@ export function setupLobbyClient(): void {
   room.onMessage('lobbyReturnTeleport', (data) => {
     const localAddress = getLocalAddress()
     if (!localAddress || !data.addresses.includes(localAddress)) return
-    localReadyForMatch = false
+    resetLocalMatchUiState()
     movePlayerTo({
       newRelativePosition: {
         x: data.positionX,
@@ -114,6 +122,7 @@ export function sendJoinLobby(): void {
 }
 
 export function sendLeaveLobby(): void {
+  resetLocalMatchUiState()
   void room.send('playerLeaveLobby', {})
 }
 
