@@ -8,17 +8,24 @@ import {
   isLocalReadyForMatch
 } from './multiplayer/lobbyClient'
 import { ArenaWeaponType } from './shared/loadoutCatalog'
+import {
+  WEAPON_DEFAULT_ROTATION,
+  WEAPON_DEFAULT_SCALE,
+  WEAPON_MODEL_VISUAL_OFFSET,
+  WEAPON_ROOT_OFFSET
+} from './shared/weaponVisuals'
 
 const DEFAULT_GUN_MODEL = 'assets/scene/Models/drones/gun/DroneGun.glb'
 const SHOTGUN_MODEL = 'assets/scene/Models/drones/shotgun/DroneShotGun.glb'
 const MINIGUN_MODEL = 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
-const REMOTE_GUN_OFFSET = Vector3.create(0, 0, 0)
-const REMOTE_GUN_ROTATION = Quaternion.Identity()
-const REMOTE_GUN_SCALE = Vector3.One()
+const GUN_SHOOT_ANIM = 'DroneGunShoot'
+const SHOTGUN_SHOOT_ANIM = 'DroneShotGunShoot'
+const MINIGUN_SHOOT_ANIM = 'DroneMinigunShoot'
 
 type RemoteWeaponEntry = {
   avatarEntity: Entity
   weaponRootEntity: Entity
+  weaponModelEntity: Entity
   weaponType: ArenaWeaponType
 }
 
@@ -72,14 +79,14 @@ class ArenaRemoteDefaultWeapons {
         existing.avatarEntity = avatarEntity
         if (existing.weaponType !== weaponType) {
           existing.weaponType = weaponType
-          applyRemoteWeaponModel(existing.weaponRootEntity, weaponType)
+          applyRemoteWeaponModel(existing.weaponModelEntity, weaponType)
         }
         continue
       }
 
       this.entriesByAddress.set(address, {
         avatarEntity,
-        weaponRootEntity: createRemoteDefaultWeapon(weaponType),
+        ...createRemoteDefaultWeapon(weaponType),
         weaponType
       })
     }
@@ -99,9 +106,9 @@ class ArenaRemoteDefaultWeapons {
       const weaponTransform = Transform.getMutable(entry.weaponRootEntity)
       weaponTransform.position = Vector3.add(
         avatarTransform.position,
-        Vector3.rotate(REMOTE_GUN_OFFSET, avatarTransform.rotation)
+        Vector3.rotate(WEAPON_ROOT_OFFSET, avatarTransform.rotation)
       )
-      weaponTransform.rotation = Quaternion.multiply(avatarTransform.rotation, REMOTE_GUN_ROTATION)
+      weaponTransform.rotation = Quaternion.multiply(avatarTransform.rotation, WEAPON_DEFAULT_ROTATION)
     }
   }
 
@@ -111,7 +118,29 @@ class ArenaRemoteDefaultWeapons {
     this.entriesByAddress.delete(address)
     engine.removeEntityWithChildren(entry.weaponRootEntity)
   }
+
+  playShotAnimation(address: string, weaponType: ArenaWeaponType): void {
+    const entry = this.entriesByAddress.get(address.toLowerCase())
+    if (!entry) return
+    if (entry.weaponType !== weaponType) return
+    if (!Animator.has(entry.weaponModelEntity)) return
+
+    const animator = Animator.getMutable(entry.weaponModelEntity)
+    const clip = getRemoteWeaponShootClip(weaponType)
+    const shootState = animator.states.find((state) => state.clip === clip)
+    if (!shootState) return
+
+    for (const state of animator.states) {
+      state.playing = state.clip === clip
+      state.loop = false
+    }
+
+    shootState.playing = true
+    shootState.shouldReset = true
+  }
 }
+
+let arenaRemoteDefaultWeapons: ArenaRemoteDefaultWeapons | null = null
 
 function getRemoteWeaponModel(weaponType: ArenaWeaponType): string {
   if (weaponType === 'shotgun') return SHOTGUN_MODEL
@@ -119,28 +148,54 @@ function getRemoteWeaponModel(weaponType: ArenaWeaponType): string {
   return DEFAULT_GUN_MODEL
 }
 
-function applyRemoteWeaponModel(weaponRootEntity: Entity, weaponType: ArenaWeaponType): void {
-  GltfContainer.createOrReplace(weaponRootEntity, {
+function getRemoteWeaponShootClip(weaponType: ArenaWeaponType): string {
+  if (weaponType === 'shotgun') return SHOTGUN_SHOOT_ANIM
+  if (weaponType === 'minigun') return MINIGUN_SHOOT_ANIM
+  return GUN_SHOOT_ANIM
+}
+
+function applyRemoteWeaponModel(weaponModelEntity: Entity, weaponType: ArenaWeaponType): void {
+  GltfContainer.createOrReplace(weaponModelEntity, {
     src: getRemoteWeaponModel(weaponType)
+  })
+
+  Animator.createOrReplace(weaponModelEntity, {
+    states: [{ clip: getRemoteWeaponShootClip(weaponType), playing: false, loop: false, speed: 1 }]
   })
 }
 
-function createRemoteDefaultWeapon(weaponType: ArenaWeaponType): Entity {
+function createRemoteDefaultWeapon(weaponType: ArenaWeaponType): {
+  weaponRootEntity: Entity
+  weaponModelEntity: Entity
+} {
   const weaponRootEntity = engine.addEntity()
+  const weaponModelEntity = engine.addEntity()
 
   Transform.create(weaponRootEntity, {
     position: Vector3.Zero(),
-    rotation: Quaternion.Identity(),
-    scale: REMOTE_GUN_SCALE
+    rotation: WEAPON_DEFAULT_ROTATION,
+    scale: WEAPON_DEFAULT_SCALE
   })
 
-  applyRemoteWeaponModel(weaponRootEntity, weaponType)
-  Animator.createOrReplace(weaponRootEntity)
-  Animator.stopAllAnimations(weaponRootEntity)
+  Transform.create(weaponModelEntity, {
+    parent: weaponRootEntity,
+    position: WEAPON_MODEL_VISUAL_OFFSET,
+    rotation: WEAPON_DEFAULT_ROTATION,
+    scale: WEAPON_DEFAULT_SCALE
+  })
 
-  return weaponRootEntity
+  applyRemoteWeaponModel(weaponModelEntity, weaponType)
+  return { weaponRootEntity, weaponModelEntity }
 }
 
 export function initArenaRemoteDefaultWeapons(): void {
-  new ArenaRemoteDefaultWeapons()
+  arenaRemoteDefaultWeapons = new ArenaRemoteDefaultWeapons()
+}
+
+export function playRemoteWeaponShotAnimation(address: string, weaponType: ArenaWeaponType): void {
+  arenaRemoteDefaultWeapons?.playShotAnimation(address, weaponType)
+}
+
+export function isArenaWeaponType(value: string): value is ArenaWeaponType {
+  return value === 'gun' || value === 'shotgun' || value === 'minigun'
 }

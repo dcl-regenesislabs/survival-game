@@ -51,7 +51,11 @@ import {
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
 import { initDeathAnimationSystem } from './deathAnimation'
-import { initArenaRemoteDefaultWeapons } from './arenaRemoteDefaultWeapons'
+import {
+  initArenaRemoteDefaultWeapons,
+  isArenaWeaponType,
+  playRemoteWeaponShotAnimation
+} from './arenaRemoteDefaultWeapons'
 import { initPassportBlockerSystem } from './passportBlocker'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
@@ -168,9 +172,11 @@ function setupShotReplicationClient(): void {
 
     const shotKey = `${shooterAddress}:${data.weaponType}:${Math.floor(data.seq)}`
     if (!rememberRemoteShot(shotKey)) return
+    if (!isArenaWeaponType(data.weaponType)) return
 
     const origin = Vector3.create(data.originX, data.originY, data.originZ)
     const direction = Vector3.create(data.directionX, data.directionY, data.directionZ)
+    playRemoteWeaponShotAnimation(shooterAddress, data.weaponType)
     switch (data.weaponType) {
       case 'gun':
         spawnReplicatedGunShotVisual(origin, direction)

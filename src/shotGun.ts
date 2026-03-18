@@ -19,14 +19,18 @@ import { getCurrentWeapon } from './weaponManager'
 import { getFireRateMultiplier } from './rageEffect'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
+import {
+  WEAPON_DEFAULT_ROTATION,
+  WEAPON_DEFAULT_SCALE,
+  WEAPON_MODEL_VISUAL_OFFSET,
+  WEAPON_ROOT_OFFSET
+} from './shared/weaponVisuals'
 
 const GUN_MODEL = 'assets/scene/Models/drones/shotgun/DroneShotGun.glb'
-const GUN_MODEL_VISUAL_OFFSET = Vector3.create(0.45, 1.15, 0.35)
 
 const GUN_SHOOT_ANIM = 'DroneShotGunShoot'
 
 // Gun config - tweak these to your liking
-const GUN_OFFSET = Vector3.create(0.18, 0, 0) // Local offset from player (right, up, forward)
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
 const SHOOT_RANGE = 100
@@ -139,16 +143,16 @@ export function createShotGun(): Entity {
   const gunModel = engine.addEntity()
   Transform.create(gun, {
     parent: Transform.has(engine.PlayerEntity) ? engine.PlayerEntity : undefined,
-    position: GUN_OFFSET,
-    rotation: Quaternion.Identity(),
-    scale: Vector3.One()
+    position: WEAPON_ROOT_OFFSET,
+    rotation: WEAPON_DEFAULT_ROTATION,
+    scale: WEAPON_DEFAULT_SCALE
   })
 
   Transform.create(gunModel, {
     parent: gun,
-    position: GUN_MODEL_VISUAL_OFFSET,
-    rotation: Quaternion.Identity(),
-    scale: Vector3.One()
+    position: WEAPON_MODEL_VISUAL_OFFSET,
+    rotation: WEAPON_DEFAULT_ROTATION,
+    scale: WEAPON_DEFAULT_SCALE
   })
 
   GltfContainer.create(gunModel, {
@@ -187,7 +191,7 @@ export function shotGunSystem(dt: number) {
   const playerTransform = Transform.get(engine.PlayerEntity)
   const gunWorldPos = Vector3.add(
     playerTransform.position,
-    Vector3.rotate(GUN_OFFSET, playerTransform.rotation)
+    Vector3.rotate(WEAPON_ROOT_OFFSET, playerTransform.rotation)
   )
   const visibleGunPos = gunWorldPos
 
