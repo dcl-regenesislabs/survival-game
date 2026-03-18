@@ -179,13 +179,13 @@ function setupShotReplicationClient(): void {
     playRemoteWeaponShotAnimation(shooterAddress, data.weaponType)
     switch (data.weaponType) {
       case 'gun':
-        spawnReplicatedGunShotVisual(origin, direction)
+        spawnReplicatedGunShotVisual(origin, direction, shooterAddress)
         break
       case 'shotgun':
-        spawnReplicatedShotGunShotVisual(origin, direction)
+        spawnReplicatedShotGunShotVisual(origin, direction, shooterAddress)
         break
       case 'minigun':
-        spawnReplicatedMiniGunShotVisual(origin, direction)
+        spawnReplicatedMiniGunShotVisual(origin, direction, shooterAddress)
         break
     }
   })
