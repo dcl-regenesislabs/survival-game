@@ -57,7 +57,6 @@ import {
   isArenaWeaponType,
   playRemoteWeaponShotAnimation
 } from './arenaRemoteDefaultWeapons'
-import { initPassportBlockerSystem } from './passportBlocker'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
@@ -239,7 +238,6 @@ export function main() {
   engine.addSystem(potionPickupSystem)
   engine.addSystem(potionVisualSystem)
   initDeathAnimationSystem()
-  initPassportBlockerSystem()
   // Authoritative match waves (30s active / 10s rest)
   initMatchWaveClientSystem()
 

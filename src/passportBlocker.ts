@@ -46,6 +46,16 @@ function passportBlockerSystem(): void {
   isAreaActive = shouldBeActive
 }
 
+export function refreshPassportBlocker(): void {
+  if (!isAreaActive) return
+  if (passportBlockerArea !== null) {
+    engine.removeEntity(passportBlockerArea)
+    passportBlockerArea = null
+  }
+  const areaEntity = ensurePassportBlockerArea()
+  Transform.getMutable(areaEntity).position = ARENA_CENTER
+}
+
 export function initPassportBlockerSystem(): void {
   if (initialized) return
   initialized = true
