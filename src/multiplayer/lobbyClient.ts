@@ -160,6 +160,10 @@ export function sendPlayerShotRequest(
   })
 }
 
+export function sendRageShieldHitRequest(zombieId: string): void {
+  void room.send('rageShieldHitRequest', { zombieId })
+}
+
 export function sendPlayerArenaWeaponChanged(weaponType: ArenaWeaponType): void {
   void room.send('playerArenaWeaponChanged', { weaponType })
 }

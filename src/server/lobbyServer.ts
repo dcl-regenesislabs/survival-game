@@ -35,6 +35,13 @@ const PLAYER_HEAL_REQUEST_COOLDOWN_MS = 250
 const HEALTH_POTION_HEAL_AMOUNT = PLAYER_MAX_HP
 const HEALTH_POTION_DROP_CHANCE = 0.05
 const RAGE_POTION_DROP_CHANCE = 0.05
+const SPEED_POTION_DROP_CHANCE = 0.05
+const RAGE_SHIELD_DURATION_MS = 10_000
+const SPEED_POTION_DURATION_MS = 10_000
+const SPEED_FIRE_RATE_MULTIPLIER = 2
+const RAGE_SHIELD_DAMAGE = 1
+const RAGE_SHIELD_RADIUS = 1.6
+const RAGE_SHIELD_HIT_COOLDOWN_MS = 500
 const POTION_LIFETIME_MS = 20_000
 const POTION_PICKUP_RADIUS = 2.5
 const DISCONNECTED_PLAYER_GRACE_MS = 3000
@@ -68,7 +75,7 @@ const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
 ]
 
 type ZombieType = 'basic' | 'quick' | 'tank'
-type PotionType = 'health' | 'rage'
+type PotionType = 'health' | 'rage' | 'speed'
 type WavePlanSpawn = {
   zombieId: string
   zombieType: ZombieType
@@ -91,6 +98,8 @@ type PlayerCombatState = {
   respawnAtMs: number
   lastDamageRequestAtMs: number
   lastHealRequestAtMs: number
+  rageShieldEndAtMs: number
+  speedEndAtMs: number
 }
 type ActivePotionState = {
   potionId: string
@@ -111,6 +120,7 @@ const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
 const lastShotAtMsByPlayerAndWeapon = new Map<string, number>()
 const zombieHitAllowanceByShotKey = new Map<string, number>()
+const lastRageShieldHitAtMsByPlayerAndZombie = new Map<string, number>()
 const disconnectedLobbyPlayerSinceMs = new Map<string, number>()
 const arenaWeaponByAddress = new Map<string, ArenaWeaponType>()
 let disconnectedPlayerReconcileAccumulator = 0
@@ -144,6 +154,10 @@ function getZombieMaxHp(zombieType: ZombieType): number {
 
 function getShotAllowanceKey(address: string, weaponType: ArenaWeaponType, shotSeq: number): string {
   return `${address.toLowerCase()}:${weaponType}:${Math.floor(shotSeq)}`
+}
+
+function getRageShieldHitKey(address: string, zombieId: string): string {
+  return `${address.toLowerCase()}:${zombieId}`
 }
 
 function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
@@ -247,6 +261,7 @@ function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>)
   runtime.zombiesAlive = 0
   runtime.zombiesPlanned = 0
   awardedWaveGoldMilestones.clear()
+  lastRageShieldHitAtMsByPlayerAndZombie.clear()
   clearActivePotions(true)
 }
 
@@ -259,7 +274,9 @@ function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
     isDead: false,
     respawnAtMs: 0,
     lastDamageRequestAtMs: 0,
-    lastHealRequestAtMs: 0
+    lastHealRequestAtMs: 0,
+    rageShieldEndAtMs: 0,
+    speedEndAtMs: 0
   }
   playerCombatStateByAddress.set(normalizedAddress, created)
   return created
@@ -273,6 +290,8 @@ function resetPlayerCombatState(address: string): void {
   state.respawnAtMs = 0
   state.lastDamageRequestAtMs = 0
   state.lastHealRequestAtMs = 0
+  state.rageShieldEndAtMs = 0
+  state.speedEndAtMs = 0
   arenaWeaponByAddress.set(normalizedAddress, 'gun')
 }
 
@@ -377,6 +396,17 @@ function trySpawnPotionDrops(positionX: number, positionY: number, positionZ: nu
   if (Math.random() < RAGE_POTION_DROP_CHANCE) {
     spawnPotionAt(positionX, positionY, positionZ, 'rage')
   }
+  if (Math.random() < SPEED_POTION_DROP_CHANCE) {
+    spawnPotionAt(positionX, positionY, positionZ, 'speed')
+  }
+}
+
+function isRageShieldActive(state: PlayerCombatState, now: number): boolean {
+  return state.rageShieldEndAtMs > now
+}
+
+function getPlayerFireRateMultiplier(state: PlayerCombatState, now: number): number {
+  return state.speedEndAtMs > now ? SPEED_FIRE_RATE_MULTIPLIER : 1
 }
 
 function expirePotions(now: number): void {
@@ -385,6 +415,29 @@ function expirePotions(now: number): void {
     activePotionsById.delete(potionId)
     void room.send('potionExpired', { potionId })
   }
+}
+
+function applyZombieDamage(zombieId: string, damage: number, killerAddress: string, now: number): boolean {
+  const normalizedAddress = killerAddress.toLowerCase()
+  const runtime = getMatchRuntimeMutable()
+  const spawnState = zombieSpawnAtById.get(zombieId)
+  if (!spawnState) return false
+  if (spawnState.spawnAtMs > now) return false
+
+  const amount = Math.max(1, Math.floor(damage))
+  spawnState.hp = Math.max(0, spawnState.hp - amount)
+
+  if (spawnState.hp > 0) {
+    void room.send('zombieHealthChanged', { zombieId, hp: spawnState.hp })
+    return true
+  }
+
+  zombieSpawnAtById.delete(zombieId)
+  deadZombieIds.delete(zombieId)
+  recomputeZombiesAlive(runtime, now)
+  void room.send('zombieDied', { zombieId, killerAddress: normalizedAddress })
+  trySpawnPotionDrops(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ)
+  return true
 }
 
 function sendPlayerHealthStatesForLobbyPlayers(players: LobbyPlayer[]): void {
@@ -1113,26 +1166,11 @@ export function setupLobbyServer(): void {
     const allowanceKey = getShotAllowanceKey(normalizedAddress, data.weaponType, shotSeq)
     const remainingHits = zombieHitAllowanceByShotKey.get(allowanceKey) ?? 0
     if (remainingHits <= 0) return
-
-    const spawnState = zombieSpawnAtById.get(data.zombieId)
-    if (!spawnState) return
     const now = getServerTime()
-    if (spawnState.spawnAtMs > now) return
 
     const damage = 1
     zombieHitAllowanceByShotKey.set(allowanceKey, remainingHits - 1)
-    spawnState.hp = Math.max(0, spawnState.hp - damage)
-
-    if (spawnState.hp > 0) {
-      void room.send('zombieHealthChanged', { zombieId: data.zombieId, hp: spawnState.hp })
-      return
-    }
-
-    zombieSpawnAtById.delete(data.zombieId)
-    deadZombieIds.delete(data.zombieId)
-    recomputeZombiesAlive(runtime, now)
-    void room.send('zombieDied', { zombieId: data.zombieId, killerAddress: normalizedAddress })
-    trySpawnPotionDrops(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ)
+    applyZombieDamage(data.zombieId, damage, normalizedAddress, now)
   })
 
   room.onMessage('potionClaimRequest', (data, context) => {
@@ -1164,10 +1202,48 @@ export function setupLobbyServer(): void {
     }
 
     activePotionsById.delete(data.potionId)
+    const state = getOrCreatePlayerCombatState(normalizedAddress)
+    if (potion.potionType === 'rage') {
+      state.rageShieldEndAtMs = now + RAGE_SHIELD_DURATION_MS
+    } else if (potion.potionType === 'speed') {
+      state.speedEndAtMs = now + SPEED_POTION_DURATION_MS
+    }
     void room.send('potionClaimed', {
       potionId: data.potionId,
       claimerAddress: normalizedAddress
     })
+  })
+
+  room.onMessage('rageShieldHitRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+    if (!data.zombieId) return
+
+    const lobbyState = getLobbyState()
+    if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning) return
+
+    const now = getServerTime()
+    const state = getOrCreatePlayerCombatState(normalizedAddress)
+    if (state.isDead) return
+    if (!isRageShieldActive(state, now)) return
+
+    const zombie = zombieSpawnAtById.get(data.zombieId)
+    if (!zombie || zombie.spawnAtMs > now) return
+
+    const playerPosition = getPlayerPosition(normalizedAddress)
+    if (!playerPosition) return
+    if (distanceXZ(playerPosition.x, playerPosition.z, zombie.spawnX, zombie.spawnZ) > RAGE_SHIELD_RADIUS) return
+
+    const hitKey = getRageShieldHitKey(normalizedAddress, data.zombieId)
+    const lastHitAtMs = lastRageShieldHitAtMsByPlayerAndZombie.get(hitKey) ?? 0
+    if (now - lastHitAtMs < RAGE_SHIELD_HIT_COOLDOWN_MS) return
+
+    lastRageShieldHitAtMsByPlayerAndZombie.set(hitKey, now)
+    applyZombieDamage(data.zombieId, RAGE_SHIELD_DAMAGE, normalizedAddress, now)
   })
 
   room.onMessage('playerDamageRequest', (data, context) => {
@@ -1184,6 +1260,7 @@ export function setupLobbyServer(): void {
     const now = getServerTime()
     const state = getOrCreatePlayerCombatState(normalizedAddress)
     if (state.isDead) return
+    if (isRageShieldActive(state, now)) return
     if (now - state.lastDamageRequestAtMs < PLAYER_DAMAGE_REQUEST_COOLDOWN_MS) return
 
     const requestedAmount = Number.isFinite(data.amount) ? Math.floor(data.amount) : 1
@@ -1244,7 +1321,8 @@ export function setupLobbyServer(): void {
     const now = getServerTime()
     const rateLimitKey = `${normalizedAddress}:${weaponType}`
     const lastShotAtMs = lastShotAtMsByPlayerAndWeapon.get(rateLimitKey) ?? 0
-    if (now - lastShotAtMs < SHOT_RATE_LIMIT_MS_BY_WEAPON[weaponType]) return
+    const effectiveShotRateLimitMs = SHOT_RATE_LIMIT_MS_BY_WEAPON[weaponType] / getPlayerFireRateMultiplier(state, now)
+    if (now - lastShotAtMs < effectiveShotRateLimitMs) return
 
     const originX = Number(data.originX)
     const originY = Number(data.originY)
