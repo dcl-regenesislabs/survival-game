@@ -11,10 +11,11 @@ import {
   Material,
   Schemas
 } from '@dcl/sdk/ecs'
-import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
+import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { ZombieComponent, damageZombie } from './zombie'
 import { getCurrentWeapon } from './weaponManager'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
+import { getPlayerBulletColor } from './shared/playerColors'
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
 import {
@@ -106,7 +107,8 @@ function spawnProjectile(
   gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number },
   canDamage: boolean = true,
   weaponType: 'gun' | 'shotgun' | 'minigun' = 'gun',
-  shotSeq: number = 0
+  shotSeq: number = 0,
+  shooterAddress: string = ''
 ): Vector3 {
   // Bullet direction = gun forward (where the barrel points), so bullet always matches gun aim
   const direction = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
@@ -120,16 +122,16 @@ function spawnProjectile(
     Vector3.scale(direction, MUZZLE_OFFSET_GUN_LOCAL.z)
   )
   const spawnPos = Vector3.add(gunWorldPos, offset)
+  const color = getPlayerBulletColor(shooterAddress)
   const projectile = engine.addEntity()
   Transform.create(projectile, {
     position: Vector3.clone(spawnPos),
     scale: Vector3.create(0.18, 0.18, 0.18)
   })
   MeshRenderer.setSphere(projectile)
-  // Yellow-orange tracer – high contrast against red arena
   Material.setPbrMaterial(projectile, {
-    albedoColor: Color4.create(1.0, 0.75, 0.0, 1.0),
-    emissiveColor: Color3.create(1.0, 0.6, 0.0),
+    albedoColor: color.albedo,
+    emissiveColor: color.emissive,
     emissiveIntensity: 1.5,
     metallic: 0.0,
     roughness: 0.3
@@ -289,17 +291,17 @@ export function gunSystem(dt: number) {
   shootTimer = 0
   playGunAnimation()
   const nextShotSeq = localShotSeq + 1
-  const direction = spawnProjectile(visibleGunPos, visibleGunRot, true, 'gun', nextShotSeq)
+  const direction = spawnProjectile(visibleGunPos, visibleGunRot, true, 'gun', nextShotSeq, getLocalAddress() ?? '')
   localShotSeq = nextShotSeq
   sendPlayerShotRequest('gun', visibleGunPos, direction, localShotSeq)
 }
 
-export function spawnReplicatedGunShotVisual(origin: Vector3, direction: Vector3): void {
+export function spawnReplicatedGunShotVisual(origin: Vector3, direction: Vector3, shooterAddress: string = ''): void {
   const directionXZ = Vector3.create(direction.x, 0, direction.z)
   const lenSq = directionXZ.x * directionXZ.x + directionXZ.z * directionXZ.z
   if (lenSq <= 0.0001) return
   const rotation = Quaternion.lookRotation(Vector3.normalize(directionXZ))
-  spawnProjectile(origin, rotation, false, 'gun', 0)
+  spawnProjectile(origin, rotation, false, 'gun', 0, shooterAddress)
 }
 
 export function initGunSystems() {
