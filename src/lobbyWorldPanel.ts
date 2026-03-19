@@ -17,7 +17,7 @@ import {
   sendLeaveLobby
 } from './multiplayer/lobbyClient'
 import { getServerTime } from './shared/timeSync'
-import { openExternalUrl } from '~system/RestrictedActions'
+import { changeRealm } from '~system/RestrictedActions'
 
 const PANEL_WORLD_POSITION = Vector3.create(76.2, 3, 36)
 const EXTERNAL_PANEL_WORLD_POSITIONS = [
@@ -27,11 +27,11 @@ const EXTERNAL_PANEL_WORLD_POSITIONS = [
 const EXTERNAL_WORLD_LINKS = [
   {
     label: 'Play at /mendoexit.dcl.eth',
-    url: 'https://decentraland.org/play/?NETWORK=mainnet&position=-141%2C-145&realm=mendoexit.dcl.eth'
+    realm: 'mendoexit.dcl.eth'
   },
   {
     label: 'Play at /thecodingcave.dcl.eth',
-    url: 'https://decentraland.org/play/?NETWORK=mainnet&position=-141%2C-145&realm=thecodingcave.dcl.eth'
+    realm: 'thecodingcave.dcl.eth'
   }
 ] as const
 const ROOT_ROTATION = Quaternion.fromEulerDegrees(0, -90, 0)
@@ -41,6 +41,7 @@ const TRIGGER_RECONCILE_INTERVAL_SECONDS = 0.1
 const TEXT_LOCAL_POSITION = Vector3.create(0, 0.82, 0.3)
 const EXTERNAL_TEXT_LOCAL_POSITION = Vector3.create(0, 0.82, 1.8)
 const COUNTDOWN_TEXT_LOCAL_POSITION = Vector3.create(0, -0.25, -0.25)
+const EXTERNAL_COUNTDOWN_LOCAL_POSITION = COUNTDOWN_TEXT_LOCAL_POSITION
 const TRIGGER_LOCAL_POSITION = Vector3.create(0, -3, -2.2)
 const EXTERNAL_TRIGGER_LOCAL_POSITION = Vector3.create(0, -3, 1.8)
 const TRIGGER_SCALE = Vector3.create(5.4, 2.6, 4.6)
@@ -49,21 +50,25 @@ const TRIGGER_BOUNDS_EPSILON = 0.15
 const ROOT_INVERSE_ROTATION = Quaternion.fromEulerDegrees(0, 90, 0)
 const LOBBY_REQUEST_COOLDOWN_MS = 1000
 const EXTERNAL_LINK_COOLDOWN_MS = 1500
+const EXTERNAL_TELEPORT_COUNTDOWN_SECONDS = 5
 
 type Entity = ReturnType<typeof engine.addEntity>
 
 class ExternalWorldPanel {
   private rootEntity: Entity = engine.addEntity()
   private textEntity: Entity = engine.addEntity()
+  private countdownTextEntity: Entity = engine.addEntity()
   private triggerEntity: Entity = engine.addEntity()
   private isLocalPlayerInsideTrigger = false
   private triggerReconcileAccumulator = 0
   private lastOpenRequestAtMs = 0
+  private countdownRemainingSeconds = 0
+  private lastRenderedCountdownText = ''
 
   constructor(
     private readonly worldPosition: Vector3,
     private readonly label: string,
-    private readonly url: string
+    private readonly realm: string
   ) {
     this.createPanel()
     engine.addSystem((dt) => this.updateSystem(dt), undefined, `external-world-panel-${label}`)
@@ -101,6 +106,26 @@ class ExternalWorldPanel {
       shadowOffsetY: -0.05
     })
 
+    Transform.create(this.countdownTextEntity, {
+      parent: this.rootEntity,
+      position: EXTERNAL_COUNTDOWN_LOCAL_POSITION,
+      rotation: Quaternion.Identity(),
+      scale: Vector3.create(0.22, 0.22, 0.22)
+    })
+    TextShape.create(this.countdownTextEntity, {
+      text: '',
+      width: 8,
+      height: 2,
+      fontSize: 12,
+      fontAutoSize: false,
+      lineCount: 1,
+      textWrapping: false,
+      textAlign: TextAlignMode.TAM_MIDDLE_CENTER,
+      textColor: Color4.create(1, 0.86, 0.18, 1),
+      outlineWidth: 0.26,
+      outlineColor: Color3.create(0, 0, 0)
+    })
+
     Transform.create(this.triggerEntity, {
       parent: this.rootEntity,
       position: EXTERNAL_TRIGGER_LOCAL_POSITION,
@@ -111,15 +136,18 @@ class ExternalWorldPanel {
     triggerAreaEventsSystem.onTriggerEnter(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
       this.isLocalPlayerInsideTrigger = true
-      this.openWorldLinkIfNeeded()
+      this.startCountdown()
     })
     triggerAreaEventsSystem.onTriggerExit(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
       this.isLocalPlayerInsideTrigger = false
+      this.cancelCountdown()
     })
   }
 
   private updateSystem(dt: number): void {
+    this.updateCountdown(dt)
+
     this.triggerReconcileAccumulator += dt
     if (this.triggerReconcileAccumulator < TRIGGER_RECONCILE_INTERVAL_SECONDS) return
     this.triggerReconcileAccumulator = 0
@@ -129,15 +157,58 @@ class ExternalWorldPanel {
 
     this.isLocalPlayerInsideTrigger = isActuallyInside
     if (isActuallyInside) {
-      this.openWorldLinkIfNeeded()
+      this.startCountdown()
+      return
     }
+
+    this.cancelCountdown()
   }
 
-  private openWorldLinkIfNeeded(): void {
+  private startCountdown(): void {
+    if (this.countdownRemainingSeconds > 0) return
+    this.countdownRemainingSeconds = EXTERNAL_TELEPORT_COUNTDOWN_SECONDS
+    this.renderCountdownText()
+  }
+
+  private cancelCountdown(): void {
+    if (this.countdownRemainingSeconds <= 0 && this.lastRenderedCountdownText.length === 0) return
+    this.countdownRemainingSeconds = 0
+    this.renderCountdownText()
+  }
+
+  private updateCountdown(dt: number): void {
+    if (!this.isLocalPlayerInsideTrigger || this.countdownRemainingSeconds <= 0) return
+
+    this.countdownRemainingSeconds = Math.max(0, this.countdownRemainingSeconds - dt)
+    const visibleSeconds = Math.max(1, Math.ceil(this.countdownRemainingSeconds))
+    const nextText = `Teleporting in ${visibleSeconds}`
+    if (nextText !== this.lastRenderedCountdownText) {
+      this.lastRenderedCountdownText = nextText
+      TextShape.getMutable(this.countdownTextEntity).text = nextText
+    }
+
+    if (this.countdownRemainingSeconds > 0) return
+    this.teleportIfNeeded()
+  }
+
+  private renderCountdownText(): void {
+    const nextText =
+      this.countdownRemainingSeconds > 0
+        ? `Teleporting in ${Math.max(1, Math.ceil(this.countdownRemainingSeconds))}`
+        : ''
+    if (nextText === this.lastRenderedCountdownText) return
+    this.lastRenderedCountdownText = nextText
+    TextShape.getMutable(this.countdownTextEntity).text = nextText
+  }
+
+  private teleportIfNeeded(): void {
+    if (!this.isLocalPlayerInsideTrigger) return
     const nowMs = Date.now()
     if (nowMs - this.lastOpenRequestAtMs < EXTERNAL_LINK_COOLDOWN_MS) return
     this.lastOpenRequestAtMs = nowMs
-    void openExternalUrl({ url: this.url })
+    this.countdownRemainingSeconds = 0
+    this.renderCountdownText()
+    void changeRealm({ realm: this.realm })
   }
 
   private isPlayerInsideTriggerVolume(): boolean {
@@ -361,7 +432,7 @@ export class LobbyWorldPanel {
 
 export function initLobbyWorldPanel(): LobbyWorldPanel {
   EXTERNAL_WORLD_LINKS.forEach((panel, index) => {
-    new ExternalWorldPanel(EXTERNAL_PANEL_WORLD_POSITIONS[index], panel.label, panel.url)
+    new ExternalWorldPanel(EXTERNAL_PANEL_WORLD_POSITIONS[index], panel.label, panel.realm)
   })
   return new LobbyWorldPanel()
 }
