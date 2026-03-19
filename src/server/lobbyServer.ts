@@ -19,15 +19,19 @@ import {
 import { ArenaWeaponType, LoadoutWeaponId, getLoadoutWeaponDefinition } from '../shared/loadoutCatalog'
 import { createPlayerProgressStore } from './storage/playerProgress'
 import { getServerTime } from '../shared/timeSync'
+import {
+  ARENA_CENTER_X,
+  ARENA_CENTER_Z,
+  ARENA_SPAWN_MAX_X,
+  ARENA_SPAWN_MAX_Z,
+  ARENA_SPAWN_MIN_X,
+  ARENA_SPAWN_MIN_Z
+} from '../shared/arenaConfig'
 
 let lobbyEntity: ReturnType<typeof engine.addEntity> | null = null
 let matchRuntimeEntity: ReturnType<typeof engine.addEntity> | null = null
 const playerProgressStore = createPlayerProgressStore()
 const PLAYER_PROGRESS_AUTOSAVE_SECONDS = 20
-const SPAWN_MIN_X = 10
-const SPAWN_MAX_X = 54
-const SPAWN_MIN_Z = 10
-const SPAWN_MAX_Z = 54
 const PLAYER_MAX_HP = 5
 const PLAYER_RESPAWN_SECONDS = 5
 const PLAYER_DAMAGE_REQUEST_COOLDOWN_MS = 250
@@ -66,8 +70,8 @@ const ZOMBIE_MAX_HP_BY_TYPE: Record<ZombieType, number> = {
 }
 const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
-const ARENA_TELEPORT_POSITION = { x: 32, y: 0, z: 32 }
-const ARENA_TELEPORT_LOOK_AT = { x: 32, y: 1, z: 33 }
+const ARENA_TELEPORT_POSITION = { x: ARENA_CENTER_X, y: 0, z: ARENA_CENTER_Z }
+const ARENA_TELEPORT_LOOK_AT = { x: ARENA_CENTER_X, y: 1, z: ARENA_CENTER_Z + 1 }
 const LOBBY_RETURN_POSITION = { x: 78.4, y: 3, z: 31.5 }
 const LOBBY_RETURN_LOOK_AT = { x: 76.2, y: 3, z: 31 }
 const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
@@ -413,8 +417,8 @@ function getAvailablePotionPosition(
     const ring = Math.floor(attempt / 4) + 1
     const angle = angleOffset + attempt * ((Math.PI * 2) / 4)
     const radius = POTION_POSITION_RING_STEP * ring
-    const candidateX = clampPotionCoordinate(originX + Math.cos(angle) * radius, SPAWN_MIN_X, SPAWN_MAX_X)
-    const candidateZ = clampPotionCoordinate(originZ + Math.sin(angle) * radius, SPAWN_MIN_Z, SPAWN_MAX_Z)
+    const candidateX = clampPotionCoordinate(originX + Math.cos(angle) * radius, ARENA_SPAWN_MIN_X, ARENA_SPAWN_MAX_X)
+    const candidateZ = clampPotionCoordinate(originZ + Math.sin(angle) * radius, ARENA_SPAWN_MIN_Z, ARENA_SPAWN_MAX_Z)
     if (isPotionPositionFree(candidateX, candidateZ, allOccupiedPositions)) {
       return { positionX: candidateX, positionY: originY, positionZ: candidateZ }
     }
@@ -423,9 +427,9 @@ function getAvailablePotionPosition(
   const fallbackAngle = angleOffset + Math.random() * Math.PI * 2
   const fallbackRadius = POTION_POSITION_RING_STEP * (Math.floor(POTION_POSITION_SEARCH_ATTEMPTS / 4) + 1)
   return {
-    positionX: clampPotionCoordinate(originX + Math.cos(fallbackAngle) * fallbackRadius, SPAWN_MIN_X, SPAWN_MAX_X),
+    positionX: clampPotionCoordinate(originX + Math.cos(fallbackAngle) * fallbackRadius, ARENA_SPAWN_MIN_X, ARENA_SPAWN_MAX_X),
     positionY: originY,
-    positionZ: clampPotionCoordinate(originZ + Math.sin(fallbackAngle) * fallbackRadius, SPAWN_MIN_Z, SPAWN_MAX_Z)
+    positionZ: clampPotionCoordinate(originZ + Math.sin(fallbackAngle) * fallbackRadius, ARENA_SPAWN_MIN_Z, ARENA_SPAWN_MAX_Z)
   }
 }
 
@@ -868,8 +872,8 @@ function pickZombieType(waveNumber: number): ZombieType {
 }
 
 function randomSpawnPoint() {
-  const spawnX = SPAWN_MIN_X + Math.random() * (SPAWN_MAX_X - SPAWN_MIN_X)
-  const spawnZ = SPAWN_MIN_Z + Math.random() * (SPAWN_MAX_Z - SPAWN_MIN_Z)
+  const spawnX = ARENA_SPAWN_MIN_X + Math.random() * (ARENA_SPAWN_MAX_X - ARENA_SPAWN_MIN_X)
+  const spawnZ = ARENA_SPAWN_MIN_Z + Math.random() * (ARENA_SPAWN_MAX_Z - ARENA_SPAWN_MIN_Z)
   return { spawnX, spawnY: 0, spawnZ }
 }
 

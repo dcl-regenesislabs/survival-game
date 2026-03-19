@@ -1,6 +1,7 @@
 import { engine, Transform } from '@dcl/sdk/ecs'
 import { Vector3 } from '@dcl/sdk/math'
 import { movePlayerTo } from '~system/RestrictedActions'
+import { ARENA_CENTER } from './shared/arenaConfig'
 
 export const MAX_HP = 5
 
@@ -10,7 +11,7 @@ let respawnAtMs = 0
 let healGlowEndTime = 0
 
 /** Respawn position in scene (center of play area) */
-const RESPAWN_POSITION = Vector3.create(32, 0, 32)
+const RESPAWN_POSITION = Vector3.create(ARENA_CENTER.x, 0, ARENA_CENTER.z)
 const RESPAWN_DELAY = 5 // seconds to show "You Died" before respawning
 
 export function getPlayerHp(): number {

@@ -8,7 +8,8 @@ import {
   VirtualCamera,
   MeshCollider,
   ColliderLayer,
-  SkyboxTime
+  SkyboxTime,
+  Name
 } from '@dcl/sdk/ecs'
 import { isServer } from '@dcl/sdk/network'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
@@ -61,6 +62,16 @@ import {
 import { initTimeSync } from './shared/timeSync'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 import { room } from './shared/messages'
+import {
+  ARENA_FLOOR_POSITION_X,
+  ARENA_FLOOR_POSITION_Z,
+  ARENA_FLOOR_SCALE,
+  ARENA_WALL_LENGTH_SCALE,
+  ARENA_WALL_BOTTOM_Z,
+  ARENA_WALL_LEFT_X,
+  ARENA_WALL_RIGHT_X,
+  ARENA_WALL_TOP_Z
+} from './shared/arenaConfig'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
 const CINEMATIC_CAMERA_HEIGHT = 12
@@ -81,6 +92,8 @@ let appliedSkyboxTime: number | null = null
 const seenRemoteShotKeys = new Set<string>()
 const seenRemoteShotKeyQueue: string[] = []
 const MAX_SEEN_REMOTE_SHOTS = 512
+const ARENA_LAYOUT_SYSTEM_NAME = 'arena-layout-system'
+const EXPECTED_ARENA_LAYOUT_ENTITIES = 5
 
 // Fixed world offset: camera sits here relative to player; rotation never changes
 const CINEMATIC_OFFSET = Vector3.create(0, CINEMATIC_CAMERA_HEIGHT, -CINEMATIC_CAMERA_DISTANCE)
@@ -141,6 +154,56 @@ function setActiveCamera(cinematic: boolean) {
   if (!MainCamera.has(engine.CameraEntity)) return
   const mainCamera = MainCamera.getMutable(engine.CameraEntity)
   mainCamera.virtualCameraEntity = cinematic && cinematicCameraEntity ? cinematicCameraEntity : undefined
+}
+
+function applyArenaLayoutSystem(): void {
+  let appliedCount = 0
+  for (const [entity, name] of engine.getEntitiesWith(Name, Transform)) {
+    if (name.value === EntityNames.Floor02_glb) {
+      const transform = Transform.getMutable(entity)
+      transform.position = Vector3.create(ARENA_FLOOR_POSITION_X, transform.position.y, ARENA_FLOOR_POSITION_Z)
+      transform.scale = Vector3.create(ARENA_FLOOR_SCALE, transform.scale.y, ARENA_FLOOR_SCALE)
+      appliedCount += 1
+      continue
+    }
+
+    if (name.value === EntityNames.Wall02_glb) {
+      const transform = Transform.getMutable(entity)
+      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_TOP_Z)
+      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
+      appliedCount += 1
+      continue
+    }
+
+    if (name.value === EntityNames.Wall02_glb_2) {
+      const transform = Transform.getMutable(entity)
+      // This wall intentionally shares the same top-left anchor as Wall02_glb.
+      // The scene model already carries a 90-degree rotation, so same anchor != stacked duplicate.
+      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_TOP_Z)
+      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
+      appliedCount += 1
+      continue
+    }
+
+    if (name.value === EntityNames.Wall02_glb_3) {
+      const transform = Transform.getMutable(entity)
+      transform.position = Vector3.create(ARENA_WALL_RIGHT_X, 0, ARENA_WALL_TOP_Z)
+      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
+      appliedCount += 1
+      continue
+    }
+
+    if (name.value === EntityNames.Wall02_glb_4) {
+      const transform = Transform.getMutable(entity)
+      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_BOTTOM_Z)
+      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
+      appliedCount += 1
+    }
+  }
+
+  if (appliedCount >= EXPECTED_ARENA_LAYOUT_ENTITIES) {
+    engine.removeSystem(ARENA_LAYOUT_SYSTEM_NAME)
+  }
 }
 
 function isLocalPlayerInCurrentMatch(): boolean {
@@ -211,6 +274,7 @@ export function main() {
   // Loadout panel disabled
   // initLoadoutWorldPanel()
   setupUi()
+  engine.addSystem(applyArenaLayoutSystem, undefined, ARENA_LAYOUT_SYSTEM_NAME)
   engine.addSystem(waveSkyboxSystem, undefined, 'wave-skybox-system')
 
   // Cinematic camera: follows player position only, fixed world rotation (Diablo-style)
