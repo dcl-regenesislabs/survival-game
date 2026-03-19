@@ -79,7 +79,7 @@ function playGunAnimation() {
   }
 }
 
-const SHOTGUN_SPREAD_DEG = 30 // +30° and -30° from center for the side pellets
+const SHOTGUN_SPREAD_DEG = 5 // +5° and -5° from center for the side pellets
 const SHOTGUN_SPREAD_TAN = Math.tan((SHOTGUN_SPREAD_DEG * Math.PI) / 180)
 
 function spawnProjectile(
