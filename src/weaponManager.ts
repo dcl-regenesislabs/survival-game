@@ -1,14 +1,14 @@
 import { engine } from '@dcl/sdk/ecs'
 import { createGun, destroyGun } from './gun'
 import { createShotGun, destroyShotGun } from './shotGun'
-import { createMiniGun, destroyMiniGun } from './miniGun'
+import { createMiniGun, destroyMiniGun, resetMiniGunOverheatState } from './miniGun'
 import { isPlayerDead } from './playerHealth'
 import { spendZombieCoins } from './zombieCoins'
 import { sendPlayerArenaWeaponChanged } from './multiplayer/lobbyClient'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
 export const SHOTGUN_UNLOCK_COST_ZC = 50
-export const MINIGUN_UNLOCK_COST_ZC = 100
+export const MINIGUN_UNLOCK_COST_ZC = 1
 
 let currentWeapon: WeaponType = 'gun'
 let arenaWeaponEnabled = false
@@ -102,6 +102,7 @@ export function resetArenaWeaponProgress(): void {
   weaponHiddenByDeath = false
   shotgunPurchasedInMatch = false
   minigunPurchasedInMatch = false
+  resetMiniGunOverheatState()
 }
 
 function weaponLifecycleSystem(): void {
