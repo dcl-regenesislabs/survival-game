@@ -114,13 +114,13 @@ function snapToGrid(v: Vector3): Vector3 {
   )
 }
 const BRICK_TARGET_PREVIEW_SCALE = 1.05
-const BRICK_TARGET_PREVIEW_THICKNESS = 0.03
+const BRICK_TARGET_PREVIEW_THICKNESS = BRICK_TARGET_PREVIEW_SCALE
 const BRICK_TARGET_PREVIEW_Y = BRICK_TARGET_PREVIEW_THICKNESS / 2
 
 const BRICK_TARGET_PREVIEW_MATERIAL = {
-  albedoColor: Color4.create(0.9, 0.2, 0.15, 0.35),
-  emissiveColor: Color3.create(0.7, 0.15, 0.1),
-  emissiveIntensity: 0.25,
+  albedoColor: Color4.create(0.95, 0.8, 0.12, 0.42),
+  emissiveColor: Color3.create(0.55, 0.42, 0.06),
+  emissiveIntensity: 0.2,
   metallic: 0,
   roughness: 1
 }
