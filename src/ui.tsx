@@ -18,6 +18,11 @@ import {
   switchTo
 } from './weaponManager'
 import {
+  getMiniGunHeatRatio,
+  getMiniGunOverheatCooldownRemaining,
+  isMiniGunOverheated
+} from './miniGun'
+import {
   BRICK_COST_ZC,
   activateBrickTargetMode,
   confirmBrickPlacementFromTargetMode,
@@ -103,6 +108,7 @@ export const uiMenu = () => {
 
   const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
+  const currentWeapon = getCurrentWeapon()
   const respawnSecondsLeft = Math.max(0, Math.ceil((getRespawnAtMs() - timerNowMs) / 1000))
   const playerHpRatio = Math.max(0, Math.min(1, getPlayerHp() / MAX_HP))
   const hpFrameScale = PLAYER_HP_FRAME_WIDTH / 968
@@ -133,6 +139,12 @@ export const uiMenu = () => {
     activeEffectBarCount > 0
       ? activeEffectBarCount * effectBarHeight + Math.max(0, activeEffectBarCount - 1) * effectBarGap + 4
       : 0
+  const miniGunHeatRatio = getMiniGunHeatRatio()
+  const miniGunOverheated = isMiniGunOverheated()
+  const miniGunCooldownRemaining = getMiniGunOverheatCooldownRemaining()
+  const miniGunBarWidth = 128
+  const miniGunBarHeight = 8
+  const miniGunBarFillWidth = miniGunBarWidth * miniGunHeatRatio
 
   return (
     <UiEntity
@@ -671,7 +683,6 @@ export const uiMenu = () => {
             }}
           >
             {(['gun', 'shotgun', 'minigun', 'brick'] as const).map((weapon) => {
-                const currentWeapon = getCurrentWeapon()
                 const isPurchasableWeapon = weapon === 'shotgun' || weapon === 'minigun'
                 const weaponCost = weapon === 'brick' ? BRICK_COST_ZC : isPurchasableWeapon ? getWeaponUnlockCost(weapon) : 0
                 const isPurchased = weapon === 'brick' ? true : weapon === 'gun' ? true : isWeaponPurchasedInMatch(weapon)
@@ -717,7 +728,11 @@ export const uiMenu = () => {
                     key={weapon}
                     uiTransform={{
                       width: buttonWidth,
-                      height: buttonHeight + BRICK_TARGET_RETICLE_HEIGHT + WEAPON_SELECTION_BAR_HEIGHT + 20,
+                      height:
+                        buttonHeight +
+                        BRICK_TARGET_RETICLE_HEIGHT +
+                        WEAPON_SELECTION_BAR_HEIGHT +
+                        (weapon === 'minigun' && isSelected ? 38 : 20),
                       positionType: 'relative',
                       margin: { left: 19, right: 19, bottom: 14 },
                       flexDirection: 'column',
@@ -725,6 +740,52 @@ export const uiMenu = () => {
                       justifyContent: 'flex-end'
                     }}
                   >
+                    {weapon === 'minigun' && isSelected && (
+                      <UiEntity
+                        uiTransform={{
+                          width: miniGunBarWidth,
+                          height: 26,
+                          margin: { bottom: 8 },
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end'
+                        }}
+                      >
+                        <UiEntity
+                          uiTransform={{ width: miniGunBarWidth, height: 14 }}
+                          uiText={{
+                            value: miniGunOverheated ? `OVERHEAT ${Math.ceil(miniGunCooldownRemaining)}s` : '',
+                            fontSize: 12,
+                            color: Color4.create(1, 0.45, 0.3, 1),
+                            textAlign: 'middle-center'
+                          }}
+                        />
+                        <UiEntity
+                          uiTransform={{
+                            width: miniGunBarWidth,
+                            height: miniGunBarHeight,
+                            borderRadius: 2,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start'
+                          }}
+                          uiBackground={{ color: Color4.create(0.18, 0.08, 0.06, 0.95) }}
+                        >
+                          <UiEntity
+                            uiTransform={{
+                              width: miniGunBarFillWidth,
+                              height: miniGunBarHeight,
+                              borderRadius: 2
+                            }}
+                            uiBackground={{
+                              color: miniGunOverheated
+                                ? Color4.create(1, 0.28, 0.18, 1)
+                                : Color4.create(1, 0.68, 0.18, 1)
+                            }}
+                          />
+                        </UiEntity>
+                      </UiEntity>
+                    )}
                     {weapon === 'brick' && brickTargetModeActive && (
                       <UiEntity
                         uiTransform={{

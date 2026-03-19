@@ -20,6 +20,11 @@ import { getPlayerBulletColor } from './shared/playerColors'
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
 import {
+  MINIGUN_HEAT_RECOVERY_SECONDS,
+  MINIGUN_OVERHEAT_LOCK_SECONDS,
+  MINIGUN_OVERHEAT_SECONDS
+} from './shared/matchConfig'
+import {
   WEAPON_DEFAULT_ROTATION,
   WEAPON_DEFAULT_SCALE,
   WEAPON_MODEL_VISUAL_OFFSET,
@@ -48,6 +53,42 @@ let gunEntity: Entity | null = null
 let gunModelEntity: Entity | null = null
 let shootTimer = 0
 let localShotSeq = 0
+let minigunHeatRatio = 0
+let minigunOverheatLockRemaining = 0
+
+function coolMinigunHeat(dt: number): void {
+  if (minigunHeatRatio <= 0) return
+  minigunHeatRatio = Math.max(0, minigunHeatRatio - dt / MINIGUN_HEAT_RECOVERY_SECONDS)
+}
+
+function tickMinigunOverheatLock(dt: number): boolean {
+  if (minigunOverheatLockRemaining <= 0) return false
+  minigunOverheatLockRemaining = Math.max(0, minigunOverheatLockRemaining - dt)
+  if (minigunOverheatLockRemaining <= 0) {
+    minigunHeatRatio = 0
+  } else {
+    minigunHeatRatio = 1
+  }
+  return minigunOverheatLockRemaining > 0
+}
+
+export function getMiniGunHeatRatio(): number {
+  return minigunHeatRatio
+}
+
+export function getMiniGunOverheatCooldownRemaining(): number {
+  return minigunOverheatLockRemaining
+}
+
+export function isMiniGunOverheated(): boolean {
+  return minigunOverheatLockRemaining > 0
+}
+
+export function resetMiniGunOverheatState(): void {
+  minigunHeatRatio = 0
+  minigunOverheatLockRemaining = 0
+  shootTimer = 0
+}
 
 function getNearestZombie(fromPosition: Vector3): Entity | null {
   let nearest: Entity | null = null
@@ -167,7 +208,11 @@ export function destroyMiniGun(): void {
 }
 
 export function miniGunSystem(dt: number) {
-  if (getCurrentWeapon() !== 'minigun' || !Transform.has(engine.PlayerEntity) || !gunEntity) return
+  const isOverheatLocked = tickMinigunOverheatLock(dt)
+  if (getCurrentWeapon() !== 'minigun' || !Transform.has(engine.PlayerEntity) || !gunEntity) {
+    if (!isOverheatLocked) coolMinigunHeat(dt)
+    return
+  }
   const localAddress = getLocalAddress()
   const lobbyState = getLobbyState()
   const isInArena =
@@ -176,7 +221,10 @@ export function miniGunSystem(dt: number) {
     lobbyState.phase === 'match_created' &&
     lobbyState.arenaPlayers.some((player) => player.address === localAddress) &&
     isLocalReadyForMatch()
-  if (!isInArena) return
+  if (!isInArena) {
+    if (!isOverheatLocked) coolMinigunHeat(dt)
+    return
+  }
 
   const playerTransform = Transform.get(engine.PlayerEntity)
   const gunWorldPos = Vector3.add(
@@ -211,14 +259,29 @@ export function miniGunSystem(dt: number) {
     visibleGunRot = Quaternion.multiply(playerTransform.rotation, mutableGunTransform.rotation)
   }
 
+  if (isOverheatLocked) return
+
+  const isTriggerHeld =
+    inputSystem.isPressed(InputAction.IA_POINTER) ||
+    inputSystem.isPressed(InputAction.IA_PRIMARY)
+
+  if (isTriggerHeld) {
+    minigunHeatRatio = Math.min(1, minigunHeatRatio + dt / MINIGUN_OVERHEAT_SECONDS)
+    if (minigunHeatRatio >= 1) {
+      minigunHeatRatio = 1
+      minigunOverheatLockRemaining = MINIGUN_OVERHEAT_LOCK_SECONDS
+      shootTimer = 0
+      return
+    }
+  } else {
+    coolMinigunHeat(dt)
+  }
+
   const effectiveFireRate = FIRE_RATE / getFireRateMultiplier()
   shootTimer += dt
   if (shootTimer < effectiveFireRate) return
 
-  const didShoot =
-    inputSystem.isPressed(InputAction.IA_POINTER) ||
-    inputSystem.isPressed(InputAction.IA_PRIMARY)
-  if (!didShoot) return
+  if (!isTriggerHeld) return
 
   shootTimer = 0
   playGunAnimation()
