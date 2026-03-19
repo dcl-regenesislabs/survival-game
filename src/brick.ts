@@ -12,6 +12,7 @@ import {
 import { syncEntity } from '@dcl/sdk/network'
 import { Vector3, Quaternion, Color3, Color4 } from '@dcl/sdk/math'
 import { spendZombieCoins } from './zombieCoins'
+import { ARENA_BRICK_MAX_X, ARENA_BRICK_MAX_Z, ARENA_BRICK_MIN_X, ARENA_BRICK_MIN_Z } from './shared/arenaConfig'
 
 const BRICK_GLB = 'assets/asset-packs/bricks_-_red/brick_red.glb'
 export const BRICK_HP = 5
@@ -98,19 +99,14 @@ const BRICK_TARGET_TIMEOUT_MS = 5000
 
 // Grid snapping – all bricks align to a 1-unit grid so forts can be built cleanly
 const GRID_SIZE = 1
-// Arena play area bounds (arena center 32,32, size 48×48 → [8,56]; leave 1 unit margin)
-const ARENA_MIN_X = 9
-const ARENA_MAX_X = 55
-const ARENA_MIN_Z = 9
-const ARENA_MAX_Z = 55
-
+// Arena play area bounds live in shared config; leave a 1-unit margin for brick placement
 function snapToGrid(v: Vector3): Vector3 {
   const snappedX = Math.round(v.x / GRID_SIZE) * GRID_SIZE
   const snappedZ = Math.round(v.z / GRID_SIZE) * GRID_SIZE
   return Vector3.create(
-    Math.max(ARENA_MIN_X, Math.min(ARENA_MAX_X, snappedX)),
+    Math.max(ARENA_BRICK_MIN_X, Math.min(ARENA_BRICK_MAX_X, snappedX)),
     v.y,
-    Math.max(ARENA_MIN_Z, Math.min(ARENA_MAX_Z, snappedZ))
+    Math.max(ARENA_BRICK_MIN_Z, Math.min(ARENA_BRICK_MAX_Z, snappedZ))
   )
 }
 const BRICK_TARGET_PREVIEW_SCALE = 1.05

@@ -16,6 +16,7 @@ import { getBricks, damageBrick, BRICK_RADIUS } from './brick'
 import { createHealthBarForZombie } from './healthBar'
 import { getLobbyState, getPlayerCombatSnapshot, sendRageShieldHitRequest } from './multiplayer/lobbyClient'
 import { getCurrentWave } from './waveManager'
+import { ARENA_SPAWN_MAX_X, ARENA_SPAWN_MAX_Z, ARENA_SPAWN_MIN_X, ARENA_SPAWN_MIN_Z } from './shared/arenaConfig'
 import {
   getRageShieldContactDamage,
   getRageShieldHitIntervalSec,
@@ -91,12 +92,6 @@ export function getGameTime(): number {
   return _gameTime
 }
 
-// Scene bounds for random spawn (inside the walls, avoid edges)
-const SPAWN_MIN_X = 10
-const SPAWN_MAX_X = 54
-const SPAWN_MIN_Z = 10
-const SPAWN_MAX_Z = 54
-
 const ZOMBIE_SPEED = 1.5
 const ZOMBIE_UP_DURATION = 1.2 // Approximate ZombieUP animation length in seconds
 // When a zombie is within this range of a brick, it targets the brick instead of the player
@@ -163,8 +158,8 @@ function playZombieDeathSound(): void {
 }
 
 function getRandomSpawnPosition(): Vector3 {
-  const x = SPAWN_MIN_X + Math.random() * (SPAWN_MAX_X - SPAWN_MIN_X)
-  const z = SPAWN_MIN_Z + Math.random() * (SPAWN_MAX_Z - SPAWN_MIN_Z)
+  const x = ARENA_SPAWN_MIN_X + Math.random() * (ARENA_SPAWN_MAX_X - ARENA_SPAWN_MIN_X)
+  const z = ARENA_SPAWN_MIN_Z + Math.random() * (ARENA_SPAWN_MAX_Z - ARENA_SPAWN_MIN_Z)
   return Vector3.create(x, 0, z)
 }
 
