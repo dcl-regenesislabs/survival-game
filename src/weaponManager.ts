@@ -8,7 +8,7 @@ import { sendPlayerArenaWeaponChanged } from './multiplayer/lobbyClient'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
 export const SHOTGUN_UNLOCK_COST_ZC = 50
-export const MINIGUN_UNLOCK_COST_ZC = 1
+export const MINIGUN_UNLOCK_COST_ZC = 100
 
 let currentWeapon: WeaponType = 'gun'
 let arenaWeaponEnabled = false
