@@ -16,3 +16,8 @@ export const QUICK_ZOMBIE_UNLOCK_WAVE = 3
 export const TANK_ZOMBIE_UNLOCK_WAVE = 7
 export const QUICK_ZOMBIE_CHANCE = 0.35
 export const TANK_ZOMBIE_CHANCE = 0.2
+
+// Minigun overheat tuning
+export const MINIGUN_OVERHEAT_SECONDS = 6.5
+export const MINIGUN_OVERHEAT_LOCK_SECONDS = 3
+export const MINIGUN_HEAT_RECOVERY_SECONDS = 3.25
