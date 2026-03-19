@@ -6,6 +6,7 @@ import { getPlayerHp, isPlayerDead, MAX_HP, getRespawnAtMs, getRespawnDelay } fr
 import { getZombieCoins } from './zombieCoins'
 import { getGameTime } from './zombie'
 import { isSpeedActive, getSpeedTimeLeft, SPEED_DURATION_SEC } from './speedEffect'
+import { isRaging, getRageTimeLeft, RAGE_DURATION_SEC } from './rageEffect'
 import { getHealthPickupFeedback } from './potions'
 import {
   getCurrentWeapon,
@@ -112,13 +113,26 @@ export const uiMenu = () => {
   const playerHpFillVisibleWidth = Math.max(0, Math.min(playerHpFillWidth, PLAYER_HP_FRAME_WIDTH - playerHpFillOffsetX))
   const playerHpFillVisibleHeight = Math.max(0, Math.min(playerHpFillHeight, PLAYER_HP_FRAME_HEIGHT - playerHpFillOffsetY))
   const playerHpFillCurrentWidth = Math.max(0, Math.round(playerHpFillVisibleWidth * playerHpRatio))
-  const speedActive = showGameplayHud && isSpeedActive()
-  const speedFillRatio = speedActive ? Math.max(0, Math.min(1, getSpeedTimeLeft(getGameTime()) / SPEED_DURATION_SEC)) : 0
-  const speedBarWidth = Math.max(0, Math.round((playerHpFillVisibleWidth - 90) * 1.178))
-  const speedBarHeight = 6
-  const speedBarCurrentWidth = Math.max(0, Math.round(speedBarWidth * speedFillRatio))
-  const speedBarOffsetX = playerHpFillOffsetX + 10
-  const speedBarOffsetTop = playerHpFillOffsetY + playerHpFillVisibleHeight + 1
+  const currentGameTime = getGameTime()
+  const speedActive = showPlayerHealthHud && isSpeedActive()
+  const rageActive = showPlayerHealthHud && isRaging()
+  const speedFillRatio = speedActive ? Math.max(0, Math.min(1, getSpeedTimeLeft(currentGameTime) / SPEED_DURATION_SEC)) : 0
+  const rageFillRatio = rageActive ? Math.max(0, Math.min(1, getRageTimeLeft(currentGameTime) / RAGE_DURATION_SEC)) : 0
+  const effectBarWidth = Math.max(0, Math.round((playerHpFillVisibleWidth - 90) * 1.178))
+  const effectBarHeight = 6
+  const effectBarCornerRadius = 1
+  const effectBarGap = 3
+  const speedBarCurrentWidth = Math.max(0, Math.round(effectBarWidth * speedFillRatio))
+  const rageBarCurrentWidth = Math.max(0, Math.round(effectBarWidth * rageFillRatio))
+  const effectBarOffsetX = playerHpFillOffsetX + 10
+  const effectBarBaseTop = playerHpFillOffsetY + playerHpFillVisibleHeight + 10
+  const rageBarOffsetTop = effectBarBaseTop
+  const speedBarOffsetTop = effectBarBaseTop + (rageActive ? effectBarHeight + effectBarGap : 0)
+  const activeEffectBarCount = (rageActive ? 1 : 0) + (speedActive ? 1 : 0)
+  const hpHudExtraHeight =
+    activeEffectBarCount > 0
+      ? activeEffectBarCount * effectBarHeight + Math.max(0, activeEffectBarCount - 1) * effectBarGap + 4
+      : 0
 
   return (
     <UiEntity
@@ -131,17 +145,38 @@ export const uiMenu = () => {
         justifyContent: 'flex-start'
       }}
     >
-      {speedActive && (
+      {(rageActive || speedActive) && (
         <UiEntity
           uiTransform={{
             position: { top: 186, left: 0 },
             positionType: 'absolute',
-            flexDirection: 'row',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             width: '100%'
           }}
         >
+          {rageActive && (
+            <UiEntity
+              uiTransform={{
+                width: 260,
+                height: 36,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <UiEntity
+                uiTransform={{ width: '100%', height: '100%' }}
+                uiText={{
+                  value: `RAGE • ${Math.ceil(getRageTimeLeft(currentGameTime))}s`,
+                  fontSize: 26,
+                  color: Color4.create(0.55, 0.08, 0.12, 1),
+                  textAlign: 'middle-center'
+                }}
+              />
+            </UiEntity>
+          )}
+          {speedActive && (
           <UiEntity
             uiTransform={{
               width: 260,
@@ -160,6 +195,7 @@ export const uiMenu = () => {
               }}
             />
           </UiEntity>
+          )}
         </UiEntity>
       )}
       {showPlayerHealthHud && (
@@ -175,7 +211,7 @@ export const uiMenu = () => {
             <UiEntity
               uiTransform={{
                 width: PLAYER_HP_FRAME_WIDTH,
-                height: PLAYER_HP_FRAME_HEIGHT + speedBarHeight + 4,
+                height: PLAYER_HP_FRAME_HEIGHT + hpHudExtraHeight,
                 positionType: 'relative'
               }}
             >
@@ -215,13 +251,38 @@ export const uiMenu = () => {
                 }}
               />
             </UiEntity>
+            {rageActive && (
+              <UiEntity
+                uiTransform={{
+                  width: effectBarWidth,
+                  height: effectBarHeight,
+                  positionType: 'absolute',
+                  position: { left: effectBarOffsetX, top: rageBarOffsetTop },
+                  borderRadius: effectBarCornerRadius,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start'
+                }}
+                uiBackground={{ color: Color4.create(0.23, 0.05, 0.06, 0.92) }}
+              >
+                <UiEntity
+                  uiTransform={{
+                    width: rageBarCurrentWidth,
+                    height: effectBarHeight,
+                    borderRadius: effectBarCornerRadius
+                  }}
+                  uiBackground={{ color: Color4.create(0.75, 0.1, 0.14, 1) }}
+                />
+              </UiEntity>
+            )}
             {speedActive && (
               <UiEntity
                 uiTransform={{
-                  width: speedBarWidth,
-                  height: speedBarHeight,
+                  width: effectBarWidth,
+                  height: effectBarHeight,
                   positionType: 'absolute',
-                  position: { left: speedBarOffsetX, top: speedBarOffsetTop + 3 },
+                  position: { left: effectBarOffsetX, top: speedBarOffsetTop },
+                  borderRadius: effectBarCornerRadius,
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'flex-start'
@@ -231,7 +292,8 @@ export const uiMenu = () => {
                 <UiEntity
                   uiTransform={{
                     width: speedBarCurrentWidth,
-                    height: speedBarHeight
+                    height: effectBarHeight,
+                    borderRadius: effectBarCornerRadius
                   }}
                   uiBackground={{ color: Color4.create(0.95, 0.8, 0.12, 1) }}
                 />
