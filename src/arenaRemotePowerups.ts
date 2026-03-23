@@ -185,14 +185,10 @@ function updateRemoteRageAura(
   transform.position = Vector3.add(avatarTransform.position, Vector3.create(0, RAGE_AURA_HEIGHT_OFFSET, 0))
   transform.rotation = avatarTransform.rotation
   transform.scale = Vector3.create(scale, scale, scale)
-
-  Material.setPbrMaterial(entity, {
-    albedoColor: Color4.create(0.95, 0.15, 0.2, 0.35),
-    emissiveColor: Color3.create(1, 0.25, 0.3),
-    emissiveIntensity: emissive,
-    metallic: 0,
-    roughness: 1
-  })
+  const material = Material.getFlatMutableOrNull(entity)
+  if (material) {
+    material.emissiveIntensity = emissive
+  }
 }
 
 function updateRemoteSpeedAura(
