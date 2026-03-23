@@ -58,6 +58,7 @@ import {
   isArenaWeaponType,
   playRemoteWeaponShotAnimation
 } from './arenaRemoteDefaultWeapons'
+import { initArenaRemotePowerups } from './arenaRemotePowerups'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
@@ -271,6 +272,7 @@ export function main() {
   })
   initLobbyWorldPanel()
   initArenaRemoteDefaultWeapons()
+  initArenaRemotePowerups()
   // Loadout panel disabled
   // initLoadoutWorldPanel()
   setupUi()

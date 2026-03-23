@@ -207,11 +207,34 @@ function sendPlayerArenaWeaponState(address: string, to?: string[]): void {
   void room.send('playerArenaWeaponState', payload)
 }
 
+function sendPlayerPowerupState(address: string, to?: string[]): void {
+  const normalizedAddress = address.toLowerCase()
+  const state = getOrCreatePlayerCombatState(normalizedAddress)
+  const payload = {
+    address: normalizedAddress,
+    rageShieldEndAtMs: state.rageShieldEndAtMs,
+    speedEndAtMs: state.speedEndAtMs
+  }
+  if (to) {
+    void room.send('playerPowerupState', payload, { to })
+    return
+  }
+  void room.send('playerPowerupState', payload)
+}
+
 function sendArenaWeaponStatesTo(address: string): void {
   const normalizedAddress = address.toLowerCase()
   const lobbyState = getLobbyState()
   for (const player of lobbyState.arenaPlayers) {
     sendPlayerArenaWeaponState(player.address, [normalizedAddress])
+  }
+}
+
+function sendPowerupStatesTo(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const lobbyState = getLobbyState()
+  for (const player of lobbyState.arenaPlayers) {
+    sendPlayerPowerupState(player.address, [normalizedAddress])
   }
 }
 
@@ -300,6 +323,7 @@ function resetPlayerCombatState(address: string): void {
   state.rageShieldEndAtMs = 0
   state.speedEndAtMs = 0
   arenaWeaponByAddress.set(normalizedAddress, 'gun')
+  sendPlayerPowerupState(normalizedAddress)
 }
 
 function removePlayerCombatState(address: string): void {
@@ -1091,6 +1115,7 @@ export function setupLobbyServer(): void {
     await ensurePlayerLoadedAndInLobby(context.from)
     sendPlayerHealthState(context.from)
     sendArenaWeaponStatesTo(context.from)
+    sendPowerupStatesTo(context.from)
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
     }
@@ -1200,6 +1225,7 @@ export function setupLobbyServer(): void {
     }
     sendPlayerHealthState(context.from)
     sendArenaWeaponStatesTo(context.from)
+    sendPowerupStatesTo(context.from)
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
     }
@@ -1274,6 +1300,7 @@ export function setupLobbyServer(): void {
     } else if (potion.potionType === 'speed') {
       state.speedEndAtMs = now + SPEED_POTION_DURATION_MS
     }
+    sendPlayerPowerupState(normalizedAddress)
     void room.send('potionClaimed', {
       potionId: data.potionId,
       claimerAddress: normalizedAddress
