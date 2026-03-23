@@ -2,7 +2,7 @@ import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { movePlayerTo } from '~system/RestrictedActions'
 import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
-import { getPlayerHp, isPlayerDead, MAX_HP, getRespawnAtMs, getRespawnDelay } from './playerHealth'
+import { getPlayerHp, isPlayerDead, MAX_HP, getRespawnAtMs, getRespawnDelay, shouldShowDeathOverlay } from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
 import { getGameTime } from './zombie'
 import { isSpeedActive, getSpeedTimeLeft, SPEED_DURATION_SEC } from './speedEffect'
@@ -32,6 +32,7 @@ import { OutlinedText } from './outlineComponent'
 import {
   getLobbyState,
   getMatchRuntimeState,
+  shouldSuppressDeathOverlayForTeamWipe,
   shouldShowGameOverOverlay,
   getLocalAddress,
   isLocalReadyForMatch,
@@ -68,8 +69,8 @@ const MINIGUN_BUTTON_UVS = [0.746094, 0.413086, 0.746094, 0.691406, 0.994792, 0.
 const BRICK_BUTTON_WIDTH = 184
 const BRICK_BUTTON_HEIGHT = 141
 const BRICK_BUTTON_UVS = [0.501302, 0.415039, 0.501302, 0.690429, 0.740234, 0.690429, 0.740234, 0.415039]
-const LOBBY_RETURN_POSITION = { x: 78.4, y: 3, z: 31.5 }
-const LOBBY_RETURN_LOOK_TARGET = { x: 76.2, y: 3, z: 31 }
+const LOBBY_RETURN_POSITION = { x: 90, y: 3, z: 32 }
+const LOBBY_RETURN_LOOK_TARGET = { x: 106.75, y: 1, z: 32 }
 const BRICK_TARGET_RETICLE_WIDTH = 106
 const BRICK_TARGET_RETICLE_HEIGHT = 98
 const WEAPON_SELECTION_BAR_WIDTH = 92
@@ -103,6 +104,7 @@ export const uiMenu = () => {
   const countdownLabel = getWaveCountdownLabel()
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
+  const showDeathOverlay = !shouldSuppressDeathOverlayForTeamWipe() && !showGameOverOverlay && shouldShowDeathOverlay(timerNowMs)
   const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
   const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
 
@@ -507,7 +509,7 @@ export const uiMenu = () => {
           />
         </UiEntity>
       )}
-      {playerDead && (
+      {playerDead && showDeathOverlay && (
         <UiEntity
           uiTransform={{
             width: '100%',

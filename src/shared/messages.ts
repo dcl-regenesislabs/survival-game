@@ -37,6 +37,9 @@ const LobbyMessages = {
   rageShieldHitRequest: Schemas.Map({
     zombieId: Schemas.String
   }),
+  zombieExplodeRequest: Schemas.Map({
+    zombieId: Schemas.String
+  }),
   zombieHealthChanged: Schemas.Map({
     zombieId: Schemas.String,
     hp: Schemas.Number
@@ -44,6 +47,9 @@ const LobbyMessages = {
   zombieDied: Schemas.Map({
     zombieId: Schemas.String,
     killerAddress: Schemas.String
+  }),
+  zombieExploded: Schemas.Map({
+    zombieId: Schemas.String
   }),
   potionSpawned: Schemas.Map({
     potionId: Schemas.String,
@@ -68,6 +74,10 @@ const LobbyMessages = {
   }),
   potionsCleared: Schemas.Map({}),
   playerDamageRequest: Schemas.Map({
+    amount: Schemas.Number
+  }),
+  playerExplosionDamageRequest: Schemas.Map({
+    zombieId: Schemas.String,
     amount: Schemas.Number
   }),
   playerHealRequest: Schemas.Map({

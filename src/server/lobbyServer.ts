@@ -8,6 +8,18 @@ import {
   CLIENT_GROUP_GROWTH_EVERY_WAVES,
   CLIENT_MAX_GROUP_SIZE,
   CLIENT_SPAWN_INTERVAL_SECONDS,
+  EXPLODER_ZOMBIE_BASE_CHANCE,
+  EXPLODER_ZOMBIE_CHANCE_2,
+  EXPLODER_ZOMBIE_CHANCE_3,
+  EXPLODER_ZOMBIE_CHANCE_4,
+  EXPLODER_ZOMBIE_CHANCE_WAVE_2,
+  EXPLODER_ZOMBIE_CHANCE_WAVE_3,
+  EXPLODER_ZOMBIE_CHANCE_WAVE_4,
+  EXPLODER_ZOMBIE_COOLDOWN_SECONDS,
+  EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_EARLY,
+  EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_LATE,
+  EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_LATE_WAVE,
+  EXPLODER_ZOMBIE_UNLOCK_WAVE,
   MATCH_MAX_PLAYERS,
   QUICK_ZOMBIE_CHANCE,
   QUICK_ZOMBIE_UNLOCK_WAVE,
@@ -66,14 +78,17 @@ const ZOMBIE_HITS_ALLOWED_PER_SHOT: Record<ArenaWeaponType, number> = {
 const ZOMBIE_MAX_HP_BY_TYPE: Record<ZombieType, number> = {
   basic: 3,
   quick: 2,
-  tank: 10
+  tank: 10,
+  exploder: 2
 }
 const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
+const TEAM_WIPE_UI_DELAY_MS = 2000
+const TEAM_WIPE_TELEPORT_DELAY_MS = 3000
 const ARENA_TELEPORT_POSITION = { x: ARENA_CENTER_X, y: 0, z: ARENA_CENTER_Z }
 const ARENA_TELEPORT_LOOK_AT = { x: ARENA_CENTER_X, y: 1, z: ARENA_CENTER_Z + 1 }
-const LOBBY_RETURN_POSITION = { x: 78.4, y: 3, z: 31.5 }
-const LOBBY_RETURN_LOOK_AT = { x: 76.2, y: 3, z: 31 }
+const LOBBY_RETURN_POSITION = { x: 90, y: 3, z: 32 }
+const LOBBY_RETURN_LOOK_AT = { x: 106.75, y: 1, z: 32 }
 const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
   { wave: 4, gold: 1 },
   { wave: 11, gold: 2 },
@@ -81,7 +96,7 @@ const GOLD_WAVE_MILESTONES: Array<{ wave: number; gold: number }> = [
   { wave: 35, gold: 5 }
 ]
 
-type ZombieType = 'basic' | 'quick' | 'tank'
+type ZombieType = 'basic' | 'quick' | 'tank' | 'exploder'
 type PotionType = 'health' | 'rage' | 'speed'
 type WavePlanSpawn = {
   zombieId: string
@@ -116,11 +131,16 @@ type ActivePotionState = {
   positionZ: number
   expiresAtMs: number
 }
+type PendingTeamWipeReturn = {
+  players: LobbyPlayer[]
+  executeAtMs: number
+}
 
 let nextZombieSequence = 0
 let nextPotionSequence = 0
 const zombieSpawnAtById = new Map<string, ZombieSpawnState>()
 const deadZombieIds = new Set<string>()
+const explodedZombieIds = new Set<string>()
 const activePotionsById = new Map<string, ActivePotionState>()
 const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
@@ -128,10 +148,12 @@ const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
 const lastShotAtMsByPlayerAndWeapon = new Map<string, number>()
 const zombieHitAllowanceByShotKey = new Map<string, number>()
 const lastRageShieldHitAtMsByPlayerAndZombie = new Map<string, number>()
+const explosiveZombieDamageByPlayerKey = new Set<string>()
 const disconnectedLobbyPlayerSinceMs = new Map<string, number>()
 const arenaWeaponByAddress = new Map<string, ArenaWeaponType>()
 let disconnectedPlayerReconcileAccumulator = 0
 let isDisconnectReconcileInFlight = false
+let pendingTeamWipeReturn: PendingTeamWipeReturn | null = null
 
 function logLobbyServerEvent(message: string): void {
   console.log(`[Server][Lobby] ${message}`)
@@ -164,6 +186,10 @@ function getShotAllowanceKey(address: string, weaponType: ArenaWeaponType, shotS
 }
 
 function getRageShieldHitKey(address: string, zombieId: string): string {
+  return `${address.toLowerCase()}:${zombieId}`
+}
+
+function getExplosiveZombieDamageKey(address: string, zombieId: string): string {
   return `${address.toLowerCase()}:${zombieId}`
 }
 
@@ -288,6 +314,8 @@ function getMatchRuntimeMutable() {
 function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>): void {
   zombieSpawnAtById.clear()
   deadZombieIds.clear()
+  explodedZombieIds.clear()
+  explosiveZombieDamageByPlayerKey.clear()
   runtime.zombiesAlive = 0
   runtime.zombiesPlanned = 0
   awardedWaveGoldMilestones.clear()
@@ -524,10 +552,46 @@ function applyZombieDamage(zombieId: string, damage: number, killerAddress: stri
 
   zombieSpawnAtById.delete(zombieId)
   deadZombieIds.delete(zombieId)
+  explodedZombieIds.delete(zombieId)
   recomputeZombiesAlive(runtime, now)
   void room.send('zombieDied', { zombieId, killerAddress: normalizedAddress })
   trySpawnPotionDrops(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ)
   return true
+}
+
+function explodeZombie(zombieId: string, now: number): boolean {
+  const runtime = getMatchRuntimeMutable()
+  const spawnState = zombieSpawnAtById.get(zombieId)
+  if (!spawnState) return false
+  if (spawnState.spawnAtMs > now) return false
+  if (spawnState.zombieType !== 'exploder') return false
+
+  zombieSpawnAtById.delete(zombieId)
+  deadZombieIds.delete(zombieId)
+  explodedZombieIds.add(zombieId)
+  recomputeZombiesAlive(runtime, now)
+  void room.send('zombieExploded', { zombieId })
+  return true
+}
+
+function applyExplosionDamageToPlayer(address: string, zombieId: string, requestedAmount: number, now: number): void {
+  const normalizedAddress = address.toLowerCase()
+  const state = getOrCreatePlayerCombatState(normalizedAddress)
+  if (state.isDead) return
+
+  const hitKey = getExplosiveZombieDamageKey(normalizedAddress, zombieId)
+  if (explosiveZombieDamageByPlayerKey.has(hitKey)) return
+  if (!explodedZombieIds.has(zombieId)) return
+
+  explosiveZombieDamageByPlayerKey.add(hitKey)
+  const amount = Math.max(1, Math.min(PLAYER_MAX_HP, Math.floor(requestedAmount)))
+  state.lastDamageRequestAtMs = now
+  state.hp = Math.max(0, state.hp - amount)
+  if (state.hp <= 0) {
+    state.isDead = true
+    state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
+  }
+  sendPlayerHealthState(normalizedAddress)
 }
 
 function sendPlayerHealthStatesForLobbyPlayers(players: LobbyPlayer[]): void {
@@ -546,8 +610,29 @@ function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
 }
 
 function endMatchAndReturnToLobby(message: string): void {
+  if (pendingTeamWipeReturn) return
   const lobby = getLobbyStateMutable()
   const players = [...lobby.arenaPlayers]
+  if (!players.length) return
+
+  lobby.countdownEndTimeMs = 0
+  lobby.arenaIntroEndTimeMs = 0
+  resetMatchRuntime()
+  pendingTeamWipeReturn = {
+    players,
+    executeAtMs: getServerTime() + TEAM_WIPE_UI_DELAY_MS + TEAM_WIPE_TELEPORT_DELAY_MS
+  }
+
+  void room.send('lobbyEvent', {
+    type: 'team_wipe',
+    message
+  })
+}
+
+function finalizePendingTeamWipeReturn(): void {
+  if (!pendingTeamWipeReturn) return
+  const { players } = pendingTeamWipeReturn
+  pendingTeamWipeReturn = null
   setPlayers([])
 
   for (const player of players) {
@@ -557,14 +642,10 @@ function endMatchAndReturnToLobby(message: string): void {
   }
 
   sendLobbyReturnTeleport(players)
-
-  void room.send('lobbyEvent', {
-    type: 'team_wipe',
-    message
-  })
 }
 
 function resetArenaToLobby(message: string): void {
+  pendingTeamWipeReturn = null
   resetMatchToLobbyKeepingPlayers()
   logLobbyServerEvent(`ArenaResetToLobby ${message}`)
   void room.send('lobbyEvent', {
@@ -597,6 +678,7 @@ function resetMatchRuntime() {
 }
 
 function resetMatchToLobbyKeepingPlayers(): void {
+  pendingTeamWipeReturn = null
   const lobby = getLobbyStateMutable()
   lobby.phase = LobbyPhase.LOBBY
   lobby.matchId = ''
@@ -888,7 +970,21 @@ function getSpawnGroupSize(waveNumber: number): number {
   return Math.min(CLIENT_MAX_GROUP_SIZE, CLIENT_BASE_GROUP_SIZE + growth)
 }
 
+function getExploderChanceForWave(waveNumber: number): number {
+  if (waveNumber >= EXPLODER_ZOMBIE_CHANCE_WAVE_4) return EXPLODER_ZOMBIE_CHANCE_4
+  if (waveNumber >= EXPLODER_ZOMBIE_CHANCE_WAVE_3) return EXPLODER_ZOMBIE_CHANCE_3
+  if (waveNumber >= EXPLODER_ZOMBIE_CHANCE_WAVE_2) return EXPLODER_ZOMBIE_CHANCE_2
+  return EXPLODER_ZOMBIE_BASE_CHANCE
+}
+
+function getExploderMaxSimultaneousForWave(waveNumber: number): number {
+  return waveNumber >= EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_LATE_WAVE
+    ? EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_LATE
+    : EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_EARLY
+}
+
 function pickZombieType(waveNumber: number): ZombieType {
+  if (waveNumber === 1) return 'basic'
   const roll = Math.random()
   if (waveNumber >= TANK_ZOMBIE_UNLOCK_WAVE && roll < TANK_ZOMBIE_CHANCE) return 'tank'
   if (waveNumber >= QUICK_ZOMBIE_UNLOCK_WAVE && roll < QUICK_ZOMBIE_CHANCE) return 'quick'
@@ -904,23 +1000,56 @@ function randomSpawnPoint() {
 function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDurationSeconds: number, playerCount: number) {
   const intervalMs = Math.floor(CLIENT_SPAWN_INTERVAL_SECONDS * 1000)
   const activeMs = Math.floor(activeDurationSeconds * 1000)
+  const exploderCooldownMs = Math.floor(EXPLODER_ZOMBIE_COOLDOWN_SECONDS * 1000)
   // Scale group size with player count: +10% per additional player (1p=1x, 2p=1.1x, 3p=1.2x, 4p=1.3x)
   const playerMultiplier = 0.9 + Math.max(1, playerCount) * 0.1
   const groupSize = Math.round(getSpawnGroupSize(waveNumber) * playerMultiplier)
   const spawns: WavePlanSpawn[] = []
+  let lastExploderSpawnAtMs = Number.NEGATIVE_INFINITY
+  let guaranteedExploderSpawned = false
 
   for (let offsetMs = 0; offsetMs < activeMs; offsetMs += intervalMs) {
+    const groupSpawnAtMs = startAtMs + offsetMs
+    let groupHasExploder = false
+
     for (let i = 0; i < groupSize; i++) {
       nextZombieSequence += 1
       const point = randomSpawnPoint()
       const zombieId = `w${waveNumber}_z${nextZombieSequence}`
+      let zombieType = pickZombieType(waveNumber)
+
+      if (
+        waveNumber >= EXPLODER_ZOMBIE_UNLOCK_WAVE &&
+        !groupHasExploder &&
+        groupSpawnAtMs - lastExploderSpawnAtMs >= exploderCooldownMs
+      ) {
+        const maxSimultaneousExploders = getExploderMaxSimultaneousForWave(waveNumber)
+        const exploderPlanningWindowStartMs = groupSpawnAtMs - exploderCooldownMs * maxSimultaneousExploders
+        const explodersAlreadyPlanned = spawns.filter(
+          (spawn) =>
+            spawn.zombieType === 'exploder' &&
+            spawn.spawnAtMs >= exploderPlanningWindowStartMs &&
+            spawn.spawnAtMs <= groupSpawnAtMs
+        ).length
+        const canSpawnExploder = explodersAlreadyPlanned < maxSimultaneousExploders
+        const shouldForceTutorialExploder = waveNumber === EXPLODER_ZOMBIE_UNLOCK_WAVE && !guaranteedExploderSpawned
+        const shouldRollExploder = Math.random() < getExploderChanceForWave(waveNumber)
+
+        if (canSpawnExploder && (shouldForceTutorialExploder || shouldRollExploder)) {
+          zombieType = 'exploder'
+          groupHasExploder = true
+          guaranteedExploderSpawned = true
+          lastExploderSpawnAtMs = groupSpawnAtMs
+        }
+      }
+
       spawns.push({
         zombieId,
-        zombieType: pickZombieType(waveNumber),
+        zombieType,
         spawnX: point.spawnX,
         spawnY: point.spawnY,
         spawnZ: point.spawnZ,
-        spawnAtMs: startAtMs + offsetMs
+        spawnAtMs: groupSpawnAtMs
       })
     }
   }
@@ -948,6 +1077,7 @@ function sendWaveSpawnPlan(waveNumber: number, startAtMs: number): void {
       spawnAtMs: spawn.spawnAtMs
     })
     deadZombieIds.delete(spawn.zombieId)
+    explodedZombieIds.delete(spawn.zombieId)
   }
 
   recomputeZombiesAlive(runtime, runtime.serverNowMs)
@@ -1032,6 +1162,11 @@ function waveRuntimeSystem(dt: number): void {
   runtime.serverNowMs = now
   expirePotions(now)
   recomputeZombiesAlive(runtime, now)
+
+  if (pendingTeamWipeReturn && now >= pendingTeamWipeReturn.executeAtMs) {
+    finalizePendingTeamWipeReturn()
+    return
+  }
 
   if (lobbyState.arenaPlayers.length === 0) {
     cancelArenaIntroCountdown()
@@ -1265,6 +1400,21 @@ export function setupLobbyServer(): void {
     applyZombieDamage(data.zombieId, damage, normalizedAddress, now)
   })
 
+  room.onMessage('zombieExplodeRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+
+    const lobbyState = getLobbyState()
+    if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning) return
+    if (!data.zombieId) return
+
+    explodeZombie(data.zombieId, getServerTime())
+  })
+
   room.onMessage('potionClaimRequest', (data, context) => {
     if (!context) return
     const normalizedAddress = context.from.toLowerCase()
@@ -1363,6 +1513,26 @@ export function setupLobbyServer(): void {
       state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
     }
     sendPlayerHealthState(normalizedAddress)
+
+    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
+      endMatchAndReturnToLobby('All players died. Returning to lobby.')
+    }
+  })
+
+  room.onMessage('playerExplosionDamageRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+    if (!data.zombieId) return
+
+    const lobbyState = getLobbyState()
+    if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning) return
+
+    const now = getServerTime()
+    applyExplosionDamageToPlayer(normalizedAddress, data.zombieId, data.amount, now)
 
     if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby('All players died. Returning to lobby.')
