@@ -18,6 +18,7 @@ let localReadyForMatch = false
 let lastTeamWipeAffectedLocalPlayer = false
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
 const playerArenaWeaponByAddress = new Map<string, ArenaWeaponType>()
+const playerPowerupStateByAddress = new Map<string, { rageShieldEndAtMs: number; speedEndAtMs: number }>()
 
 function resetLocalMatchUiState(): void {
   localReadyForMatch = false
@@ -44,6 +45,7 @@ export function setupLobbyClient(): void {
     }
     if (data.type === 'team_wipe' || data.type === 'lobby') {
       playerArenaWeaponByAddress.clear()
+      playerPowerupStateByAddress.clear()
       resetToIdle()
       resetArenaWeaponProgress()
     }
@@ -74,6 +76,12 @@ export function setupLobbyClient(): void {
   room.onMessage('playerArenaWeaponState', (data) => {
     if (data.weaponType !== 'gun' && data.weaponType !== 'shotgun' && data.weaponType !== 'minigun') return
     playerArenaWeaponByAddress.set(data.address.toLowerCase(), data.weaponType)
+  })
+  room.onMessage('playerPowerupState', (data) => {
+    playerPowerupStateByAddress.set(data.address.toLowerCase(), {
+      rageShieldEndAtMs: data.rageShieldEndAtMs,
+      speedEndAtMs: data.speedEndAtMs
+    })
   })
   room.onMessage('matchAutoTeleport', (data) => {
     const localAddress = getLocalAddress()
@@ -260,4 +268,13 @@ export function getPlayerCombatSnapshot(address: string): { hp: number; isDead: 
 
 export function getPlayerArenaWeapon(address: string): ArenaWeaponType {
   return playerArenaWeaponByAddress.get(address.toLowerCase()) ?? 'gun'
+}
+
+export function getPlayerPowerupSnapshot(address: string): { rageShieldEndAtMs: number; speedEndAtMs: number } {
+  return (
+    playerPowerupStateByAddress.get(address.toLowerCase()) ?? {
+      rageShieldEndAtMs: 0,
+      speedEndAtMs: 0
+    }
+  )
 }

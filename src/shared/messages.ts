@@ -91,6 +91,11 @@ const LobbyMessages = {
     address: Schemas.String,
     weaponType: Schemas.String
   }),
+  playerPowerupState: Schemas.Map({
+    address: Schemas.String,
+    rageShieldEndAtMs: Schemas.Int64,
+    speedEndAtMs: Schemas.Int64
+  }),
   playerShotBroadcast: Schemas.Map({
     shooterAddress: Schemas.String,
     seq: Schemas.Number,
