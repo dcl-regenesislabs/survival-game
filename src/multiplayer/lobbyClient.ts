@@ -5,6 +5,7 @@ import { MatchRuntimeSnapshot, MatchRuntimeStateComponent } from '../shared/matc
 import { movePlayerTo } from '~system/RestrictedActions'
 import { Vector3 } from '@dcl/sdk/math'
 import { applyAuthoritativeHealthState, resetPlayerHealthState } from '../playerHealth'
+import { resetDeathAnimationState, setLocalAvatarHidden } from '../deathAnimation'
 import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
@@ -16,6 +17,7 @@ let latestLobbyEventAtMs = 0
 let hasProfileLoadSent = false
 let localReadyForMatch = false
 let lastTeamWipeAffectedLocalPlayer = false
+const GAME_OVER_OVERLAY_DELAY_MS = 2000
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
 const playerArenaWeaponByAddress = new Map<string, ArenaWeaponType>()
 const playerPowerupStateByAddress = new Map<string, { rageShieldEndAtMs: number; speedEndAtMs: number }>()
@@ -23,9 +25,13 @@ const playerPowerupStateByAddress = new Map<string, { rageShieldEndAtMs: number;
 function resetLocalMatchUiState(): void {
   localReadyForMatch = false
   lastTeamWipeAffectedLocalPlayer = false
+  playerCombatStateByAddress.clear()
+  latestLobbyEventType = ''
+  setLocalAvatarHidden(false)
   resetToIdle()
   resetArenaWeaponProgress()
   resetPlayerHealthState()
+  resetDeathAnimationState()
 }
 
 export function setupLobbyClient(): void {
@@ -66,6 +72,7 @@ export function setupLobbyClient(): void {
 
     const localAddress = getLocalAddress()
     if (!localAddress || address !== localAddress) return
+    setLocalAvatarHidden(data.isDead)
     applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs)
   })
   room.onMessage('playerLoadoutState', (data) => {
@@ -103,6 +110,8 @@ export function setupLobbyClient(): void {
   room.onMessage('lobbyReturnTeleport', (data) => {
     const localAddress = getLocalAddress()
     if (!localAddress || !data.addresses.includes(localAddress)) return
+    setLocalAvatarHidden(false)
+    resetDeathAnimationState()
     resetLocalMatchUiState()
     movePlayerTo({
       newRelativePosition: {
@@ -181,6 +190,14 @@ export function sendRageShieldHitRequest(zombieId: string): void {
   void room.send('rageShieldHitRequest', { zombieId })
 }
 
+export function sendZombieExplodeRequest(zombieId: string): void {
+  void room.send('zombieExplodeRequest', { zombieId })
+}
+
+export function sendPlayerExplosionDamageRequest(zombieId: string, amount: number): void {
+  void room.send('playerExplosionDamageRequest', { zombieId, amount })
+}
+
 export function sendPlayerArenaWeaponChanged(weaponType: ArenaWeaponType): void {
   void room.send('playerArenaWeaponChanged', { weaponType })
 }
@@ -249,7 +266,13 @@ export function getLatestLobbyEvent(): string {
 export function shouldShowGameOverOverlay(windowMs: number = 3000): boolean {
   if (latestLobbyEventType !== 'team_wipe') return false
   if (!lastTeamWipeAffectedLocalPlayer) return false
-  return Date.now() - latestLobbyEventAtMs <= windowMs
+  const elapsedMs = Date.now() - latestLobbyEventAtMs
+  if (elapsedMs < GAME_OVER_OVERLAY_DELAY_MS) return false
+  return elapsedMs <= windowMs + GAME_OVER_OVERLAY_DELAY_MS
+}
+
+export function shouldSuppressDeathOverlayForTeamWipe(): boolean {
+  return latestLobbyEventType === 'team_wipe' && lastTeamWipeAffectedLocalPlayer
 }
 
 export function isLocalReadyForMatch(): boolean {

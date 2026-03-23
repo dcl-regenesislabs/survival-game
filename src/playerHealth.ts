@@ -9,10 +9,12 @@ let currentHp = MAX_HP
 let isDead = false
 let respawnAtMs = 0
 let healGlowEndTime = 0
+let diedAtMs = 0
 
 /** Respawn position in scene (center of play area) */
 const RESPAWN_POSITION = Vector3.create(ARENA_CENTER.x, 0, ARENA_CENTER.z)
 const RESPAWN_DELAY = 5 // seconds to show "You Died" before respawning
+const DEATH_OVERLAY_DELAY_MS = 1500
 
 export function getPlayerHp(): number {
   return currentHp
@@ -30,11 +32,18 @@ export function getRespawnAtMs(): number {
   return respawnAtMs
 }
 
+export function shouldShowDeathOverlay(nowMs: number): boolean {
+  if (!isDead) return false
+  if (diedAtMs <= 0) return true
+  return nowMs - diedAtMs >= DEATH_OVERLAY_DELAY_MS
+}
+
 export function resetPlayerHealthState(): void {
   currentHp = MAX_HP
   isDead = false
   respawnAtMs = 0
   healGlowEndTime = 0
+  diedAtMs = 0
 }
 
 /** Restore player health (e.g. health potion). Caps at MAX_HP. No-op if dead. */
@@ -68,6 +77,10 @@ export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRes
   currentHp = Math.max(0, Math.min(MAX_HP, Math.floor(hp)))
   isDead = dead
   respawnAtMs = nextRespawnAtMs
+
+  if (!wasDead && dead) {
+    diedAtMs = nextRespawnAtMs > 0 ? nextRespawnAtMs - RESPAWN_DELAY * 1000 : Date.now()
+  }
 
   if (wasDead && !isDead) {
     // Server-authoritative respawn transition: move player back to the arena spawn.

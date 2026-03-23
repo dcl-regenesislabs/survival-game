@@ -4,8 +4,10 @@ import { room } from '../shared/messages'
 import { getServerTime } from '../shared/timeSync'
 import {
   applyZombieHealthUpdateByNetworkId,
+  explodeZombieByNetworkId,
   despawnZombieByNetworkId,
   getZombiePositionByNetworkId,
+  spawnExploderZombie,
   setZombieHitReporter,
   spawnQuickZombie,
   spawnTankZombie,
@@ -15,7 +17,7 @@ import {
 import { getLocalAddress, getLobbyState } from './lobbyClient'
 import { addZombieCoins, COINS_PER_KILL } from '../zombieCoins'
 
-type ZombieType = 'basic' | 'quick' | 'tank'
+type ZombieType = 'basic' | 'quick' | 'tank' | 'exploder'
 
 type PlannedSpawn = {
   zombieId: string
@@ -59,7 +61,12 @@ function queueWavePlan(data: {
 
   for (const spawn of data.spawns) {
     if (spawnedZombieIds.has(spawn.zombieId)) continue
-    if (spawn.zombieType !== 'basic' && spawn.zombieType !== 'quick' && spawn.zombieType !== 'tank') continue
+    if (
+      spawn.zombieType !== 'basic' &&
+      spawn.zombieType !== 'quick' &&
+      spawn.zombieType !== 'tank' &&
+      spawn.zombieType !== 'exploder'
+    ) continue
     pendingSpawns.push({
       zombieId: spawn.zombieId,
       zombieType: spawn.zombieType,
@@ -82,6 +89,9 @@ function spawnPlannedZombie(spawn: PlannedSpawn): void {
   }
 
   switch (spawn.zombieType) {
+    case 'exploder':
+      spawnExploderZombie(options)
+      break
     case 'quick':
       spawnQuickZombie(options)
       break
@@ -153,6 +163,13 @@ export function initMatchWaveClientSystem(): void {
       spawnZcRewardTextAtPosition(zombiePos, COINS_PER_KILL)
     }
     despawnZombieByNetworkId(data.zombieId)
+  })
+
+  room.onMessage('zombieExploded', (data) => {
+    pendingSpawns = pendingSpawns.filter((spawn) => spawn.zombieId !== data.zombieId)
+    spawnedZombieIds.delete(data.zombieId)
+    pendingZombieHpById.delete(data.zombieId)
+    explodeZombieByNetworkId(data.zombieId)
   })
 
   engine.addSystem(plannedSpawnSystem, undefined, 'planned-wave-spawn-client-system')

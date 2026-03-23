@@ -22,6 +22,7 @@ type HideEntry = {
 }
 
 const hideEntriesByAddress = new Map<string, HideEntry>()
+let localHideEntry: HideEntry | null = null
 let initialized = false
 
 function createHideEntry(): HideEntry {
@@ -126,8 +127,17 @@ function deactivateAvatarModifiers(address: string): void {
   replaceEntryArea(entry, 'inactive', FAR_AWAY, [])
 }
 
+function getLocalHidePosition(): Vector3 {
+  if (Transform.has(engine.PlayerEntity)) {
+    const position = Transform.get(engine.PlayerEntity).position
+    return Vector3.create(position.x, position.y + HIDE_AREA_CENTER_Y_OFFSET, position.z)
+  }
+  return FAR_AWAY
+}
+
 function deathAnimationSystem(): void {
   const lobby = getLobbyState()
+  const localAddress = getLocalAddress()
   if (!lobby?.arenaPlayers.length) {
     for (const address of hideEntriesByAddress.keys()) deactivateAvatarModifiers(address)
     return
@@ -136,6 +146,10 @@ function deathAnimationSystem(): void {
   const currentAddresses = new Set(lobby.arenaPlayers.map((player) => player.address.toLowerCase()))
 
   for (const address of currentAddresses) {
+    if (address === localAddress) {
+      deactivateAvatarModifiers(address)
+      continue
+    }
     const combat = getPlayerCombatSnapshot(address)
     updateAvatarModifiers(address, !!combat?.isDead)
   }
@@ -149,4 +163,42 @@ export function initDeathAnimationSystem(): void {
   if (initialized) return
   initialized = true
   engine.addSystem(deathAnimationSystem, undefined, 'death-animation-system')
+}
+
+export function resetDeathAnimationState(): void {
+  for (const entry of hideEntriesByAddress.values()) {
+    engine.removeEntity(entry.areaEntity)
+  }
+  hideEntriesByAddress.clear()
+  if (localHideEntry) {
+    engine.removeEntity(localHideEntry.areaEntity)
+    localHideEntry = null
+  }
+}
+
+export function setLocalAvatarHidden(hidden: boolean): void {
+  if (!hidden) {
+    if (localHideEntry) {
+      engine.removeEntity(localHideEntry.areaEntity)
+      localHideEntry = null
+    }
+    return
+  }
+
+  const position = getLocalHidePosition()
+  if (!localHideEntry) {
+    localHideEntry = {
+      areaEntity: createHideAreaEntity(
+        position,
+        [AvatarModifierType.AMT_DISABLE_PASSPORTS, AvatarModifierType.AMT_HIDE_AVATARS],
+        []
+      ),
+      state: 'dead',
+      lastKnownPosition: Vector3.clone(position)
+    }
+    return
+  }
+
+  localHideEntry.lastKnownPosition = Vector3.clone(position)
+  Transform.getMutable(localHideEntry.areaEntity).position = position
 }
