@@ -79,7 +79,7 @@ const ZOMBIE_MAX_HP_BY_TYPE: Record<ZombieType, number> = {
   basic: 3,
   quick: 2,
   tank: 10,
-  exploder: 2
+  exploder: 15
 }
 const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5

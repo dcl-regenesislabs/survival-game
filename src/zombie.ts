@@ -456,7 +456,7 @@ export function spawnExploderZombie(options?: SpawnZombieOptions): Entity {
     spawnTimer: 0,
     attackRange: EXPLODER_ATTACK_RANGE,
     attackCooldown: 0,
-    health: 2,
+    health: 15,
     speed: EXPLODER_SPEED,
     walkAnimSpeed: EXPLODER_CRAWL_ANIM_SPEED,
     spawnUpDuration: EXPLODER_UP_DURATION,
@@ -468,7 +468,7 @@ export function spawnExploderZombie(options?: SpawnZombieOptions): Entity {
     explosionTriggered: false
   })
 
-  createHealthBarForZombie(zombie, 2, 1.2)
+  createHealthBarForZombie(zombie, 15, 1.2)
   return zombie
 }
 
