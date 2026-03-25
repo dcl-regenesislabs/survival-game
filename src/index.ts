@@ -95,7 +95,7 @@ const seenRemoteShotKeys = new Set<string>()
 const seenRemoteShotKeyQueue: string[] = []
 const MAX_SEEN_REMOTE_SHOTS = 512
 const ARENA_LAYOUT_SYSTEM_NAME = 'arena-layout-system'
-const EXPECTED_ARENA_LAYOUT_ENTITIES = 5
+const EXPECTED_ARENA_LAYOUT_ENTITIES = 1
 
 // Fixed world offset: camera sits here relative to player; rotation never changes
 const CINEMATIC_OFFSET = Vector3.create(0, CINEMATIC_CAMERA_HEIGHT, -CINEMATIC_CAMERA_DISTANCE)
