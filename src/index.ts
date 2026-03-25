@@ -95,7 +95,7 @@ const seenRemoteShotKeys = new Set<string>()
 const seenRemoteShotKeyQueue: string[] = []
 const MAX_SEEN_REMOTE_SHOTS = 512
 const ARENA_LAYOUT_SYSTEM_NAME = 'arena-layout-system'
-const EXPECTED_ARENA_LAYOUT_ENTITIES = 5
+const EXPECTED_ARENA_LAYOUT_ENTITIES = 1
 
 // Fixed world offset: camera sits here relative to player; rotation never changes
 const CINEMATIC_OFFSET = Vector3.create(0, CINEMATIC_CAMERA_HEIGHT, -CINEMATIC_CAMERA_DISTANCE)
@@ -167,39 +167,6 @@ function applyArenaLayoutSystem(): void {
       transform.scale = Vector3.create(ARENA_FLOOR_SCALE, transform.scale.y, ARENA_FLOOR_SCALE)
       appliedCount += 1
       continue
-    }
-
-    if (name.value === EntityNames.Wall02_glb) {
-      const transform = Transform.getMutable(entity)
-      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_TOP_Z)
-      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
-      appliedCount += 1
-      continue
-    }
-
-    if (name.value === EntityNames.Wall02_glb_2) {
-      const transform = Transform.getMutable(entity)
-      // This wall intentionally shares the same top-left anchor as Wall02_glb.
-      // The scene model already carries a 90-degree rotation, so same anchor != stacked duplicate.
-      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_TOP_Z)
-      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
-      appliedCount += 1
-      continue
-    }
-
-    if (name.value === EntityNames.Wall02_glb_3) {
-      const transform = Transform.getMutable(entity)
-      transform.position = Vector3.create(ARENA_WALL_RIGHT_X, 0, ARENA_WALL_TOP_Z)
-      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
-      appliedCount += 1
-      continue
-    }
-
-    if (name.value === EntityNames.Wall02_glb_4) {
-      const transform = Transform.getMutable(entity)
-      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_BOTTOM_Z)
-      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
-      appliedCount += 1
     }
   }
 
