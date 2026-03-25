@@ -168,39 +168,6 @@ function applyArenaLayoutSystem(): void {
       appliedCount += 1
       continue
     }
-
-    if (name.value === EntityNames.Wall02_glb) {
-      const transform = Transform.getMutable(entity)
-      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_TOP_Z)
-      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
-      appliedCount += 1
-      continue
-    }
-
-    if (name.value === EntityNames.Wall02_glb_2) {
-      const transform = Transform.getMutable(entity)
-      // This wall intentionally shares the same top-left anchor as Wall02_glb.
-      // The scene model already carries a 90-degree rotation, so same anchor != stacked duplicate.
-      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_TOP_Z)
-      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
-      appliedCount += 1
-      continue
-    }
-
-    if (name.value === EntityNames.Wall02_glb_3) {
-      const transform = Transform.getMutable(entity)
-      transform.position = Vector3.create(ARENA_WALL_RIGHT_X, 0, ARENA_WALL_TOP_Z)
-      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
-      appliedCount += 1
-      continue
-    }
-
-    if (name.value === EntityNames.Wall02_glb_4) {
-      const transform = Transform.getMutable(entity)
-      transform.position = Vector3.create(ARENA_WALL_LEFT_X, 0, ARENA_WALL_BOTTOM_Z)
-      transform.scale = Vector3.create(ARENA_WALL_LENGTH_SCALE, transform.scale.y, transform.scale.z)
-      appliedCount += 1
-    }
   }
 
   if (appliedCount >= EXPECTED_ARENA_LAYOUT_ENTITIES) {
