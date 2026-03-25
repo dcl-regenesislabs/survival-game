@@ -158,23 +158,6 @@ function setActiveCamera(cinematic: boolean) {
   mainCamera.virtualCameraEntity = cinematic && cinematicCameraEntity ? cinematicCameraEntity : undefined
 }
 
-function applyArenaLayoutSystem(): void {
-  let appliedCount = 0
-  for (const [entity, name] of engine.getEntitiesWith(Name, Transform)) {
-    if (name.value === EntityNames.Floor02_glb) {
-      const transform = Transform.getMutable(entity)
-      transform.position = Vector3.create(ARENA_FLOOR_POSITION_X, transform.position.y, ARENA_FLOOR_POSITION_Z)
-      transform.scale = Vector3.create(ARENA_FLOOR_SCALE, transform.scale.y, ARENA_FLOOR_SCALE)
-      appliedCount += 1
-      continue
-    }
-  }
-
-  if (appliedCount >= EXPECTED_ARENA_LAYOUT_ENTITIES) {
-    engine.removeSystem(ARENA_LAYOUT_SYSTEM_NAME)
-  }
-}
-
 function isLocalPlayerInCurrentMatch(): boolean {
   const lobbyState = getLobbyState()
   const localAddress = getLocalAddress()
@@ -244,7 +227,6 @@ export function main() {
   // Loadout panel disabled
   // initLoadoutWorldPanel()
   setupUi()
-  engine.addSystem(applyArenaLayoutSystem, undefined, ARENA_LAYOUT_SYSTEM_NAME)
   engine.addSystem(waveSkyboxSystem, undefined, 'wave-skybox-system')
 
   // Cinematic camera: follows player position only, fixed world rotation (Diablo-style)

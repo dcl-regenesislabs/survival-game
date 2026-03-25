@@ -6,7 +6,15 @@
  */
 export enum EntityNames {
   Floor02_glb = "Floor02.glb",
-  LobbyBase_glb = "LobbyBase.glb",
+  JoinArea01_glb = "JoinArea01.glb",
+  JoinArea01_glb_2 = "JoinArea01.glb_2",
+  JoinArea01_glb_3 = "JoinArea01.glb_3",
+  JoinArea01_glb_4 = "JoinArea01.glb_4",
+  Lobby02_glb = "Lobby02.glb",
+  NewGameText_glb = "NewGameText.glb",
+  NewGameText_glb_2 = "NewGameText.glb_2",
+  NewGameText_glb_3 = "NewGameText.glb_3",
+  NewGameText_glb_4 = "NewGameText.glb_4",
   WallArena01_glb = "WallArena01.glb",
   WallArena01_glb_2 = "WallArena01.glb_2",
   WallArena01_glb_3 = "WallArena01.glb_3",
@@ -15,4 +23,10 @@ export enum EntityNames {
   WallColumn_glb_2 = "WallColumn.glb_2",
   WallColumn_glb_3 = "WallColumn.glb_3",
   WallColumn_glb_4 = "WallColumn.glb_4",
+  npcs01_glb = "npcs01.glb",
+  npcs02_glb = "npcs02.glb",
+  trigger_room_1 = "trigger_room_1",
+  trigger_room_2 = "trigger_room_2",
+  trigger_room_3 = "trigger_room_3",
+  trigger_room_4 = "trigger_room_4",
 } 

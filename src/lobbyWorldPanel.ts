@@ -1,5 +1,6 @@
 import {
   engine,
+  Name,
   TextAlignMode,
   Transform,
   TextShape,
@@ -7,6 +8,7 @@ import {
   triggerAreaEventsSystem
 } from '@dcl/sdk/ecs'
 import { Color4, Color3, Vector3, Quaternion } from '@dcl/sdk/math'
+import { EntityNames } from '../assets/scene/entity-names'
 import { MATCH_MAX_PLAYERS } from './shared/matchConfig'
 import {
   getLobbyState,
@@ -17,224 +19,22 @@ import {
   sendLeaveLobby
 } from './multiplayer/lobbyClient'
 import { getServerTime } from './shared/timeSync'
-import { changeRealm } from '~system/RestrictedActions'
 
-const PANEL_WORLD_POSITION = Vector3.create(76.2, 3, 36)
-const EXTERNAL_PANEL_WORLD_POSITIONS = [
-  Vector3.create(78.2, 3, 29),
-  Vector3.create(78.2, 3, 22)
-] as const
-const EXTERNAL_WORLD_LINKS = [
-  {
-    label: 'Play at /mendoexit.dcl.eth',
-    realm: 'mendoexit.dcl.eth'
-  },
-  {
-    label: 'Play at /thecodingcave.dcl.eth',
-    realm: 'thecodingcave.dcl.eth'
-  }
-] as const
-const ROOT_ROTATION = Quaternion.fromEulerDegrees(0, -90, 0)
 const PANEL_WORLD_SCALE = Vector3.create(6.4, 3.8, 0.2)
 const PANEL_UPDATE_INTERVAL_SECONDS = 0.2
-const TRIGGER_RECONCILE_INTERVAL_SECONDS = 0.1
-const TEXT_LOCAL_POSITION = Vector3.create(0, 0.82, 0.3)
-const EXTERNAL_TEXT_LOCAL_POSITION = Vector3.create(0, 0.82, 1.8)
-const COUNTDOWN_TEXT_LOCAL_POSITION = Vector3.create(0, -0.25, -0.25)
-const EXTERNAL_COUNTDOWN_LOCAL_POSITION = COUNTDOWN_TEXT_LOCAL_POSITION
-const TRIGGER_LOCAL_POSITION = Vector3.create(0, -3, -2.2)
-const EXTERNAL_TRIGGER_LOCAL_POSITION = Vector3.create(0, -3, 1.8)
-const TRIGGER_SCALE = Vector3.create(5.4, 2.6, 4.6)
-const TRIGGER_HALF_EXTENTS = Vector3.create(TRIGGER_SCALE.x * 0.5, TRIGGER_SCALE.y * 0.5, TRIGGER_SCALE.z * 0.5)
-const TRIGGER_BOUNDS_EPSILON = 0.15
-const ROOT_INVERSE_ROTATION = Quaternion.fromEulerDegrees(0, 90, 0)
+const JOIN_TEXT_WORLD_POSITION = Vector3.create(67.25, 5.6, 47.25)
+const JOIN_COUNTDOWN_WORLD_POSITION = Vector3.create(67.25, 4.5, 43.75)
 const LOBBY_REQUEST_COOLDOWN_MS = 1000
-const EXTERNAL_LINK_COOLDOWN_MS = 1500
-const EXTERNAL_TELEPORT_COUNTDOWN_SECONDS = 5
 
 type Entity = ReturnType<typeof engine.addEntity>
 
-class ExternalWorldPanel {
-  private rootEntity: Entity = engine.addEntity()
-  private textEntity: Entity = engine.addEntity()
-  private countdownTextEntity: Entity = engine.addEntity()
-  private triggerEntity: Entity = engine.addEntity()
-  private isLocalPlayerInsideTrigger = false
-  private triggerReconcileAccumulator = 0
-  private lastOpenRequestAtMs = 0
-  private countdownRemainingSeconds = 0
-  private lastRenderedCountdownText = ''
-
-  constructor(
-    private readonly worldPosition: Vector3,
-    private readonly label: string,
-    private readonly realm: string
-  ) {
-    this.createPanel()
-    engine.addSystem((dt) => this.updateSystem(dt), undefined, `external-world-panel-${label}`)
-  }
-
-  private createPanel(): void {
-    Transform.create(this.rootEntity, {
-      position: this.worldPosition,
-      rotation: ROOT_ROTATION,
-      scale: Vector3.One()
-    })
-
-    Transform.create(this.textEntity, {
-      parent: this.rootEntity,
-      position: EXTERNAL_TEXT_LOCAL_POSITION,
-      rotation: Quaternion.Identity(),
-      scale: Vector3.create(0.3, 0.3, 0.3)
-    })
-    TextShape.create(this.textEntity, {
-      text: this.label,
-      width: 6.0,
-      height: 2.4,
-      fontSize: 8.3,
-      fontAutoSize: false,
-      lineCount: 1,
-      textWrapping: false,
-      textAlign: TextAlignMode.TAM_MIDDLE_CENTER,
-      textColor: Color4.create(0.98, 0.9, 0.62, 1),
-      paddingTop: 0.12,
-      paddingRight: 0.18,
-      paddingBottom: 0.12,
-      paddingLeft: 0.18,
-      shadowColor: Color3.create(0, 0, 0),
-      shadowOffsetX: 0.05,
-      shadowOffsetY: -0.05
-    })
-
-    Transform.create(this.countdownTextEntity, {
-      parent: this.rootEntity,
-      position: EXTERNAL_COUNTDOWN_LOCAL_POSITION,
-      rotation: Quaternion.Identity(),
-      scale: Vector3.create(0.22, 0.22, 0.22)
-    })
-    TextShape.create(this.countdownTextEntity, {
-      text: '',
-      width: 8,
-      height: 2,
-      fontSize: 12,
-      fontAutoSize: false,
-      lineCount: 1,
-      textWrapping: false,
-      textAlign: TextAlignMode.TAM_MIDDLE_CENTER,
-      textColor: Color4.create(1, 0.86, 0.18, 1),
-      outlineWidth: 0.26,
-      outlineColor: Color3.create(0, 0, 0)
-    })
-
-    Transform.create(this.triggerEntity, {
-      parent: this.rootEntity,
-      position: EXTERNAL_TRIGGER_LOCAL_POSITION,
-      rotation: Quaternion.Identity(),
-      scale: TRIGGER_SCALE
-    })
-    TriggerArea.setBox(this.triggerEntity)
-    triggerAreaEventsSystem.onTriggerEnter(this.triggerEntity, (result) => {
-      if (result.trigger?.entity !== engine.PlayerEntity) return
-      this.isLocalPlayerInsideTrigger = true
-      this.startCountdown()
-    })
-    triggerAreaEventsSystem.onTriggerExit(this.triggerEntity, (result) => {
-      if (result.trigger?.entity !== engine.PlayerEntity) return
-      this.isLocalPlayerInsideTrigger = false
-      this.cancelCountdown()
-    })
-  }
-
-  private updateSystem(dt: number): void {
-    this.updateCountdown(dt)
-
-    this.triggerReconcileAccumulator += dt
-    if (this.triggerReconcileAccumulator < TRIGGER_RECONCILE_INTERVAL_SECONDS) return
-    this.triggerReconcileAccumulator = 0
-
-    const isActuallyInside = this.isPlayerInsideTriggerVolume()
-    if (isActuallyInside === this.isLocalPlayerInsideTrigger) return
-
-    this.isLocalPlayerInsideTrigger = isActuallyInside
-    if (isActuallyInside) {
-      this.startCountdown()
-      return
-    }
-
-    this.cancelCountdown()
-  }
-
-  private startCountdown(): void {
-    if (this.countdownRemainingSeconds > 0) return
-    this.countdownRemainingSeconds = EXTERNAL_TELEPORT_COUNTDOWN_SECONDS
-    this.renderCountdownText()
-  }
-
-  private cancelCountdown(): void {
-    if (this.countdownRemainingSeconds <= 0 && this.lastRenderedCountdownText.length === 0) return
-    this.countdownRemainingSeconds = 0
-    this.renderCountdownText()
-  }
-
-  private updateCountdown(dt: number): void {
-    if (!this.isLocalPlayerInsideTrigger || this.countdownRemainingSeconds <= 0) return
-
-    this.countdownRemainingSeconds = Math.max(0, this.countdownRemainingSeconds - dt)
-    const visibleSeconds = Math.max(1, Math.ceil(this.countdownRemainingSeconds))
-    const nextText = `Teleporting in ${visibleSeconds}`
-    if (nextText !== this.lastRenderedCountdownText) {
-      this.lastRenderedCountdownText = nextText
-      TextShape.getMutable(this.countdownTextEntity).text = nextText
-    }
-
-    if (this.countdownRemainingSeconds > 0) return
-    this.teleportIfNeeded()
-  }
-
-  private renderCountdownText(): void {
-    const nextText =
-      this.countdownRemainingSeconds > 0
-        ? `Teleporting in ${Math.max(1, Math.ceil(this.countdownRemainingSeconds))}`
-        : ''
-    if (nextText === this.lastRenderedCountdownText) return
-    this.lastRenderedCountdownText = nextText
-    TextShape.getMutable(this.countdownTextEntity).text = nextText
-  }
-
-  private teleportIfNeeded(): void {
-    if (!this.isLocalPlayerInsideTrigger) return
-    const nowMs = Date.now()
-    if (nowMs - this.lastOpenRequestAtMs < EXTERNAL_LINK_COOLDOWN_MS) return
-    this.lastOpenRequestAtMs = nowMs
-    this.countdownRemainingSeconds = 0
-    this.renderCountdownText()
-    void changeRealm({ realm: this.realm })
-  }
-
-  private isPlayerInsideTriggerVolume(): boolean {
-    if (!Transform.has(engine.PlayerEntity)) return false
-
-    const triggerCenter = Vector3.add(this.worldPosition, Vector3.rotate(EXTERNAL_TRIGGER_LOCAL_POSITION, ROOT_ROTATION))
-    const playerPosition = Transform.get(engine.PlayerEntity).position
-    const offsetFromCenter = Vector3.subtract(playerPosition, triggerCenter)
-    const localOffset = Vector3.rotate(offsetFromCenter, ROOT_INVERSE_ROTATION)
-
-    return (
-      Math.abs(localOffset.x) <= TRIGGER_HALF_EXTENTS.x + TRIGGER_BOUNDS_EPSILON &&
-      Math.abs(localOffset.y) <= TRIGGER_HALF_EXTENTS.y + TRIGGER_BOUNDS_EPSILON &&
-      Math.abs(localOffset.z) <= TRIGGER_HALF_EXTENTS.z + TRIGGER_BOUNDS_EPSILON
-    )
-  }
-}
-
 export class LobbyWorldPanel {
-  private rootEntity = engine.addEntity()
+  private rootEntity: Entity
   private panelEntity = engine.addEntity()
   private textEntity = engine.addEntity()
   private countdownTextEntity = engine.addEntity()
-  private triggerEntity = engine.addEntity()
+  private triggerEntity: Entity
   private updateAccumulator = 0
-  private triggerReconcileAccumulator = 0
   private lastRenderedPlayersText = ''
   private lastRenderedCountdownText = ''
   private isLocalPlayerInsideTrigger = false
@@ -242,17 +42,21 @@ export class LobbyWorldPanel {
   private lastLeaveRequestAtMs = 0
 
   constructor() {
+    this.rootEntity = this.requireSceneEntity(EntityNames.Lobby02_glb)
+    this.triggerEntity = this.requireSceneEntity(EntityNames.trigger_room_1)
     this.createPanel()
     engine.addSystem((dt) => this.updateSystem(dt), undefined, 'lobby-world-panel-system')
   }
 
-  private createPanel(): void {
-    Transform.create(this.rootEntity, {
-      position: PANEL_WORLD_POSITION,
-      rotation: ROOT_ROTATION,
-      scale: Vector3.One()
-    })
+  private requireSceneEntity(entityName: EntityNames): Entity {
+    for (const [entity, name] of engine.getEntitiesWith(Name)) {
+      if (name.value === entityName) return entity
+    }
 
+    throw new Error(`[LobbyPanel] Scene entity not found: ${entityName}`)
+  }
+
+  private createPanel(): void {
     Transform.create(this.panelEntity, {
       parent: this.rootEntity,
       position: Vector3.Zero(),
@@ -261,8 +65,7 @@ export class LobbyWorldPanel {
     })
 
     Transform.create(this.textEntity, {
-      parent: this.rootEntity,
-      position: TEXT_LOCAL_POSITION,
+      position: JOIN_TEXT_WORLD_POSITION,
       rotation: Quaternion.Identity(),
       scale: Vector3.create(0.3, 0.3, 0.3)
     })
@@ -286,8 +89,7 @@ export class LobbyWorldPanel {
     })
 
     Transform.create(this.countdownTextEntity, {
-      parent: this.rootEntity,
-      position: COUNTDOWN_TEXT_LOCAL_POSITION,
+      position: JOIN_COUNTDOWN_WORLD_POSITION,
       rotation: Quaternion.Identity(),
       scale: Vector3.create(0.22, 0.22, 0.22)
     })
@@ -300,17 +102,11 @@ export class LobbyWorldPanel {
       lineCount: 1,
       textWrapping: false,
       textAlign: TextAlignMode.TAM_MIDDLE_CENTER,
-      textColor: Color4.create(1, 0.86, 0.18, 1),
+      textColor: Color4.create(1, 1, 1, 1),
       outlineWidth: 0.26,
       outlineColor: Color3.create(0, 0, 0)
     })
 
-    Transform.create(this.triggerEntity, {
-      parent: this.rootEntity,
-      position: TRIGGER_LOCAL_POSITION,
-      rotation: Quaternion.Identity(),
-      scale: TRIGGER_SCALE
-    })
     TriggerArea.setBox(this.triggerEntity)
     triggerAreaEventsSystem.onTriggerEnter(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
@@ -376,8 +172,6 @@ export class LobbyWorldPanel {
   }
 
   private updateSystem(dt: number): void {
-    this.reconcileLocalTriggerState(dt)
-
     this.updateAccumulator += dt
     if (this.updateAccumulator < PANEL_UPDATE_INTERVAL_SECONDS) return
     this.updateAccumulator = 0
@@ -394,45 +188,8 @@ export class LobbyWorldPanel {
       TextShape.getMutable(this.countdownTextEntity).text = nextCountdownText
     }
   }
-
-  private reconcileLocalTriggerState(dt: number): void {
-    this.triggerReconcileAccumulator += dt
-    if (this.triggerReconcileAccumulator < TRIGGER_RECONCILE_INTERVAL_SECONDS) return
-    this.triggerReconcileAccumulator = 0
-
-    const isActuallyInside = this.isPlayerInsideLobbyTriggerVolume()
-    if (isActuallyInside === this.isLocalPlayerInsideTrigger) return
-
-    this.isLocalPlayerInsideTrigger = isActuallyInside
-    if (isActuallyInside) {
-      console.log('[LobbyPanel] Reconciled player inside trigger area')
-      this.requestLobbyJoinIfNeeded()
-      return
-    }
-
-    console.log('[LobbyPanel] Reconciled player outside trigger area')
-    this.requestLobbyLeaveIfNeeded()
-  }
-
-  private isPlayerInsideLobbyTriggerVolume(): boolean {
-    if (!Transform.has(engine.PlayerEntity)) return false
-
-    const triggerCenter = Vector3.add(PANEL_WORLD_POSITION, Vector3.rotate(TRIGGER_LOCAL_POSITION, ROOT_ROTATION))
-    const playerPosition = Transform.get(engine.PlayerEntity).position
-    const offsetFromCenter = Vector3.subtract(playerPosition, triggerCenter)
-    const localOffset = Vector3.rotate(offsetFromCenter, ROOT_INVERSE_ROTATION)
-
-    return (
-      Math.abs(localOffset.x) <= TRIGGER_HALF_EXTENTS.x + TRIGGER_BOUNDS_EPSILON &&
-      Math.abs(localOffset.y) <= TRIGGER_HALF_EXTENTS.y + TRIGGER_BOUNDS_EPSILON &&
-      Math.abs(localOffset.z) <= TRIGGER_HALF_EXTENTS.z + TRIGGER_BOUNDS_EPSILON
-    )
-  }
 }
 
 export function initLobbyWorldPanel(): LobbyWorldPanel {
-  EXTERNAL_WORLD_LINKS.forEach((panel, index) => {
-    new ExternalWorldPanel(EXTERNAL_PANEL_WORLD_POSITIONS[index], panel.label, panel.realm)
-  })
   return new LobbyWorldPanel()
 }
