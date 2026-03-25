@@ -7,9 +7,12 @@
 export enum EntityNames {
   Floor02_glb = "Floor02.glb",
   LobbyBase_glb = "LobbyBase.glb",
-  Wall02_glb = "Wall02.glb",
-  Wall02_glb_2 = "Wall02.glb_2",
-  Wall02_glb_3 = "Wall02.glb_3",
-  Wall02_glb_4 = "Wall02.glb_4",
-  floor_glb = "floor.glb",
+  WallArena01_glb = "WallArena01.glb",
+  WallArena01_glb_2 = "WallArena01.glb_2",
+  WallArena01_glb_3 = "WallArena01.glb_3",
+  WallArena01_glb_4 = "WallArena01.glb_4",
+  WallColumn_glb = "WallColumn.glb",
+  WallColumn_glb_2 = "WallColumn.glb_2",
+  WallColumn_glb_3 = "WallColumn.glb_3",
+  WallColumn_glb_4 = "WallColumn.glb_4",
 } 
