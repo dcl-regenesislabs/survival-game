@@ -4,7 +4,6 @@ import {
   Transform,
   inputSystem,
   InputAction,
-  PointerEventType,
   GltfContainer,
   Animator,
   MeshRenderer,
@@ -227,10 +226,10 @@ export function shotGunSystem(dt: number) {
   shootTimer += dt
   if (shootTimer < effectiveFireRate) return
 
-  const didShoot =
-    inputSystem.isTriggered(InputAction.IA_POINTER, PointerEventType.PET_DOWN) ||
-    inputSystem.isTriggered(InputAction.IA_PRIMARY, PointerEventType.PET_DOWN)
-  if (!didShoot) return
+  const isTriggerHeld =
+    inputSystem.isPressed(InputAction.IA_POINTER) ||
+    inputSystem.isPressed(InputAction.IA_PRIMARY)
+  if (!isTriggerHeld) return
 
   shootTimer = 0
   playGunAnimation()
