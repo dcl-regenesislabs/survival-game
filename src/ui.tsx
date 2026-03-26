@@ -15,7 +15,8 @@ import {
   isMinigunUnlocked,
   isWeaponPurchasedInMatch,
   purchaseWeapon,
-  switchTo
+  switchTo,
+  type WeaponType
 } from './weaponManager'
 import {
   getMiniGunHeatRatio,
@@ -685,10 +686,11 @@ export const uiMenu = () => {
               justifyContent: 'center'
             }}
           >
-            {(['gun', 'shotgun', 'minigun', 'brick'] as const).map((weapon) => {
+            {(['gun', 'shotgun', 'minigun', 'brick'] as const).map((weapon: WeaponType | 'brick') => {
+                const selectableWeapon = weapon === 'brick' ? null : weapon
                 const isPurchasableWeapon = weapon === 'shotgun' || weapon === 'minigun'
                 const weaponCost = weapon === 'brick' ? BRICK_COST_ZC : isPurchasableWeapon ? getWeaponUnlockCost(weapon) : 0
-                const isPurchased = weapon === 'brick' ? true : weapon === 'gun' ? true : isWeaponPurchasedInMatch(weapon)
+                const isPurchased = selectableWeapon === null ? true : selectableWeapon === 'gun' ? true : isWeaponPurchasedInMatch(selectableWeapon)
                 const canAfford = weaponCost <= 0 || getZombieCoins() >= weaponCost
                 const canUse =
                   weapon === 'gun' ||
@@ -703,8 +705,7 @@ export const uiMenu = () => {
                     : weapon === 'minigun'
                         ? !isPurchased
                         : getZombieCoins() < BRICK_COST_ZC
-                const isSelected =
-                  weapon === 'brick' ? brickTargetModeActive : currentWeapon === weapon
+                const isSelected = weapon === 'brick' ? brickTargetModeActive : currentWeapon === selectableWeapon
                 const buttonWidth =
                   weapon === 'gun'
                     ? GUN_BUTTON_WIDTH
@@ -730,7 +731,7 @@ export const uiMenu = () => {
                     ? canUse
                       ? WEAPONS_SHEET_SRC
                       : WEAPONS_UNLOCK_SHEET_SRC
-                    : weapon !== 'brick' && isPurchasableWeapon && !isPurchased
+                    : isPurchasableWeapon && !isPurchased
                       ? canAfford
                         ? WEAPONS_UNLOCK_SHEET_SRC
                         : WEAPONS_LOCK_SHEET_SRC
@@ -858,9 +859,11 @@ export const uiMenu = () => {
                         } else {
                           if (!isPurchased) {
                             if (!canAfford) return
-                            if (!purchaseWeapon(weapon)) return
+                            if (selectableWeapon === null) return
+                            if (!purchaseWeapon(selectableWeapon)) return
                           }
-                          switchTo(weapon)
+                          if (selectableWeapon === null) return
+                          switchTo(selectableWeapon)
                         }
                       }}
                     >
