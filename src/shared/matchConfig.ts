@@ -1,5 +1,5 @@
 // Lobby / match flow
-export const MATCH_MAX_PLAYERS = 4
+export const MATCH_MAX_PLAYERS = 5
 
 // Wave loop timing
 export const WAVE_ACTIVE_SECONDS = 30
