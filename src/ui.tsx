@@ -57,6 +57,7 @@ const BACK_TO_LOBBY_BUTTON_HEIGHT = 94
 const BACK_TO_LOBBY_BUTTON_UVS = [0.03396, 0.046154, 0.03396, 0.252308, 0.16474, 0.252308, 0.16474, 0.046154]
 const WEAPONS_SHEET_SRC = 'assets/images/WEAPONS2.png'
 const WEAPONS_LOCK_SHEET_SRC = 'assets/images/WEAPONS_LOCK2.png'
+const WEAPONS_UNLOCK_SHEET_SRC = 'assets/images/WEAPONS_UNLOCK2.png'
 const GUN_BUTTON_WIDTH = 184
 const GUN_BUTTON_HEIGHT = 143
 const GUN_BUTTON_UVS = [0.007813, 0.412109, 0.007813, 0.691406, 0.246745, 0.691406, 0.246745, 0.412109]
@@ -724,7 +725,18 @@ export const uiMenu = () => {
                         : weapon === 'brick'
                           ? BRICK_BUTTON_HEIGHT
                           : 106
-                const spriteSheetSrc = isLockedVisual ? WEAPONS_LOCK_SHEET_SRC : WEAPONS_SHEET_SRC
+                const spriteSheetSrc =
+                  weapon === 'brick'
+                    ? canUse
+                      ? WEAPONS_SHEET_SRC
+                      : WEAPONS_UNLOCK_SHEET_SRC
+                    : weapon !== 'brick' && isPurchasableWeapon && !isPurchased
+                      ? canAfford
+                        ? WEAPONS_UNLOCK_SHEET_SRC
+                        : WEAPONS_LOCK_SHEET_SRC
+                      : isLockedVisual
+                        ? WEAPONS_LOCK_SHEET_SRC
+                        : WEAPONS_SHEET_SRC
                 return (
                   <UiEntity
                     key={weapon}
