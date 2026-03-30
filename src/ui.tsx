@@ -127,6 +127,8 @@ function isMobileRuntime(): boolean {
   return /android|iphone|ipad|ipod|mobile/i.test(userAgent)
 }
 
+const IS_MOBILE_RUNTIME = isMobileRuntime()
+
 function scaleUiValue(value: number, scale: number): number {
   return Math.max(1, Math.round(value * scale))
 }
@@ -196,7 +198,7 @@ export const uiMenu = () => {
     activeEffectBarCount > 0
       ? activeEffectBarCount * effectBarHeight + Math.max(0, activeEffectBarCount - 1) * effectBarGap + 4
       : 0
-  const weaponBarScale = isMobileRuntime() ? MOBILE_WEAPON_BAR_SCALE : 1
+  const weaponBarScale = IS_MOBILE_RUNTIME ? MOBILE_WEAPON_BAR_SCALE : 1
   const weaponBarBottomOffset = scaleUiValue(24, weaponBarScale)
   const weaponBarSidePadding = scaleUiValue(24, weaponBarScale)
   const weaponItemSideMargin = scaleUiValue(19, weaponBarScale)
