@@ -2,8 +2,6 @@ import {
   engine,
   Entity,
   Transform,
-  inputSystem,
-  InputAction,
   GltfContainer,
   Animator,
   MeshRenderer,
@@ -17,6 +15,7 @@ import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotReq
 import { getPlayerBulletColor } from './shared/playerColors'
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
+import { isGameplayFireHeld } from './gameplayInput'
 import {
   WEAPON_DEFAULT_ROTATION,
   WEAPON_DEFAULT_SCALE,
@@ -282,9 +281,7 @@ export function gunSystem(dt: number) {
   shootTimer += dt
   if (shootTimer < effectiveFireRate) return
 
-  const isTriggerHeld =
-    inputSystem.isPressed(InputAction.IA_POINTER) ||
-    inputSystem.isPressed(InputAction.IA_PRIMARY)
+  const isTriggerHeld = isGameplayFireHeld()
   if (!isTriggerHeld) return
 
   shootTimer = 0
