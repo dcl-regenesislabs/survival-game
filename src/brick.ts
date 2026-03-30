@@ -13,10 +13,26 @@ import { syncEntity } from '@dcl/sdk/network'
 import { Vector3, Quaternion, Color3, Color4 } from '@dcl/sdk/math'
 import { spendZombieCoins } from './zombieCoins'
 import { ARENA_BRICK_MAX_X, ARENA_BRICK_MAX_Z, ARENA_BRICK_MIN_X, ARENA_BRICK_MIN_Z } from './shared/arenaConfig'
+import {
+  BRICK_COST_BASE,
+  BRICK_COST_TIER_2, BRICK_COST_TIER_2_WAVE,
+  BRICK_COST_TIER_3, BRICK_COST_TIER_3_WAVE,
+  BRICK_COST_TIER_4, BRICK_COST_TIER_4_WAVE
+} from './shared/matchConfig'
+import { getCurrentWave } from './waveManager'
 
 const BRICK_GLB = 'assets/asset-packs/bricks_-_red/brick_red.glb'
 export const BRICK_HP = 5
-export const BRICK_COST_ZC = 20
+/** Base brick cost — use getBrickCost() for the wave-adjusted price. */
+export const BRICK_COST_ZC = BRICK_COST_BASE
+
+export function getBrickCost(): number {
+  const wave = getCurrentWave()
+  if (wave >= BRICK_COST_TIER_4_WAVE) return BRICK_COST_TIER_4
+  if (wave >= BRICK_COST_TIER_3_WAVE) return BRICK_COST_TIER_3
+  if (wave >= BRICK_COST_TIER_2_WAVE) return BRICK_COST_TIER_2
+  return BRICK_COST_BASE
+}
 
 // Obstacle radius for collision (brick footprint) – zombies cannot move inside this
 export const BRICK_RADIUS = 0.6
@@ -207,7 +223,7 @@ export function confirmBrickPlacementFromTargetMode(nowMs: number = Date.now()):
     cancelBrickTargetMode()
     return false
   }
-  if (!spendZombieCoins(BRICK_COST_ZC)) return false
+  if (!spendZombieCoins(getBrickCost())) return false
   pendingBrickPosition = placement
   cancelBrickTargetMode()
   return true
@@ -217,7 +233,7 @@ export function confirmBrickPlacementFromTargetMode(nowMs: number = Date.now()):
 export function tryPlaceBrick(): boolean {
   const placement = getPlacementPositionFromPlayer()
   if (!placement) return false
-  if (!spendZombieCoins(BRICK_COST_ZC)) return false
+  if (!spendZombieCoins(getBrickCost())) return false
   pendingBrickPosition = placement
   cancelBrickTargetMode()
   return true
