@@ -28,7 +28,7 @@ import {
   WAVE_ACTIVE_SECONDS,
   WAVE_REST_SECONDS
 } from '../shared/matchConfig'
-import { ArenaWeaponType, LoadoutWeaponId, getLoadoutWeaponDefinition } from '../shared/loadoutCatalog'
+import { ArenaWeaponType, LoadoutWeaponId, LOADOUT_WEAPON_DEFINITIONS, getLoadoutWeaponDefinition } from '../shared/loadoutCatalog'
 import { createPlayerProgressStore } from './storage/playerProgress'
 import { getServerTime } from '../shared/timeSync'
 import {
@@ -43,6 +43,7 @@ import {
 let lobbyEntity: ReturnType<typeof engine.addEntity> | null = null
 let matchRuntimeEntity: ReturnType<typeof engine.addEntity> | null = null
 const playerProgressStore = createPlayerProgressStore()
+const VALID_WEAPON_IDS = new Set(LOADOUT_WEAPON_DEFINITIONS.map((w) => w.id))
 const PLAYER_PROGRESS_AUTOSAVE_SECONDS = 20
 const PLAYER_MAX_HP = 5
 const PLAYER_RESPAWN_SECONDS = 5
@@ -161,14 +162,17 @@ function logLobbyServerEvent(message: string): void {
 
 function getOwnedWeaponIds(address: string): LoadoutWeaponId[] {
   const progress = playerProgressStore.get(address)
-  if (!progress) return ['gun_basic']
+  if (!progress) return ['gun_t1']
 
-  const ownedWeaponIds: LoadoutWeaponId[] = ['gun_basic']
-  for (const weaponId of progress.weapons.ownedByTier.tier2) {
-    if (weaponId === 'shotgun_pump' && !ownedWeaponIds.includes(weaponId)) ownedWeaponIds.push(weaponId)
-  }
-  for (const weaponId of progress.weapons.ownedByTier.tier4) {
-    if (weaponId === 'minigun_heavy' && !ownedWeaponIds.includes(weaponId)) ownedWeaponIds.push(weaponId)
+  const validIds = VALID_WEAPON_IDS
+  const ownedWeaponIds: LoadoutWeaponId[] = ['gun_t1']
+
+  for (const tier of ['tier1', 'tier2', 'tier3', 'tier4'] as const) {
+    for (const weaponId of progress.weapons.ownedByTier[tier]) {
+      if (validIds.has(weaponId as LoadoutWeaponId) && !ownedWeaponIds.includes(weaponId as LoadoutWeaponId)) {
+        ownedWeaponIds.push(weaponId as LoadoutWeaponId)
+      }
+    }
   }
   return ownedWeaponIds
 }
@@ -195,11 +199,17 @@ function getExplosiveZombieDamageKey(address: string, zombieId: string): string 
 
 function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
   const progress = playerProgressStore.get(address)
-  if (!progress) return ['gun_basic']
+  if (!progress) return ['gun_t1']
 
-  const equippedWeaponIds: LoadoutWeaponId[] = ['gun_basic']
-  if (progress.weapons.equippedByTier.tier2 === 'shotgun_pump') equippedWeaponIds.push('shotgun_pump')
-  if (progress.weapons.equippedByTier.tier4 === 'minigun_heavy') equippedWeaponIds.push('minigun_heavy')
+  const validIds = VALID_WEAPON_IDS
+  const equippedWeaponIds: LoadoutWeaponId[] = ['gun_t1']
+
+  for (const tier of ['tier1', 'tier2', 'tier3', 'tier4'] as const) {
+    const id = progress.weapons.equippedByTier[tier]
+    if (id && validIds.has(id as LoadoutWeaponId) && !equippedWeaponIds.includes(id as LoadoutWeaponId)) {
+      equippedWeaponIds.push(id as LoadoutWeaponId)
+    }
+  }
   return equippedWeaponIds
 }
 
@@ -1267,7 +1277,7 @@ export function setupLobbyServer(): void {
     await ensurePlayerProfileLoaded(normalizedAddress)
 
     const weapon = getLoadoutWeaponDefinition(data.weaponId)
-    if (!weapon || weapon.id === 'gun_basic') return
+    if (!weapon || weapon.priceGold === 0) return
 
     const progress = playerProgressStore.get(normalizedAddress)
     if (!progress) return
@@ -1310,8 +1320,8 @@ export function setupLobbyServer(): void {
     if (!progress) return
 
     const ownedWeaponIds =
-      weapon.id === 'gun_basic'
-        ? ['gun_basic']
+      weapon.priceGold === 0
+        ? [weapon.id]
         : progress.weapons.ownedByTier[weapon.tierKey]
     if (!ownedWeaponIds.includes(weapon.id)) {
       void room.send('lobbyEvent', {

@@ -48,13 +48,13 @@ function emptyWeapons(): PlayerWeaponsV1 {
   return {
     schemaVersion: SCHEMA_VERSION,
     ownedByTier: {
-      tier1: ['gun_basic'],
+      tier1: ['gun_t1'],
       tier2: [],
       tier3: [],
       tier4: []
     },
     equippedByTier: {
-      tier1: 'gun_basic',
+      tier1: 'gun_t1',
       tier2: '',
       tier3: '',
       tier4: ''
@@ -128,7 +128,7 @@ function normalizeWeapons(value: unknown): PlayerWeaponsV1 {
       tier4: safeArray(maybe.ownedByTier?.tier4)
     },
     equippedByTier: {
-      tier1: typeof maybe.equippedByTier?.tier1 === 'string' ? maybe.equippedByTier.tier1 : 'gun_basic',
+      tier1: typeof maybe.equippedByTier?.tier1 === 'string' ? maybe.equippedByTier.tier1 : 'gun_t1',
       tier2: typeof maybe.equippedByTier?.tier2 === 'string' ? maybe.equippedByTier.tier2 : '',
       tier3: typeof maybe.equippedByTier?.tier3 === 'string' ? maybe.equippedByTier.tier3 : '',
       tier4: typeof maybe.equippedByTier?.tier4 === 'string' ? maybe.equippedByTier.tier4 : ''

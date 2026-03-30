@@ -32,6 +32,7 @@ import {
 } from './brick'
 import { getPlayerGold } from './loadoutState'
 import { OutlinedText } from './outlineComponent'
+import { LobbyStoreUi } from './lobbyStoreUi'
 import {
   getLobbyState,
   getMatchRuntimeState,
@@ -1109,6 +1110,7 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
+      <LobbyStoreUi />
     </UiEntity>
   )
 }

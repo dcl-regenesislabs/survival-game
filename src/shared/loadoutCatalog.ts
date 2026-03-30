@@ -1,45 +1,110 @@
 export type ArenaWeaponType = 'gun' | 'shotgun' | 'minigun'
-export type LoadoutWeaponId = 'gun_basic' | 'shotgun_pump' | 'minigun_heavy'
-export type LoadoutTierKey = 'tier1' | 'tier2' | 'tier4'
+
+export type LoadoutWeaponId =
+  | 'gun_t1' | 'gun_t2' | 'gun_t3'
+  | 'shotgun_t1' | 'shotgun_t2' | 'shotgun_t3'
+  | 'minigun_t1' | 'minigun_t2' | 'minigun_t3'
+
+export type LoadoutTierKey = 'tier1' | 'tier2' | 'tier3' | 'tier4'
 
 export type LoadoutWeaponDefinition = {
   id: LoadoutWeaponId
   label: string
   arenaWeaponType: ArenaWeaponType
   tierKey: LoadoutTierKey
+  upgradeLevel: 1 | 2 | 3
   priceGold: number
   previewLabel: string
 }
 
 export const LOADOUT_WEAPON_DEFINITIONS: LoadoutWeaponDefinition[] = [
   {
-    id: 'gun_basic',
-    label: 'Gun',
+    id: 'gun_t1',
+    label: 'Pistol',
     arenaWeaponType: 'gun',
     tierKey: 'tier1',
+    upgradeLevel: 1,
     priceGold: 0,
     previewLabel: 'Starter sidearm'
   },
   {
-    id: 'shotgun_pump',
+    id: 'gun_t2',
+    label: 'Pistol Mk.II',
+    arenaWeaponType: 'gun',
+    tierKey: 'tier1',
+    upgradeLevel: 2,
+    priceGold: 3,
+    previewLabel: 'Improved accuracy'
+  },
+  {
+    id: 'gun_t3',
+    label: 'Pistol Mk.III',
+    arenaWeaponType: 'gun',
+    tierKey: 'tier1',
+    upgradeLevel: 3,
+    priceGold: 7,
+    previewLabel: 'High-caliber rounds'
+  },
+  {
+    id: 'shotgun_t1',
     label: 'Shotgun',
     arenaWeaponType: 'shotgun',
     tierKey: 'tier2',
+    upgradeLevel: 1,
     priceGold: 2,
     previewLabel: 'Close-range spread'
   },
   {
-    id: 'minigun_heavy',
+    id: 'shotgun_t2',
+    label: 'Shotgun Mk.II',
+    arenaWeaponType: 'shotgun',
+    tierKey: 'tier2',
+    upgradeLevel: 2,
+    priceGold: 5,
+    previewLabel: 'Wider pellet cone'
+  },
+  {
+    id: 'shotgun_t3',
+    label: 'Shotgun Mk.III',
+    arenaWeaponType: 'shotgun',
+    tierKey: 'tier2',
+    upgradeLevel: 3,
+    priceGold: 10,
+    previewLabel: 'Explosive shells'
+  },
+  {
+    id: 'minigun_t1',
     label: 'Minigun',
     arenaWeaponType: 'minigun',
-    tierKey: 'tier4',
+    tierKey: 'tier3',
+    upgradeLevel: 1,
     priceGold: 5,
     previewLabel: 'Heavy sustained fire'
+  },
+  {
+    id: 'minigun_t2',
+    label: 'Minigun Mk.II',
+    arenaWeaponType: 'minigun',
+    tierKey: 'tier3',
+    upgradeLevel: 2,
+    priceGold: 10,
+    previewLabel: 'Higher spin-up speed'
+  },
+  {
+    id: 'minigun_t3',
+    label: 'Minigun Mk.III',
+    arenaWeaponType: 'minigun',
+    tierKey: 'tier3',
+    upgradeLevel: 3,
+    priceGold: 18,
+    previewLabel: 'Depleted uranium rounds'
   }
 ]
 
-export function getLoadoutWeaponDefinition(
-  weaponId: string
-): LoadoutWeaponDefinition | null {
-  return LOADOUT_WEAPON_DEFINITIONS.find((weapon) => weapon.id === weaponId) ?? null
+export function getLoadoutWeaponDefinition(weaponId: string): LoadoutWeaponDefinition | null {
+  return LOADOUT_WEAPON_DEFINITIONS.find((w) => w.id === weaponId) ?? null
+}
+
+export function getWeaponUpgrades(weaponType: ArenaWeaponType): LoadoutWeaponDefinition[] {
+  return LOADOUT_WEAPON_DEFINITIONS.filter((w) => w.arenaWeaponType === weaponType)
 }
