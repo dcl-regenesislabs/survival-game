@@ -30,6 +30,7 @@ import {
   isBrickTargetModeActive
 } from './brick'
 import { OutlinedText } from './outlineComponent'
+import { LobbyStoreUi } from './lobbyStoreUi'
 import {
   getLobbyState,
   getMatchRuntimeState,
@@ -911,6 +912,7 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
+      <LobbyStoreUi />
     </UiEntity>
   )
 }

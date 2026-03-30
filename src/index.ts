@@ -53,6 +53,7 @@ import {
 } from './multiplayer/lobbyClient'
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
+import { initLobbyStore } from './lobbyStore'
 import { initDeathAnimationSystem } from './deathAnimation'
 import {
   initArenaRemoteDefaultWeapons,
@@ -222,6 +223,7 @@ export function main() {
     sendPlayerDamageRequest(amount)
   })
   initLobbyWorldPanel()
+  initLobbyStore()
   initArenaRemoteDefaultWeapons()
   initArenaRemotePowerups()
   // Loadout panel disabled

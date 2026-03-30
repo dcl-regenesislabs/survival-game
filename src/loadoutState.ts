@@ -8,8 +8,8 @@ export type PlayerLoadoutSnapshot = {
 
 const defaultSnapshot: PlayerLoadoutSnapshot = {
   gold: 0,
-  ownedWeaponIds: ['gun_basic'],
-  equippedWeaponIds: ['gun_basic']
+  ownedWeaponIds: ['gun_t1'],
+  equippedWeaponIds: ['gun_t1']
 }
 
 let playerLoadoutSnapshot: PlayerLoadoutSnapshot = { ...defaultSnapshot }
@@ -33,12 +33,12 @@ export function applyPlayerLoadoutSnapshot(snapshot: {
   equippedWeaponIds: string[]
 }): void {
   const ownedWeaponIds = uniqueWeaponIds(snapshot.ownedWeaponIds)
-  if (!ownedWeaponIds.includes('gun_basic')) ownedWeaponIds.unshift('gun_basic')
+  if (!ownedWeaponIds.includes('gun_t1')) ownedWeaponIds.unshift('gun_t1')
 
   const equippedWeaponIds = uniqueWeaponIds(snapshot.equippedWeaponIds).filter((weaponId) =>
     ownedWeaponIds.includes(weaponId)
   )
-  if (!equippedWeaponIds.includes('gun_basic')) equippedWeaponIds.unshift('gun_basic')
+  if (!equippedWeaponIds.includes('gun_t1')) equippedWeaponIds.unshift('gun_t1')
 
   playerLoadoutSnapshot = {
     gold: Number.isFinite(snapshot.gold) ? Math.max(0, Math.floor(snapshot.gold)) : 0,

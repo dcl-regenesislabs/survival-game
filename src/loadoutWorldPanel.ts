@@ -41,8 +41,8 @@ const ACTION_BUTTON_TEXT_OFFSET = Vector3.create(1.45, -1.35, -0.28)
 const PREVIEW_MODEL_SCALE = Vector3.create(0.95, 0.95, 0.95)
 
 const WEAPON_MODEL_BY_ID: Partial<Record<LoadoutWeaponId, string>> = {
-  shotgun_pump: 'assets/scene/Models/drones/shotgun/DroneShotGun.glb',
-  minigun_heavy: 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
+  shotgun_t1: 'assets/scene/Models/drones/shotgun/DroneShotGun.glb',
+  minigun_t1: 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
 }
 
 type LoadoutSelectableSlot =
@@ -52,11 +52,11 @@ type LoadoutSelectableSlot =
 const LOADOUT_VISIBLE_SLOTS: LoadoutSelectableSlot[] = [
   {
     kind: 'weapon',
-    weapon: LOADOUT_WEAPON_DEFINITIONS.find((weapon) => weapon.id === 'shotgun_pump')!
+    weapon: LOADOUT_WEAPON_DEFINITIONS.find((weapon) => weapon.id === 'shotgun_t1')!
   },
   {
     kind: 'weapon',
-    weapon: LOADOUT_WEAPON_DEFINITIONS.find((weapon) => weapon.id === 'minigun_heavy')!
+    weapon: LOADOUT_WEAPON_DEFINITIONS.find((weapon) => weapon.id === 'minigun_t1')!
   },
   {
     kind: 'empty',
@@ -87,7 +87,7 @@ export class LoadoutWorldPanel {
   private actionButtonLabelEntity = engine.addEntity()
   private weaponButtons: WeaponSelectButton[] = []
   private previewModels: PreviewModelEntry[] = []
-  private selectedWeaponId: LoadoutWeaponId = 'shotgun_pump'
+  private selectedWeaponId: LoadoutWeaponId = 'shotgun_t1'
   private updateAccumulator = 0
   private lastDetailsText = ''
   private lastPreviewText = ''
@@ -179,7 +179,7 @@ export class LoadoutWorldPanel {
     const previewPosition = PREVIEW_MODEL_LOCAL_POSITION
     const previewRotation = Quaternion.fromEulerDegrees(0, 90, 0)
 
-    for (const weaponId of ['shotgun_pump', 'minigun_heavy'] as const) {
+    for (const weaponId of ['shotgun_t1', 'minigun_t1'] as const) {
       const modelSrc = WEAPON_MODEL_BY_ID[weaponId]
       if (!modelSrc) continue
 
@@ -299,7 +299,7 @@ export class LoadoutWorldPanel {
 
   private handleActionClick(): void {
     const weapon = this.getSelectedWeapon()
-    if (weapon.id === 'gun_basic') return
+    if (weapon.priceGold === 0) return
 
     if (!isLoadoutWeaponOwned(weapon.id)) {
       if (getPlayerGold() < weapon.priceGold) return
@@ -344,7 +344,7 @@ export class LoadoutWorldPanel {
 
   private getActionLabel(): string {
     const weapon = this.getSelectedWeapon()
-    if (weapon.id === 'gun_basic') return 'Equipped'
+    if (weapon.priceGold === 0) return 'Equipped'
     if (!isLoadoutWeaponOwned(weapon.id)) {
       return getPlayerGold() >= weapon.priceGold ? `Buy ${weapon.priceGold}G` : `Need ${weapon.priceGold}G`
     }
@@ -416,7 +416,7 @@ export class LoadoutWorldPanel {
 
     const weapon = this.getSelectedWeapon()
     const actionEnabled =
-      weapon.id !== 'gun_basic' &&
+      weapon.priceGold !== 0 &&
       (!isLoadoutWeaponOwned(weapon.id)
         ? getPlayerGold() >= weapon.priceGold
         : !isLoadoutWeaponEquipped(weapon.id))
