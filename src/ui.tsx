@@ -29,6 +29,7 @@ import {
   confirmBrickPlacementFromTargetMode,
   isBrickTargetModeActive
 } from './brick'
+import { getPlayerGold } from './loadoutState'
 import { OutlinedText } from './outlineComponent'
 import {
   getLobbyState,
@@ -79,6 +80,43 @@ const WEAPON_SELECTION_BAR_WIDTH = 92
 const WEAPON_SELECTION_BAR_HEIGHT = 6
 // WEAPONS_LOCK2.png region: x=853, y=92, w=213, h=196 (1536x1024 atlas, V axis bottom-up in UI UVs)
 const BRICK_TARGET_RETICLE_UVS = [0.555339, 0.71875, 0.555339, 0.910156, 0.69401, 0.910156, 0.69401, 0.71875]
+const HUD_LOBBY_SHEET_SRC = 'assets/images/HUD_LOBBY2.png'
+const HUD_LOBBY_SHEET_WIDTH = 1536
+const HUD_LOBBY_SHEET_HEIGHT = 1024
+const LOBBY_HUD_LEFT_MARGIN = 48
+const LOBBY_HUD_ITEM_MARGIN_BOTTOM = 28
+const LOBBY_HUD_TOP_MARGIN = 32
+const LOBBY_HUD_GOLD_SOURCE_WIDTH = 661
+const LOBBY_HUD_GOLD_SOURCE_HEIGHT = 174
+const LOBBY_HUD_GOLD_WIDTH = Math.round(LOBBY_HUD_GOLD_SOURCE_WIDTH * 0.5)
+const LOBBY_HUD_GOLD_HEIGHT = Math.round(LOBBY_HUD_GOLD_SOURCE_HEIGHT * 0.5)
+const LOBBY_HUD_GOLD_UVS = createAtlasUvs(425, 335, LOBBY_HUD_GOLD_SOURCE_WIDTH, LOBBY_HUD_GOLD_SOURCE_HEIGHT)
+const LOBBY_HUD_LOADOUT_SOURCE_WIDTH = 886
+const LOBBY_HUD_LOADOUT_SOURCE_HEIGHT = 160
+const LOBBY_HUD_LOADOUT_WIDTH = Math.round(LOBBY_HUD_LOADOUT_SOURCE_WIDTH * 0.5)
+const LOBBY_HUD_LOADOUT_HEIGHT = Math.round(LOBBY_HUD_LOADOUT_SOURCE_HEIGHT * 0.5)
+const LOBBY_HUD_LOADOUT_UVS = createAtlasUvs(
+  322,
+  593,
+  LOBBY_HUD_LOADOUT_SOURCE_WIDTH,
+  LOBBY_HUD_LOADOUT_SOURCE_HEIGHT
+)
+const LOBBY_HUD_SHOP_SOURCE_WIDTH = 814
+const LOBBY_HUD_SHOP_SOURCE_HEIGHT = 178
+const LOBBY_HUD_SHOP_WIDTH = Math.round(LOBBY_HUD_SHOP_SOURCE_WIDTH * 0.5)
+const LOBBY_HUD_SHOP_HEIGHT = Math.round(LOBBY_HUD_SHOP_SOURCE_HEIGHT * 0.5)
+const LOBBY_HUD_SHOP_UVS = createAtlasUvs(346, 80, LOBBY_HUD_SHOP_SOURCE_WIDTH, LOBBY_HUD_SHOP_SOURCE_HEIGHT)
+
+type AtlasUvs = [number, number, number, number, number, number, number, number]
+
+function createAtlasUvs(x: number, y: number, width: number, height: number): AtlasUvs {
+  const left = x / HUD_LOBBY_SHEET_WIDTH
+  const right = (x + width) / HUD_LOBBY_SHEET_WIDTH
+  const bottom = 1 - (y + height) / HUD_LOBBY_SHEET_HEIGHT
+  const top = 1 - y / HUD_LOBBY_SHEET_HEIGHT
+
+  return [left, bottom, left, top, right, top, right, bottom]
+}
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
@@ -94,6 +132,7 @@ export const uiMenu = () => {
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
   const showGameplayHud = inMatchContext && localReadyForMatch
+  const showLobbyHud = !lobbyState || lobbyState.phase === LobbyPhase.LOBBY
   const showBackToLobbyButton = isInArenaRoster && localReadyForMatch
   const showPlayerHealthHud = showGameplayHud
   const timerNowMs = getServerTime()
@@ -113,6 +152,7 @@ export const uiMenu = () => {
   const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
   const currentWeapon = getCurrentWeapon()
+  const playerGold = getPlayerGold()
   const respawnSecondsLeft = Math.max(0, Math.ceil((getRespawnAtMs() - timerNowMs) / 1000))
   const playerHpRatio = Math.max(0, Math.min(1, getPlayerHp() / MAX_HP))
   const hpFrameScale = PLAYER_HP_FRAME_WIDTH / 968
@@ -507,6 +547,88 @@ export const uiMenu = () => {
                 newRelativePosition: LOBBY_RETURN_POSITION,
                 cameraTarget: LOBBY_RETURN_LOOK_TARGET
               })
+            }}
+          />
+        </UiEntity>
+      )}
+      {showLobbyHud && (
+        <UiEntity
+          uiTransform={{
+            position: { top: LOBBY_HUD_TOP_MARGIN, left: 0 },
+            positionType: 'absolute',
+            width: '100%',
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: LOBBY_HUD_LOADOUT_WIDTH,
+              height: LOBBY_HUD_LOADOUT_HEIGHT
+            }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+              uvs: LOBBY_HUD_LOADOUT_UVS
+            }}
+          />
+        </UiEntity>
+      )}
+      {showLobbyHud && (
+        <UiEntity
+          uiTransform={{
+            position: { left: LOBBY_HUD_LEFT_MARGIN, top: 0 },
+            positionType: 'absolute',
+            width: LOBBY_HUD_SHOP_WIDTH,
+            height: '100%',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: LOBBY_HUD_GOLD_WIDTH,
+              height: LOBBY_HUD_GOLD_HEIGHT,
+              positionType: 'relative',
+              margin: { bottom: LOBBY_HUD_ITEM_MARGIN_BOTTOM }
+            }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+              uvs: LOBBY_HUD_GOLD_UVS
+            }}
+          >
+            <OutlinedText
+              uiTransform={{
+                width: 190,
+                height: 48,
+                positionType: 'absolute',
+                position: { left: 72, top: 16 },
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              uiText={{
+                value: `${playerGold}`,
+                fontSize: 40,
+                color: Color4.create(1, 0.94, 0.58, 1),
+                textAlign: 'middle-center'
+              }}
+              outlineColor={Color4.create(0.12, 0.08, 0.03, 1)}
+              outlineScale={2}
+              outlineKeyPrefix='lobby-gold-value'
+            />
+          </UiEntity>
+          <UiEntity
+            uiTransform={{
+              width: LOBBY_HUD_SHOP_WIDTH,
+              height: LOBBY_HUD_SHOP_HEIGHT
+            }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+              uvs: LOBBY_HUD_SHOP_UVS
             }}
           />
         </UiEntity>
