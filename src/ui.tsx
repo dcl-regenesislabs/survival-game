@@ -79,6 +79,8 @@ const BRICK_TARGET_RETICLE_WIDTH = 106
 const BRICK_TARGET_RETICLE_HEIGHT = 98
 const WEAPON_SELECTION_BAR_WIDTH = 92
 const WEAPON_SELECTION_BAR_HEIGHT = 6
+const WEAPON_BUY_HIGHLIGHT_COLOR = Color4.create(1, 0.84, 0.18, 1)
+const MOBILE_WEAPON_BAR_SCALE = 1.1
 // WEAPONS_LOCK2.png region: x=853, y=92, w=213, h=196 (1536x1024 atlas, V axis bottom-up in UI UVs)
 const BRICK_TARGET_RETICLE_UVS = [0.555339, 0.71875, 0.555339, 0.910156, 0.69401, 0.910156, 0.69401, 0.71875]
 const HUD_LOBBY_SHEET_SRC = 'assets/images/HUD_LOBBY2.png'
@@ -117,6 +119,16 @@ function createAtlasUvs(x: number, y: number, width: number, height: number): At
   const top = 1 - y / HUD_LOBBY_SHEET_HEIGHT
 
   return [left, bottom, left, top, right, top, right, bottom]
+}
+
+function isMobileRuntime(): boolean {
+  const navigatorLike = (globalThis as { navigator?: { userAgent?: string } }).navigator
+  const userAgent = navigatorLike?.userAgent ?? ''
+  return /android|iphone|ipad|ipod|mobile/i.test(userAgent)
+}
+
+function scaleUiValue(value: number, scale: number): number {
+  return Math.max(1, Math.round(value * scale))
 }
 
 export function setupUi() {
@@ -184,11 +196,38 @@ export const uiMenu = () => {
     activeEffectBarCount > 0
       ? activeEffectBarCount * effectBarHeight + Math.max(0, activeEffectBarCount - 1) * effectBarGap + 4
       : 0
+  const weaponBarScale = isMobileRuntime() ? MOBILE_WEAPON_BAR_SCALE : 1
+  const weaponBarBottomOffset = scaleUiValue(24, weaponBarScale)
+  const weaponBarSidePadding = scaleUiValue(24, weaponBarScale)
+  const weaponItemSideMargin = scaleUiValue(19, weaponBarScale)
+  const weaponItemBottomMargin = scaleUiValue(14, weaponBarScale)
+  const weaponItemBaseExtraHeight = scaleUiValue(20, weaponBarScale)
+  const weaponItemSelectedExtraHeight = scaleUiValue(38, weaponBarScale)
+  const miniGunBarContainerHeight = scaleUiValue(28, weaponBarScale)
+  const miniGunBarLabelHeight = scaleUiValue(16, weaponBarScale)
+  const miniGunBarLabelFontSize = scaleUiValue(13, weaponBarScale)
+  const miniGunBarMarginBottom = scaleUiValue(8, weaponBarScale)
+  const brickTargetReticleWidth = scaleUiValue(BRICK_TARGET_RETICLE_WIDTH, weaponBarScale)
+  const brickTargetReticleHeight = scaleUiValue(BRICK_TARGET_RETICLE_HEIGHT, weaponBarScale)
+  const brickTargetReticleMarginBottom = scaleUiValue(12, weaponBarScale)
+  const weaponSelectionBarWidth = scaleUiValue(WEAPON_SELECTION_BAR_WIDTH, weaponBarScale)
+  const weaponSelectionBarHeight = scaleUiValue(WEAPON_SELECTION_BAR_HEIGHT, weaponBarScale)
+  const weaponSelectionBarMarginTop = scaleUiValue(8, weaponBarScale)
+  const buyLabelWidth = scaleUiValue(60, weaponBarScale)
+  const buyLabelHeight = scaleUiValue(22, weaponBarScale)
+  const buyLabelHorizontalOffset = scaleUiValue(24, weaponBarScale)
+  const buyLabelBottomOffset = scaleUiValue(20, weaponBarScale)
+  const buyLabelFontSize = scaleUiValue(16, weaponBarScale)
+  const costLabelWidth = scaleUiValue(72, weaponBarScale)
+  const costLabelHeight = scaleUiValue(22, weaponBarScale)
+  const costLabelHorizontalOffset = scaleUiValue(24, weaponBarScale)
+  const costLabelBottomOffset = scaleUiValue(20, weaponBarScale)
+  const costLabelFontSize = scaleUiValue(16, weaponBarScale)
   const miniGunHeatRatio = getMiniGunHeatRatio()
   const miniGunOverheated = isMiniGunOverheated()
   const miniGunCooldownRemaining = getMiniGunOverheatCooldownRemaining()
-  const miniGunBarWidth = 128
-  const miniGunBarHeight = 8
+  const miniGunBarWidth = scaleUiValue(128, weaponBarScale)
+  const miniGunBarHeight = scaleUiValue(8, weaponBarScale)
   const miniGunBarFillWidth = miniGunBarWidth * miniGunHeatRatio
 
   return (
@@ -796,12 +835,12 @@ export const uiMenu = () => {
         <UiEntity
           uiTransform={{
             width: '100%',
-            position: { bottom: 24, left: 0 },
+            position: { bottom: weaponBarBottomOffset, left: 0 },
             positionType: 'absolute',
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: { left: 24, right: 24 }
+            padding: { left: weaponBarSidePadding, right: weaponBarSidePadding }
           }}
         >
           <UiEntity
@@ -831,7 +870,15 @@ export const uiMenu = () => {
                         ? !isPurchased
                         : getZombieCoins() < BRICK_COST_ZC
                 const isSelected = weapon === 'brick' ? brickTargetModeActive : currentWeapon === selectableWeapon
-                const buttonWidth =
+                const showBuyPrompt =
+                  (isPurchasableWeapon && !isPurchased && canAfford) ||
+                  (weapon === 'brick' && !isSelected && canAfford)
+                const showWeaponCost =
+                  weaponCost > 0 &&
+                  (weapon === 'brick'
+                    ? !isSelected
+                    : !isPurchased)
+                const buttonWidth = scaleUiValue(
                   weapon === 'gun'
                     ? GUN_BUTTON_WIDTH
                     : weapon === 'shotgun'
@@ -840,8 +887,10 @@ export const uiMenu = () => {
                         ? MINIGUN_BUTTON_WIDTH
                         : weapon === 'brick'
                           ? BRICK_BUTTON_WIDTH
-                          : 288
-                const buttonHeight =
+                          : 288,
+                  weaponBarScale
+                )
+                const buttonHeight = scaleUiValue(
                   weapon === 'gun'
                     ? GUN_BUTTON_HEIGHT
                     : weapon === 'shotgun'
@@ -850,10 +899,12 @@ export const uiMenu = () => {
                         ? MINIGUN_BUTTON_HEIGHT
                         : weapon === 'brick'
                           ? BRICK_BUTTON_HEIGHT
-                          : 106
+                          : 106,
+                  weaponBarScale
+                )
                 const spriteSheetSrc =
                   weapon === 'brick'
-                    ? canUse
+                    ? isSelected
                       ? WEAPONS_SHEET_SRC
                       : WEAPONS_UNLOCK_SHEET_SRC
                     : isPurchasableWeapon && !isPurchased
@@ -870,11 +921,11 @@ export const uiMenu = () => {
                       width: buttonWidth,
                       height:
                         buttonHeight +
-                        BRICK_TARGET_RETICLE_HEIGHT +
-                        WEAPON_SELECTION_BAR_HEIGHT +
-                        (weapon === 'minigun' && isSelected ? 38 : 20),
+                        brickTargetReticleHeight +
+                        weaponSelectionBarHeight +
+                        (weapon === 'minigun' && isSelected ? weaponItemSelectedExtraHeight : weaponItemBaseExtraHeight),
                       positionType: 'relative',
-                      margin: { left: 19, right: 19, bottom: 14 },
+                      margin: { left: weaponItemSideMargin, right: weaponItemSideMargin, bottom: weaponItemBottomMargin },
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'flex-end'
@@ -884,18 +935,18 @@ export const uiMenu = () => {
                       <UiEntity
                         uiTransform={{
                           width: miniGunBarWidth,
-                          height: 26,
-                          margin: { bottom: 8 },
+                          height: miniGunBarContainerHeight,
+                          margin: { bottom: miniGunBarMarginBottom },
                           flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'flex-end'
                         }}
                       >
                         <UiEntity
-                          uiTransform={{ width: miniGunBarWidth, height: 14 }}
+                          uiTransform={{ width: miniGunBarWidth, height: miniGunBarLabelHeight }}
                           uiText={{
                             value: miniGunOverheated ? `OVERHEAT ${Math.ceil(miniGunCooldownRemaining)}s` : '',
-                            fontSize: 12,
+                            fontSize: miniGunBarLabelFontSize,
                             color: Color4.create(1, 0.45, 0.3, 1),
                             textAlign: 'middle-center'
                           }}
@@ -929,9 +980,9 @@ export const uiMenu = () => {
                     {weapon === 'brick' && brickTargetModeActive && (
                       <UiEntity
                         uiTransform={{
-                          width: BRICK_TARGET_RETICLE_WIDTH,
-                          height: BRICK_TARGET_RETICLE_HEIGHT,
-                          margin: { bottom: 12 }
+                          width: brickTargetReticleWidth,
+                          height: brickTargetReticleHeight,
+                          margin: { bottom: brickTargetReticleMarginBottom }
                         }}
                         uiBackground={{
                           textureMode: 'stretch',
@@ -994,18 +1045,36 @@ export const uiMenu = () => {
                       }}
                       onMouseUp={endUiPointerCapture}
                     >
-                      {weaponCost > 0 && ((weapon === 'brick' && !canUse) || (weapon !== 'brick' && !isPurchased)) && (
+                      {showBuyPrompt && (
                         <OutlinedText
                           uiTransform={{
-                            width: 64,
-                            height: 20,
+                            width: buyLabelWidth,
+                            height: buyLabelHeight,
                             positionType: 'absolute',
-                            position: { right: 24, bottom: 20 }
+                            position: { left: buyLabelHorizontalOffset, bottom: buyLabelBottomOffset }
+                          }}
+                          uiText={{
+                            value: 'BUY',
+                            fontSize: buyLabelFontSize,
+                            color: WEAPON_BUY_HIGHLIGHT_COLOR,
+                            textAlign: 'middle-left'
+                          }}
+                          outlineColor={Color4.create(0, 0, 0, 1)}
+                          outlineKeyPrefix={`weapon-buy-${weapon}`}
+                        />
+                      )}
+                      {showWeaponCost && (
+                        <OutlinedText
+                          uiTransform={{
+                            width: costLabelWidth,
+                            height: costLabelHeight,
+                            positionType: 'absolute',
+                            position: { right: costLabelHorizontalOffset, bottom: costLabelBottomOffset }
                           }}
                           uiText={{
                             value: `${weaponCost} ZC`,
-                            fontSize: 15,
-                            color: Color4.create(1, 1, 1, 1),
+                            fontSize: costLabelFontSize,
+                            color: showBuyPrompt ? WEAPON_BUY_HIGHLIGHT_COLOR : Color4.create(1, 1, 1, 1),
                             textAlign: 'middle-right'
                           }}
                           outlineColor={Color4.create(0, 0, 0, 1)}
@@ -1016,9 +1085,9 @@ export const uiMenu = () => {
                     {weapon !== 'brick' && isSelected && (
                       <UiEntity
                         uiTransform={{
-                          width: WEAPON_SELECTION_BAR_WIDTH,
-                          height: WEAPON_SELECTION_BAR_HEIGHT,
-                          margin: { top: 8 }
+                          width: weaponSelectionBarWidth,
+                          height: weaponSelectionBarHeight,
+                          margin: { top: weaponSelectionBarMarginTop }
                         }}
                         uiBackground={{ color: Color4.create(0, 0, 0, 1) }}
                       >
