@@ -26,7 +26,6 @@ export enum EntityNames {
   npc_collider_1 = "npc_collider_1",
   npc_collider_2 = "npc_collider_2",
   npcs01_glb = "npcs01.glb",
-  npcs01_glb_2 = "npcs01.glb_2",
   npcs02_glb = "npcs02.glb",
   trigger_room_1 = "trigger_room_1",
   trigger_room_2 = "trigger_room_2",
