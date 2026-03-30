@@ -8,6 +8,7 @@ import { getGameTime } from './zombie'
 import { isSpeedActive, getSpeedTimeLeft, SPEED_DURATION_SEC } from './speedEffect'
 import { isRaging, getRageTimeLeft, RAGE_DURATION_SEC } from './rageEffect'
 import { getHealthPickupFeedback } from './potions'
+import { beginUiPointerCapture, endUiPointerCapture } from './gameplayInput'
 import {
   getCurrentWeapon,
   getWeaponUnlockCost,
@@ -542,12 +543,14 @@ export const uiMenu = () => {
               uvs: BACK_TO_LOBBY_BUTTON_UVS
             }}
             onMouseDown={() => {
+              beginUiPointerCapture()
               sendLeaveLobby()
               movePlayerTo({
                 newRelativePosition: LOBBY_RETURN_POSITION,
                 cameraTarget: LOBBY_RETURN_LOOK_TARGET
               })
             }}
+            onMouseUp={endUiPointerCapture}
           />
         </UiEntity>
       )}
@@ -971,6 +974,7 @@ export const uiMenu = () => {
                                 : { color: Color4.create(0.2, 0.75, 0.35, 1) }
                       }
                       onMouseDown={() => {
+                        beginUiPointerCapture()
                         if (weapon === 'brick') {
                           if (!canUse) return
                           if (brickTargetModeActive) {
@@ -988,6 +992,7 @@ export const uiMenu = () => {
                           switchTo(selectableWeapon)
                         }
                       }}
+                      onMouseUp={endUiPointerCapture}
                     >
                       {weaponCost > 0 && ((weapon === 'brick' && !canUse) || (weapon !== 'brick' && !isPurchased)) && (
                         <OutlinedText
