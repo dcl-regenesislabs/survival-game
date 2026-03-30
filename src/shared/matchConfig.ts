@@ -29,6 +29,15 @@ export const EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_EARLY = 1
 export const EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_LATE = 2
 export const EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_LATE_WAVE = 10
 
+// Brick cost progression (price increases every N waves)
+export const BRICK_COST_BASE = 20
+export const BRICK_COST_TIER_2 = 35   // starts at wave 5
+export const BRICK_COST_TIER_3 = 55   // starts at wave 10
+export const BRICK_COST_TIER_4 = 80   // starts at wave 15
+export const BRICK_COST_TIER_2_WAVE = 5
+export const BRICK_COST_TIER_3_WAVE = 10
+export const BRICK_COST_TIER_4_WAVE = 15
+
 // Minigun overheat tuning
 export const MINIGUN_OVERHEAT_SECONDS = 6.5
 export const MINIGUN_OVERHEAT_LOCK_SECONDS = 3

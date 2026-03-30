@@ -25,7 +25,7 @@ import {
   isMiniGunOverheated
 } from './miniGun'
 import {
-  BRICK_COST_ZC,
+  getBrickCost,
   activateBrickTargetMode,
   confirmBrickPlacementFromTargetMode,
   isBrickTargetModeActive
@@ -856,14 +856,15 @@ export const uiMenu = () => {
             {(['gun', 'shotgun', 'minigun', 'brick'] as const).map((weapon: WeaponType | 'brick') => {
                 const selectableWeapon = weapon === 'brick' ? null : weapon
                 const isPurchasableWeapon = weapon === 'shotgun' || weapon === 'minigun'
-                const weaponCost = weapon === 'brick' ? BRICK_COST_ZC : isPurchasableWeapon ? getWeaponUnlockCost(weapon) : 0
+                const brickCost = getBrickCost()
+                const weaponCost = weapon === 'brick' ? brickCost : isPurchasableWeapon ? getWeaponUnlockCost(weapon) : 0
                 const isPurchased = selectableWeapon === null ? true : selectableWeapon === 'gun' ? true : isWeaponPurchasedInMatch(selectableWeapon)
                 const canAfford = weaponCost <= 0 || getZombieCoins() >= weaponCost
                 const canUse =
                   weapon === 'gun' ||
                   (weapon === 'shotgun' && isShotgunUnlocked()) ||
                   (weapon === 'minigun' && isMinigunUnlocked()) ||
-                  (weapon === 'brick' && getZombieCoins() >= BRICK_COST_ZC)
+                  (weapon === 'brick' && getZombieCoins() >= brickCost)
                 const isLockedVisual =
                   weapon === 'gun'
                     ? false
@@ -871,7 +872,7 @@ export const uiMenu = () => {
                       ? !isPurchased
                     : weapon === 'minigun'
                         ? !isPurchased
-                        : getZombieCoins() < BRICK_COST_ZC
+                        : getZombieCoins() < brickCost
                 const isSelected = weapon === 'brick' ? brickTargetModeActive : currentWeapon === selectableWeapon
                 const showBuyPrompt =
                   (isPurchasableWeapon && !isPurchased && canAfford) ||
