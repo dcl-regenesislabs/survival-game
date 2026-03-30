@@ -3,11 +3,10 @@ import {
   Name,
   pointerEventsSystem,
   InputAction,
-  MeshCollider,
+  GltfContainer,
   ColliderLayer,
-  Transform
+  Animator
 } from '@dcl/sdk/ecs'
-import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { EntityNames } from '../assets/scene/entity-names'
 import { openLobbyStore } from './lobbyStoreUi'
 
@@ -16,10 +15,6 @@ type Entity = ReturnType<typeof engine.addEntity>
 const NPC_HOVER_TEXT = 'Open Store'
 const NPC_MAX_DISTANCE = 5
 
-// Invisible box centered on the NPC body (chest level)
-const HITBOX_HEIGHT_OFFSET = 1.0  // meters above NPC origin
-const HITBOX_SIZE = Vector3.create(1.0, 1.8, 0.6)
-
 function findSceneEntity(entityName: EntityNames): Entity | undefined {
   for (const [entity, name] of engine.getEntitiesWith(Name)) {
     if (name.value === entityName) return entity
@@ -27,20 +22,23 @@ function findSceneEntity(entityName: EntityNames): Entity | undefined {
   return undefined
 }
 
-function setupNpcClickHandler(npcEntity: Entity, npcName: string): void {
-  // Create an invisible child entity as the click target at body height
-  const hitbox = engine.addEntity()
-  Transform.create(hitbox, {
-    parent: npcEntity,
-    position: Vector3.create(0, HITBOX_HEIGHT_OFFSET, 0),
-    rotation: Quaternion.Identity(),
-    scale: HITBOX_SIZE
+function setupNpcClickHandler(npcEntity: Entity): void {
+  if (GltfContainer.has(npcEntity)) {
+    const gltf = GltfContainer.getMutable(npcEntity)
+    gltf.visibleMeshesCollisionMask =
+      (gltf.visibleMeshesCollisionMask ?? ColliderLayer.CL_PHYSICS) | ColliderLayer.CL_POINTER
+  }
+
+  Animator.createOrReplace(npcEntity, {
+    states: [
+      { clip: 'Idle',      playing: true,  loop: true,  speed: 1 },
+      { clip: 'TalkAgree', playing: false, loop: false, speed: 1 }
+    ]
   })
-  MeshCollider.setBox(hitbox, ColliderLayer.CL_POINTER)
 
   pointerEventsSystem.onPointerDown(
     {
-      entity: hitbox,
+      entity: npcEntity,
       opts: {
         button: InputAction.IA_POINTER,
         hoverText: NPC_HOVER_TEXT,
@@ -48,24 +46,28 @@ function setupNpcClickHandler(npcEntity: Entity, npcName: string): void {
       }
     },
     () => {
-      console.log(`[LobbyStore] NPC clicked: ${npcName}`)
+      Animator.stopAllAnimations(npcEntity)
+      const anim = Animator.getMutable(npcEntity)
+      const talk = anim.states.find((s) => s.clip === 'TalkAgree')
+      if (talk) {
+        talk.playing = true
+        talk.shouldReset = true
+      }
       openLobbyStore()
     }
   )
 }
 
 export function initLobbyStore(): void {
-  const npcNames: EntityNames[] = [EntityNames.npcs01_glb, EntityNames.npcs02_glb]
-  const pending = new Set(npcNames)
+  const pending = new Set([EntityNames.npcs01_glb])
 
   const systemName = 'lobby-store-npc-init-system'
   engine.addSystem(() => {
     for (const npcName of pending) {
       const entity = findSceneEntity(npcName)
       if (!entity) continue
-      setupNpcClickHandler(entity, npcName)
+      setupNpcClickHandler(entity)
       pending.delete(npcName)
-      console.log(`[LobbyStore] Click handler registered on ${npcName}`)
     }
     if (pending.size === 0) {
       engine.removeSystem(systemName)
