@@ -867,7 +867,7 @@ async function removePlayerFromLobby(address: string): Promise<void> {
   disconnectedLobbyPlayerSinceMs.delete(normalizedAddress)
   setPlayers(nextPlayers)
   setArenaPlayers(nextArenaPlayers)
-  if (nextArenaPlayers.length < MATCH_MAX_PLAYERS) {
+  if (nextArenaPlayers.length === 0) {
     cancelArenaAutoTeleportCountdown()
   }
   if (nextArenaPlayers.length === 0) {
@@ -1184,9 +1184,7 @@ function waveRuntimeSystem(dt: number): void {
     return
   }
 
-  if (lobbyState.arenaPlayers.length < MATCH_MAX_PLAYERS) {
-    cancelArenaAutoTeleportCountdown()
-  } else if (lobbyState.countdownEndTimeMs > 0 && now >= lobbyState.countdownEndTimeMs) {
+  if (lobbyState.countdownEndTimeMs > 0 && now >= lobbyState.countdownEndTimeMs) {
     cancelArenaAutoTeleportCountdown()
     sendArenaAutoTeleport(lobbyState.arenaPlayers)
   }
@@ -1349,6 +1347,19 @@ export function setupLobbyServer(): void {
     const state = getLobbyState()
     if (state.phase === LobbyPhase.MATCH_CREATED) return
     createMatch(context.from)
+  })
+
+  room.onMessage('startGameManual', (_data, context) => {
+    if (!context) return
+    if (!isPlayerInLobby(context.from)) return
+    const state = getLobbyState()
+    if (state.phase !== LobbyPhase.MATCH_CREATED) {
+      createMatch(context.from)
+    }
+    const updatedState = getLobbyState()
+    if (updatedState.phase === LobbyPhase.MATCH_CREATED && updatedState.arenaPlayers.length > 0) {
+      startArenaAutoTeleportCountdown(updatedState.arenaPlayers)
+    }
   })
 
   room.onMessage('createMatchAndJoin', async (_data, context) => {

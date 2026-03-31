@@ -159,6 +159,10 @@ export function sendCreateMatchAndJoin(): void {
   void room.send('createMatchAndJoin', {})
 }
 
+export function sendStartGameManual(): void {
+  void room.send('startGameManual', {})
+}
+
 export function sendPlayerDamageRequest(amount: number): void {
   void room.send('playerDamageRequest', { amount })
 }
