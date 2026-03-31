@@ -25,7 +25,7 @@ import {
   WEAPON_ROOT_OFFSET
 } from './shared/weaponVisuals'
 
-const GUN_MODEL = 'assets/scene/Models/drones/shotgun/DroneShotGun.glb'
+import { getArenaWeaponModelPath } from './shared/loadoutCatalog'
 
 const GUN_SHOOT_ANIM = 'DroneShotGunShoot'
 
@@ -136,7 +136,7 @@ function spawnProjectile(
   return baseDirection
 }
 
-export function createShotGun(): Entity {
+export function createShotGun(upgradeLevel: number = 1): Entity {
   if (gunEntity !== null) return gunEntity
 
   const gun = engine.addEntity()
@@ -156,7 +156,7 @@ export function createShotGun(): Entity {
   })
 
   GltfContainer.create(gunModel, {
-    src: GUN_MODEL
+    src: getArenaWeaponModelPath('shotgun', upgradeLevel)
   })
 
   Animator.create(gunModel, {

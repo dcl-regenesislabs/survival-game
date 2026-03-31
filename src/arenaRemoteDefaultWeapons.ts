@@ -7,7 +7,7 @@ import {
   getPlayerCombatSnapshot,
   isLocalReadyForMatch
 } from './multiplayer/lobbyClient'
-import { ArenaWeaponType } from './shared/loadoutCatalog'
+import { ArenaWeaponType, getArenaWeaponModelPath } from './shared/loadoutCatalog'
 import {
   WEAPON_DEFAULT_ROTATION,
   WEAPON_DEFAULT_SCALE,
@@ -15,9 +15,6 @@ import {
   WEAPON_ROOT_OFFSET
 } from './shared/weaponVisuals'
 
-const DEFAULT_GUN_MODEL = 'assets/scene/Models/drones/gun/DroneGun.glb'
-const SHOTGUN_MODEL = 'assets/scene/Models/drones/shotgun/DroneShotGun.glb'
-const MINIGUN_MODEL = 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
 const GUN_SHOOT_ANIM = 'DroneGunShoot'
 const SHOTGUN_SHOOT_ANIM = 'DroneShotGunShoot'
 const MINIGUN_SHOOT_ANIM = 'DroneMinigunShoot'
@@ -27,6 +24,7 @@ type RemoteWeaponEntry = {
   weaponRootEntity: Entity
   weaponModelEntity: Entity
   weaponType: ArenaWeaponType
+  upgradeLevel: number
 }
 
 function canShowArenaRemoteWeapons(): boolean {
@@ -66,7 +64,7 @@ class ArenaRemoteDefaultWeapons {
       if (!address || address === localAddress) continue
 
       const isDead = !!getPlayerCombatSnapshot(address)?.isDead
-      const weaponType = getPlayerArenaWeapon(address)
+      const { weaponType, upgradeLevel } = getPlayerArenaWeapon(address)
       if (!arenaAddresses.has(address) || isDead) {
         this.removeEntry(address)
         continue
@@ -77,17 +75,19 @@ class ArenaRemoteDefaultWeapons {
       const existing = this.entriesByAddress.get(address)
       if (existing) {
         existing.avatarEntity = avatarEntity
-        if (existing.weaponType !== weaponType) {
+        if (existing.weaponType !== weaponType || existing.upgradeLevel !== upgradeLevel) {
           existing.weaponType = weaponType
-          applyRemoteWeaponModel(existing.weaponModelEntity, weaponType)
+          existing.upgradeLevel = upgradeLevel
+          applyRemoteWeaponModel(existing.weaponModelEntity, weaponType, upgradeLevel)
         }
         continue
       }
 
       this.entriesByAddress.set(address, {
         avatarEntity,
-        ...createRemoteDefaultWeapon(weaponType),
-        weaponType
+        ...createRemoteDefaultWeapon(weaponType, upgradeLevel),
+        weaponType,
+        upgradeLevel
       })
     }
 
@@ -142,21 +142,15 @@ class ArenaRemoteDefaultWeapons {
 
 let arenaRemoteDefaultWeapons: ArenaRemoteDefaultWeapons | null = null
 
-function getRemoteWeaponModel(weaponType: ArenaWeaponType): string {
-  if (weaponType === 'shotgun') return SHOTGUN_MODEL
-  if (weaponType === 'minigun') return MINIGUN_MODEL
-  return DEFAULT_GUN_MODEL
-}
-
 function getRemoteWeaponShootClip(weaponType: ArenaWeaponType): string {
   if (weaponType === 'shotgun') return SHOTGUN_SHOOT_ANIM
   if (weaponType === 'minigun') return MINIGUN_SHOOT_ANIM
   return GUN_SHOOT_ANIM
 }
 
-function applyRemoteWeaponModel(weaponModelEntity: Entity, weaponType: ArenaWeaponType): void {
+function applyRemoteWeaponModel(weaponModelEntity: Entity, weaponType: ArenaWeaponType, upgradeLevel: number): void {
   GltfContainer.createOrReplace(weaponModelEntity, {
-    src: getRemoteWeaponModel(weaponType)
+    src: getArenaWeaponModelPath(weaponType, upgradeLevel)
   })
 
   Animator.createOrReplace(weaponModelEntity, {
@@ -164,7 +158,7 @@ function applyRemoteWeaponModel(weaponModelEntity: Entity, weaponType: ArenaWeap
   })
 }
 
-function createRemoteDefaultWeapon(weaponType: ArenaWeaponType): {
+function createRemoteDefaultWeapon(weaponType: ArenaWeaponType, upgradeLevel: number): {
   weaponRootEntity: Entity
   weaponModelEntity: Entity
 } {
@@ -184,7 +178,7 @@ function createRemoteDefaultWeapon(weaponType: ArenaWeaponType): {
     scale: WEAPON_DEFAULT_SCALE
   })
 
-  applyRemoteWeaponModel(weaponModelEntity, weaponType)
+  applyRemoteWeaponModel(weaponModelEntity, weaponType, upgradeLevel)
   return { weaponRootEntity, weaponModelEntity }
 }
 

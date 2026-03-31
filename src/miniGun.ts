@@ -30,7 +30,7 @@ import {
   WEAPON_ROOT_OFFSET
 } from './shared/weaponVisuals'
 
-const GUN_MODEL = 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
+import { getArenaWeaponModelPath } from './shared/loadoutCatalog'
 
 const GUN_SHOOT_ANIM = 'DroneMinigunShoot'
 
@@ -166,7 +166,7 @@ function spawnProjectile(
   return direction
 }
 
-export function createMiniGun(): Entity {
+export function createMiniGun(upgradeLevel: number = 1): Entity {
   if (gunEntity !== null) return gunEntity
 
   const gun = engine.addEntity()
@@ -186,7 +186,7 @@ export function createMiniGun(): Entity {
   })
 
   GltfContainer.create(gunModel, {
-    src: GUN_MODEL
+    src: getArenaWeaponModelPath('minigun', upgradeLevel)
   })
 
   Animator.create(gunModel, {

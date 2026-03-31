@@ -108,3 +108,23 @@ export function getLoadoutWeaponDefinition(weaponId: string): LoadoutWeaponDefin
 export function getWeaponUpgrades(weaponType: ArenaWeaponType): LoadoutWeaponDefinition[] {
   return LOADOUT_WEAPON_DEFINITIONS.filter((w) => w.arenaWeaponType === weaponType)
 }
+
+export function getArenaWeaponModelPath(weaponType: ArenaWeaponType, upgradeLevel: number): string {
+  const level = Math.max(1, Math.min(3, upgradeLevel))
+  if (weaponType === 'gun') {
+    if (level === 3) return 'assets/scene/Models/drones/gun/DroneGunGold.glb'
+    if (level === 2) return 'assets/scene/Models/drones/gun/DroneGunUp1.glb'
+    return 'assets/scene/Models/drones/gun/DroneGun.glb'
+  }
+  if (weaponType === 'shotgun') {
+    if (level === 3) return 'assets/scene/Models/drones/shotgun/DroneShotGunGold.glb'
+    if (level === 2) return 'assets/scene/Models/drones/shotgun/DroneShotGunUp1.glb'
+    return 'assets/scene/Models/drones/shotgun/DroneShotGun.glb'
+  }
+  if (weaponType === 'minigun') {
+    if (level === 3) return 'assets/scene/Models/drones/minigun/DroneMinigunGold.glb'
+    if (level === 2) return 'assets/scene/Models/drones/minigun/DroneMinigunUp1.glb'
+    return 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
+  }
+  return 'assets/scene/Models/drones/gun/DroneGun.glb'
+}

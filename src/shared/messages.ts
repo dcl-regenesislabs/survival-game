@@ -95,11 +95,13 @@ const LobbyMessages = {
     firedAtMs: Schemas.Int64
   }),
   playerArenaWeaponChanged: Schemas.Map({
-    weaponType: Schemas.String
+    weaponType: Schemas.String,
+    upgradeLevel: Schemas.Number
   }),
   playerArenaWeaponState: Schemas.Map({
     address: Schemas.String,
-    weaponType: Schemas.String
+    weaponType: Schemas.String,
+    upgradeLevel: Schemas.Number
   }),
   playerPowerupState: Schemas.Map({
     address: Schemas.String,
