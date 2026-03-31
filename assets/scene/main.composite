@@ -97,16 +97,16 @@
               "y": 0,
               "z": 7.75
             },
+            "scale": {
+              "x": 0.75,
+              "y": 1,
+              "z": 0.75
+            },
             "rotation": {
               "x": 0,
               "y": 0,
               "z": 0,
               "w": 1
-            },
-            "scale": {
-              "x": 0.75,
-              "y": 1,
-              "z": 0.75
             },
             "parent": 0
           }
@@ -489,6 +489,27 @@
             "parent": 526
           }
         },
+        "531": {
+          "json": {
+            "position": {
+              "x": 91.75,
+              "y": 1.25,
+              "z": 25
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "parent": 0
+          }
+        },
         "533": {
           "json": {
             "position": {
@@ -555,41 +576,62 @@
         "539": {
           "json": {
             "position": {
-              "x": 91.75,
-              "y": 0,
-              "z": 25
-            },
-            "scale": {
-              "x": 1.5,
-              "y": 1.5,
-              "z": 1.5
+              "x": 0,
+              "y": -0.625,
+              "z": 0
             },
             "rotation": {
               "x": 0,
-              "y": 0.707099974155426,
+              "y": -0.707099974155426,
               "z": 0,
-              "w": -0.707099974155426
+              "w": 0.7071135640144348
             },
-            "parent": 0
+            "scale": {
+              "x": 1.4999711513519287,
+              "y": 0.75,
+              "z": 1.4999711513519287
+            },
+            "parent": 531
           }
         },
         "540": {
           "json": {
             "position": {
-              "x": 77.75,
-              "y": 0,
-              "z": 19.5
-            },
-            "scale": {
-              "x": 1.5,
-              "y": 1.5,
-              "z": 1.5
+              "x": 0,
+              "y": -0.625,
+              "z": 0
             },
             "rotation": {
               "x": 0,
               "y": 0.707099974155426,
               "z": 0,
-              "w": 0.707099974155426
+              "w": 0.7071135640144348
+            },
+            "scale": {
+              "x": 1.4999711513519287,
+              "y": 0.75,
+              "z": 1.4999711513519287
+            },
+            "parent": 541
+          }
+        },
+        "541": {
+          "json": {
+            "position": {
+              "x": 77.75,
+              "y": 1.25,
+              "z": 19.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 2,
+              "z": 1
             },
             "parent": 0
           }
@@ -995,6 +1037,58 @@
       }
     },
     {
+      "name": "core::Material",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {},
+        "serializationType": "protocol-buffer",
+        "protocolBuffer": "PBMaterial"
+      },
+      "data": {
+        "531": {
+          "json": {}
+        },
+        "541": {
+          "json": {}
+        }
+      }
+    },
+    {
+      "name": "core::MeshCollider",
+      "jsonSchema": {
+        "type": "object",
+        "properties": {},
+        "serializationType": "protocol-buffer",
+        "protocolBuffer": "PBMeshCollider"
+      },
+      "data": {
+        "531": {
+          "json": {
+            "collisionMask": 3,
+            "mesh": {
+              "$case": "cylinder",
+              "cylinder": {
+                "radiusTop": 0.5,
+                "radiusBottom": 0.5
+              }
+            }
+          }
+        },
+        "541": {
+          "json": {
+            "collisionMask": 3,
+            "mesh": {
+              "$case": "cylinder",
+              "cylinder": {
+                "radiusTop": 0.5,
+                "radiusBottom": 0.5
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "name": "core-schema::Name",
       "jsonSchema": {
         "type": "object",
@@ -1102,6 +1196,11 @@
             "value": "JoinArea01.glb_4"
           }
         },
+        "531": {
+          "json": {
+            "value": "npc_collider_1"
+          }
+        },
         "533": {
           "json": {
             "value": "NewGameText.glb_2"
@@ -1125,6 +1224,11 @@
         "540": {
           "json": {
             "value": "npcs02.glb"
+          }
+        },
+        "541": {
+          "json": {
+            "value": "npc_collider_2"
           }
         }
       }
@@ -1171,9 +1275,9 @@
         "serializationType": "map"
       },
       "data": {
-        "512": {
+        "541": {
           "json": {
-            "gizmo": 0
+            "gizmo": 1
           }
         }
       }
@@ -1238,8 +1342,8 @@
                   520,
                   521,
                   526,
-                  539,
-                  540
+                  531,
+                  541
                 ]
               },
               {
@@ -1358,6 +1462,19 @@
               {
                 "entity": 540,
                 "children": []
+              },
+              {
+                "entity": 531,
+                "children": [
+                  539
+                ]
+              },
+              {
+                "entity": 541,
+                "open": true,
+                "children": [
+                  540
+                ]
               }
             ]
           }
@@ -1438,6 +1555,9 @@
         "530": {
           "json": {}
         },
+        "531": {
+          "json": {}
+        },
         "533": {
           "json": {}
         },
@@ -1460,6 +1580,9 @@
           "json": {}
         },
         "540": {
+          "json": {}
+        },
+        "541": {
           "json": {}
         }
       }
