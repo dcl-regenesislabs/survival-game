@@ -3,7 +3,8 @@ import {
   Name,
   pointerEventsSystem,
   InputAction,
-  Animator
+  GltfContainer,
+  ColliderLayer
 } from '@dcl/sdk/ecs'
 import { EntityNames } from '../assets/scene/entity-names'
 import { openLobbyStore } from './lobbyStoreUi'
@@ -37,13 +38,17 @@ function findSceneEntity(entityName: EntityNames): Entity | undefined {
   return undefined
 }
 
+function enablePointerCollision(entity: Entity): void {
+  if (!GltfContainer.has(entity)) return
+
+  const gltf = GltfContainer.getMutable(entity)
+  gltf.visibleMeshesCollisionMask =
+    (gltf.visibleMeshesCollisionMask ?? ColliderLayer.CL_PHYSICS) | ColliderLayer.CL_POINTER
+}
+
 function setupNpcClickHandler(config: LobbyNpcConfig, npcEntity: Entity, clickEntity: Entity): void {
-  Animator.createOrReplace(npcEntity, {
-    states: [
-      { clip: 'Idle',      playing: true,  loop: true,  speed: 1 },
-      { clip: 'TalkAgree', playing: false, loop: false, speed: 1 }
-    ]
-  })
+  enablePointerCollision(npcEntity)
+  enablePointerCollision(clickEntity)
 
   pointerEventsSystem.onPointerDown(
     {
@@ -55,13 +60,6 @@ function setupNpcClickHandler(config: LobbyNpcConfig, npcEntity: Entity, clickEn
       }
     },
     () => {
-      Animator.stopAllAnimations(npcEntity)
-      const anim = Animator.getMutable(npcEntity)
-      const talk = anim.states.find((s) => s.clip === 'TalkAgree')
-      if (talk) {
-        talk.playing = true
-        talk.shouldReset = true
-      }
       config.onClick?.()
     }
   )

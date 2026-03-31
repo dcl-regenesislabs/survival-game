@@ -32,7 +32,7 @@ import {
 } from './brick'
 import { getPlayerGold } from './loadoutState'
 import { OutlinedText } from './outlineComponent'
-import { LobbyStoreUi } from './lobbyStoreUi'
+import { LobbyStoreUi, openLobbyStore } from './lobbyStoreUi'
 import {
   getLobbyState,
   getMatchRuntimeState,
@@ -110,6 +110,9 @@ const LOBBY_HUD_SHOP_SOURCE_HEIGHT = 178
 const LOBBY_HUD_SHOP_WIDTH = Math.round(LOBBY_HUD_SHOP_SOURCE_WIDTH * 0.5)
 const LOBBY_HUD_SHOP_HEIGHT = Math.round(LOBBY_HUD_SHOP_SOURCE_HEIGHT * 0.5)
 const LOBBY_HUD_SHOP_UVS = createAtlasUvs(346, 80, LOBBY_HUD_SHOP_SOURCE_WIDTH, LOBBY_HUD_SHOP_SOURCE_HEIGHT)
+const LOBBY_HUD_TOP_ACTION_GAP = 20
+const LOBBY_HUD_TOP_ACTION_OFFSET = Math.round((LOBBY_HUD_SHOP_WIDTH + LOBBY_HUD_TOP_ACTION_GAP) * 0.5)
+const LOBBY_HUD_GOLD_TOP = Math.round((1080 - (LOBBY_HUD_GOLD_HEIGHT + LOBBY_HUD_ITEM_MARGIN_BOTTOM + LOBBY_HUD_SHOP_HEIGHT)) * 0.5)
 
 type AtlasUvs = [number, number, number, number, number, number, number, number]
 
@@ -122,6 +125,10 @@ function createAtlasUvs(x: number, y: number, width: number, height: number): At
   return [left, bottom, left, top, right, top, right, bottom]
 }
 
+function scaleUiValue(value: number, scale: number): number {
+  return Math.max(1, Math.round(value * scale))
+}
+
 function isMobileRuntime(): boolean {
   const navigatorLike = (globalThis as { navigator?: { userAgent?: string } }).navigator
   const userAgent = navigatorLike?.userAgent ?? ''
@@ -129,10 +136,6 @@ function isMobileRuntime(): boolean {
 }
 
 const IS_MOBILE_RUNTIME = isMobileRuntime()
-
-function scaleUiValue(value: number, scale: number): number {
-  return Math.max(1, Math.round(value * scale))
-}
 
 export function setupUi() {
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
@@ -609,35 +612,56 @@ export const uiMenu = () => {
         >
           <UiEntity
             uiTransform={{
-              width: LOBBY_HUD_LOADOUT_WIDTH,
-              height: LOBBY_HUD_LOADOUT_HEIGHT
+              flexDirection: 'row',
+              alignItems: 'center',
+              margin: { left: LOBBY_HUD_TOP_ACTION_OFFSET }
             }}
-            uiBackground={{
-              textureMode: 'stretch',
-              texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
-              uvs: LOBBY_HUD_LOADOUT_UVS
-            }}
-          />
+          >
+            <UiEntity
+              uiTransform={{
+                width: LOBBY_HUD_SHOP_WIDTH,
+                height: LOBBY_HUD_SHOP_HEIGHT
+              }}
+              uiBackground={{
+                textureMode: 'stretch',
+                texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                uvs: LOBBY_HUD_SHOP_UVS
+              }}
+              onMouseDown={() => {
+                beginUiPointerCapture()
+                openLobbyStore()
+              }}
+              onMouseUp={endUiPointerCapture}
+            />
+            <UiEntity
+              uiTransform={{
+                width: LOBBY_HUD_LOADOUT_WIDTH,
+                height: LOBBY_HUD_LOADOUT_HEIGHT,
+                margin: { left: LOBBY_HUD_TOP_ACTION_GAP }
+              }}
+              uiBackground={{
+                textureMode: 'stretch',
+                texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                uvs: LOBBY_HUD_LOADOUT_UVS
+              }}
+            />
+          </UiEntity>
         </UiEntity>
       )}
       {showLobbyHud && (
         <UiEntity
           uiTransform={{
-            position: { left: LOBBY_HUD_LEFT_MARGIN, top: 0 },
+            position: { left: LOBBY_HUD_LEFT_MARGIN, top: LOBBY_HUD_GOLD_TOP },
             positionType: 'absolute',
-            width: LOBBY_HUD_SHOP_WIDTH,
-            height: '100%',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            justifyContent: 'center'
+            width: LOBBY_HUD_GOLD_WIDTH,
+            height: LOBBY_HUD_GOLD_HEIGHT
           }}
         >
           <UiEntity
             uiTransform={{
               width: LOBBY_HUD_GOLD_WIDTH,
               height: LOBBY_HUD_GOLD_HEIGHT,
-              positionType: 'relative',
-              margin: { bottom: LOBBY_HUD_ITEM_MARGIN_BOTTOM }
+              positionType: 'relative'
             }}
             uiBackground={{
               textureMode: 'stretch',
@@ -650,7 +674,7 @@ export const uiMenu = () => {
                 width: 190,
                 height: 48,
                 positionType: 'absolute',
-                position: { left: 72, top: 16 },
+                position: { left: 72, top: 12 },
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
@@ -665,17 +689,6 @@ export const uiMenu = () => {
               outlineKeyPrefix='lobby-gold-value'
             />
           </UiEntity>
-          <UiEntity
-            uiTransform={{
-              width: LOBBY_HUD_SHOP_WIDTH,
-              height: LOBBY_HUD_SHOP_HEIGHT
-            }}
-            uiBackground={{
-              textureMode: 'stretch',
-              texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
-              uvs: LOBBY_HUD_SHOP_UVS
-            }}
-          />
         </UiEntity>
       )}
       {playerDead && showDeathOverlay && (
