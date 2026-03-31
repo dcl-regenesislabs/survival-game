@@ -19,7 +19,7 @@ let localReadyForMatch = false
 let lastTeamWipeAffectedLocalPlayer = false
 const GAME_OVER_OVERLAY_DELAY_MS = 2000
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
-const playerArenaWeaponByAddress = new Map<string, ArenaWeaponType>()
+const playerArenaWeaponByAddress = new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>()
 const playerPowerupStateByAddress = new Map<string, { rageShieldEndAtMs: number; speedEndAtMs: number }>()
 
 function resetLocalMatchUiState(): void {
@@ -82,7 +82,8 @@ export function setupLobbyClient(): void {
   })
   room.onMessage('playerArenaWeaponState', (data) => {
     if (data.weaponType !== 'gun' && data.weaponType !== 'shotgun' && data.weaponType !== 'minigun') return
-    playerArenaWeaponByAddress.set(data.address.toLowerCase(), data.weaponType)
+    const upgradeLevel = typeof data.upgradeLevel === 'number' && data.upgradeLevel >= 1 ? data.upgradeLevel : 1
+    playerArenaWeaponByAddress.set(data.address.toLowerCase(), { weaponType: data.weaponType, upgradeLevel })
   })
   room.onMessage('playerPowerupState', (data) => {
     playerPowerupStateByAddress.set(data.address.toLowerCase(), {
@@ -198,8 +199,8 @@ export function sendPlayerExplosionDamageRequest(zombieId: string, amount: numbe
   void room.send('playerExplosionDamageRequest', { zombieId, amount })
 }
 
-export function sendPlayerArenaWeaponChanged(weaponType: ArenaWeaponType): void {
-  void room.send('playerArenaWeaponChanged', { weaponType })
+export function sendPlayerArenaWeaponChanged(weaponType: ArenaWeaponType, upgradeLevel: number): void {
+  void room.send('playerArenaWeaponChanged', { weaponType, upgradeLevel })
 }
 
 export function getLocalAddress(): string {
@@ -289,8 +290,8 @@ export function getPlayerCombatSnapshot(address: string): { hp: number; isDead: 
   }
 }
 
-export function getPlayerArenaWeapon(address: string): ArenaWeaponType {
-  return playerArenaWeaponByAddress.get(address.toLowerCase()) ?? 'gun'
+export function getPlayerArenaWeapon(address: string): { weaponType: ArenaWeaponType; upgradeLevel: number } {
+  return playerArenaWeaponByAddress.get(address.toLowerCase()) ?? { weaponType: 'gun', upgradeLevel: 1 }
 }
 
 export function getPlayerPowerupSnapshot(address: string): { rageShieldEndAtMs: number; speedEndAtMs: number } {

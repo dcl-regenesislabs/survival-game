@@ -5,6 +5,8 @@ import { createMiniGun, destroyMiniGun, resetMiniGunOverheatState } from './mini
 import { isPlayerDead } from './playerHealth'
 import { spendZombieCoins } from './zombieCoins'
 import { sendPlayerArenaWeaponChanged } from './multiplayer/lobbyClient'
+import { getPlayerLoadoutSnapshot } from './loadoutState'
+import { getLoadoutWeaponDefinition } from './shared/loadoutCatalog'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
 export const SHOTGUN_UNLOCK_COST_ZC = 300
@@ -55,6 +57,15 @@ export function purchaseWeapon(type: WeaponType): boolean {
   return true
 }
 
+function getEquippedUpgradeLevel(type: WeaponType): number {
+  const snapshot = getPlayerLoadoutSnapshot()
+  for (const weaponId of snapshot.equippedWeaponIds) {
+    const def = getLoadoutWeaponDefinition(weaponId)
+    if (def?.arenaWeaponType === type) return def.upgradeLevel
+  }
+  return 1
+}
+
 function destroyCurrentWeapon(): void {
   if (!hasSpawnedWeapon) return
   if (currentWeapon === 'gun') destroyGun()
@@ -64,11 +75,12 @@ function destroyCurrentWeapon(): void {
 }
 
 function createWeapon(type: WeaponType): void {
-  if (type === 'gun') createGun()
-  else if (type === 'shotgun') createShotGun()
-  else if (type === 'minigun') createMiniGun()
+  const upgradeLevel = getEquippedUpgradeLevel(type)
+  if (type === 'gun') createGun(upgradeLevel)
+  else if (type === 'shotgun') createShotGun(upgradeLevel)
+  else if (type === 'minigun') createMiniGun(upgradeLevel)
   hasSpawnedWeapon = true
-  sendPlayerArenaWeaponChanged(type)
+  sendPlayerArenaWeaponChanged(type, upgradeLevel)
 }
 
 export function switchTo(type: WeaponType): boolean {

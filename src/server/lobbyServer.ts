@@ -151,7 +151,7 @@ const zombieHitAllowanceByShotKey = new Map<string, number>()
 const lastRageShieldHitAtMsByPlayerAndZombie = new Map<string, number>()
 const explosiveZombieDamageByPlayerKey = new Set<string>()
 const disconnectedLobbyPlayerSinceMs = new Map<string, number>()
-const arenaWeaponByAddress = new Map<string, ArenaWeaponType>()
+const arenaWeaponByAddress = new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>()
 let disconnectedPlayerReconcileAccumulator = 0
 let isDisconnectReconcileInFlight = false
 let pendingTeamWipeReturn: PendingTeamWipeReturn | null = null
@@ -226,15 +226,17 @@ function sendPlayerLoadoutState(address: string): void {
   })
 }
 
-function getPlayerArenaWeaponState(address: string): ArenaWeaponType {
-  return arenaWeaponByAddress.get(address.toLowerCase()) ?? 'gun'
+function getPlayerArenaWeaponState(address: string): { weaponType: ArenaWeaponType; upgradeLevel: number } {
+  return arenaWeaponByAddress.get(address.toLowerCase()) ?? { weaponType: 'gun', upgradeLevel: 1 }
 }
 
 function sendPlayerArenaWeaponState(address: string, to?: string[]): void {
   const normalizedAddress = address.toLowerCase()
+  const state = getPlayerArenaWeaponState(normalizedAddress)
   const payload = {
     address: normalizedAddress,
-    weaponType: getPlayerArenaWeaponState(normalizedAddress)
+    weaponType: state.weaponType,
+    upgradeLevel: state.upgradeLevel
   }
   if (to) {
     void room.send('playerArenaWeaponState', payload, { to })
@@ -360,7 +362,7 @@ function resetPlayerCombatState(address: string): void {
   state.lastHealRequestAtMs = 0
   state.rageShieldEndAtMs = 0
   state.speedEndAtMs = 0
-  arenaWeaponByAddress.set(normalizedAddress, 'gun')
+  arenaWeaponByAddress.set(normalizedAddress, { weaponType: 'gun', upgradeLevel: 1 })
   sendPlayerPowerupState(normalizedAddress)
 }
 
@@ -1382,7 +1384,11 @@ export function setupLobbyServer(): void {
     if (!isPlayerInArena(normalizedAddress)) return
     if (!isArenaWeaponType(data.weaponType)) return
 
-    arenaWeaponByAddress.set(normalizedAddress, data.weaponType)
+    const upgradeLevel =
+      Number.isInteger(data.upgradeLevel) && data.upgradeLevel >= 1 && data.upgradeLevel <= 3
+        ? data.upgradeLevel
+        : 1
+    arenaWeaponByAddress.set(normalizedAddress, { weaponType: data.weaponType, upgradeLevel })
     sendPlayerArenaWeaponState(normalizedAddress)
   })
 
