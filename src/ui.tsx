@@ -32,7 +32,7 @@ import {
 } from './brick'
 import { getPlayerGold } from './loadoutState'
 import { OutlinedText } from './outlineComponent'
-import { LobbyStoreUi } from './lobbyStoreUi'
+import { LobbyStoreUi, openLobbyStore } from './lobbyStoreUi'
 import {
   getLobbyState,
   getMatchRuntimeState,
@@ -675,6 +675,7 @@ export const uiMenu = () => {
               texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
               uvs: LOBBY_HUD_SHOP_UVS
             }}
+            onMouseDown={() => openLobbyStore()}
           />
         </UiEntity>
       )}
