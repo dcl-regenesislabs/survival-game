@@ -145,7 +145,7 @@ function setSkyboxFixedTime(seconds: number): void {
   SkyboxTime.create(engine.RootEntity, { fixedTime: seconds })
 }
 
-function waveSkyboxSystem(): void {
+function waveSkyboxSystem(): void { 
   const runtime = getMatchRuntimeState()
   const isWaveActive = !!runtime?.isRunning && runtime.cyclePhase === WaveCyclePhase.ACTIVE
   setSkyboxFixedTime(isWaveActive ? SKYBOX_NIGHT_TIME_SECONDS : SKYBOX_DAY_TIME_SECONDS)
