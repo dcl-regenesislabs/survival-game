@@ -5,7 +5,6 @@ import {
   InputAction,
   GltfContainer,
   ColliderLayer
-  Animator
 } from '@dcl/sdk/ecs'
 import { EntityNames } from '../assets/scene/entity-names'
 import { openLobbyStore } from './lobbyStoreUi'
@@ -39,12 +38,17 @@ function findSceneEntity(entityName: EntityNames): Entity | undefined {
   return undefined
 }
 
-function setupNpcClickHandler(npcEntity: Entity): void {
-  if (GltfContainer.has(npcEntity)) {
-    const gltf = GltfContainer.getMutable(npcEntity)
-    gltf.visibleMeshesCollisionMask =
-      (gltf.visibleMeshesCollisionMask ?? ColliderLayer.CL_PHYSICS) | ColliderLayer.CL_POINTER
-  }
+function enablePointerCollision(entity: Entity): void {
+  if (!GltfContainer.has(entity)) return
+
+  const gltf = GltfContainer.getMutable(entity)
+  gltf.visibleMeshesCollisionMask =
+    (gltf.visibleMeshesCollisionMask ?? ColliderLayer.CL_PHYSICS) | ColliderLayer.CL_POINTER
+}
+
+function setupNpcClickHandler(config: LobbyNpcConfig, npcEntity: Entity, clickEntity: Entity): void {
+  enablePointerCollision(npcEntity)
+  enablePointerCollision(clickEntity)
 
   pointerEventsSystem.onPointerDown(
     {
@@ -56,7 +60,7 @@ function setupNpcClickHandler(npcEntity: Entity): void {
       }
     },
     () => {
-      openLobbyStore()
+      config.onClick?.()
     }
   )
 }

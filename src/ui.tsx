@@ -112,6 +112,7 @@ const LOBBY_HUD_SHOP_HEIGHT = Math.round(LOBBY_HUD_SHOP_SOURCE_HEIGHT * 0.5)
 const LOBBY_HUD_SHOP_UVS = createAtlasUvs(346, 80, LOBBY_HUD_SHOP_SOURCE_WIDTH, LOBBY_HUD_SHOP_SOURCE_HEIGHT)
 const LOBBY_HUD_TOP_ACTION_GAP = 20
 const LOBBY_HUD_TOP_ACTION_OFFSET = Math.round((LOBBY_HUD_SHOP_WIDTH + LOBBY_HUD_TOP_ACTION_GAP) * 0.5)
+const LOBBY_HUD_GOLD_TOP = Math.round((1080 - (LOBBY_HUD_GOLD_HEIGHT + LOBBY_HUD_ITEM_MARGIN_BOTTOM + LOBBY_HUD_SHOP_HEIGHT)) * 0.5)
 
 type AtlasUvs = [number, number, number, number, number, number, number, number]
 
@@ -650,21 +651,17 @@ export const uiMenu = () => {
       {showLobbyHud && (
         <UiEntity
           uiTransform={{
-            position: { left: LOBBY_HUD_LEFT_MARGIN, top: 0 },
+            position: { left: LOBBY_HUD_LEFT_MARGIN, top: LOBBY_HUD_GOLD_TOP },
             positionType: 'absolute',
-            width: LOBBY_HUD_SHOP_WIDTH,
-            height: '100%',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            justifyContent: 'center'
+            width: LOBBY_HUD_GOLD_WIDTH,
+            height: LOBBY_HUD_GOLD_HEIGHT
           }}
         >
           <UiEntity
             uiTransform={{
               width: LOBBY_HUD_GOLD_WIDTH,
               height: LOBBY_HUD_GOLD_HEIGHT,
-              positionType: 'relative',
-              margin: { bottom: LOBBY_HUD_ITEM_MARGIN_BOTTOM }
+              positionType: 'relative'
             }}
             uiBackground={{
               textureMode: 'stretch',
@@ -692,12 +689,6 @@ export const uiMenu = () => {
               outlineKeyPrefix='lobby-gold-value'
             />
           </UiEntity>
-          <UiEntity
-            uiTransform={{
-              width: LOBBY_HUD_SHOP_WIDTH,
-              height: LOBBY_HUD_SHOP_HEIGHT
-            }}
-          />
         </UiEntity>
       )}
       {playerDead && showDeathOverlay && (

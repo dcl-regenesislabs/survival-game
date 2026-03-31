@@ -17,12 +17,6 @@ let selectedWeaponId: LoadoutWeaponId = LOADOUT_WEAPON_DEFINITIONS[0].id
 export function openLobbyStore(): void {
   storeOpen = true
   selectedWeaponId = LOADOUT_WEAPON_DEFINITIONS[0].id
-  console.log('[LobbyStoreUi] open', {
-    canvasInfo: getUiCanvasInfo(),
-    effectiveCanvasViewport: getEffectiveCanvasViewport(),
-    scaleProfile: getStoreScaleProfile(),
-    metrics: getStoreMetrics()
-  })
 }
 
 export function closeLobbyStore(): void {
