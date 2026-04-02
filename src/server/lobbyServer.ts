@@ -230,6 +230,16 @@ function getPlayerArenaWeaponState(address: string): { weaponType: ArenaWeaponTy
   return arenaWeaponByAddress.get(address.toLowerCase()) ?? { weaponType: 'gun', upgradeLevel: 1 }
 }
 
+const GUN_UPGRADE_DAMAGE: Record<number, number> = { 1: 1, 2: 1, 3: 2 }
+
+function getWeaponHitDamage(address: string, weaponType: ArenaWeaponType): number {
+  if (weaponType === 'gun') {
+    const { upgradeLevel } = getPlayerArenaWeaponState(address)
+    return GUN_UPGRADE_DAMAGE[upgradeLevel] ?? 1
+  }
+  return 1
+}
+
 function sendPlayerArenaWeaponState(address: string, to?: string[]): void {
   const normalizedAddress = address.toLowerCase()
   const state = getPlayerArenaWeaponState(normalizedAddress)
@@ -1425,7 +1435,7 @@ export function setupLobbyServer(): void {
     if (remainingHits <= 0) return
     const now = getServerTime()
 
-    const damage = 1
+    const damage = getWeaponHitDamage(normalizedAddress, data.weaponType as ArenaWeaponType)
     zombieHitAllowanceByShotKey.set(allowanceKey, remainingHits - 1)
     applyZombieDamage(data.zombieId, damage, normalizedAddress, now)
   })
