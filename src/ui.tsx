@@ -40,7 +40,8 @@ import {
   shouldShowGameOverOverlay,
   getLocalAddress,
   isLocalReadyForMatch,
-  sendLeaveLobby
+  sendLeaveLobby,
+  sendStartGameManual
 } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
 import { getServerTime } from './shared/timeSync'
@@ -167,6 +168,11 @@ export const uiMenu = () => {
   const showDeathOverlay = !shouldSuppressDeathOverlayForTeamWipe() && !showGameOverOverlay && shouldShowDeathOverlay(timerNowMs)
   const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
   const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
+  const isInZone = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
+  const countdownOrIntroActive =
+    ((lobbyState?.countdownEndTimeMs ?? 0) > timerNowMs) ||
+    ((lobbyState?.arenaIntroEndTimeMs ?? 0) > timerNowMs)
+  const showStartGameButton = isInZone && !countdownOrIntroActive && !(matchRuntime?.isRunning)
 
   const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
@@ -597,6 +603,43 @@ export const uiMenu = () => {
             }}
             onMouseUp={endUiPointerCapture}
           />
+        </UiEntity>
+      )}
+      {showStartGameButton && (
+        <UiEntity
+          uiTransform={{
+            position: { bottom: 80, left: 0, right: 0 },
+            positionType: 'absolute',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: 260,
+              height: 64,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 8
+            }}
+            uiBackground={{ color: Color4.create(0.1, 0.7, 0.25, 0.92) }}
+            onMouseDown={() => {
+              beginUiPointerCapture()
+              sendStartGameManual()
+            }}
+            onMouseUp={endUiPointerCapture}
+          >
+            <UiEntity
+              uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+              uiText={{
+                value: 'START GAME',
+                fontSize: 28,
+                color: Color4.White(),
+                textAlign: 'middle-center'
+              }}
+            />
+          </UiEntity>
         </UiEntity>
       )}
       {showLobbyHud && (
