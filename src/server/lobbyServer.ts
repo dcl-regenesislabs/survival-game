@@ -774,7 +774,10 @@ async function ensurePlayerLoadedAndInLobby(address: string): Promise<void> {
 
 async function ensurePlayerProfileLoaded(address: string): Promise<void> {
   const normalizedAddress = address.toLowerCase()
-  if (loadedProfileAddresses.has(normalizedAddress)) return
+  if (loadedProfileAddresses.has(normalizedAddress)) {
+    sendPlayerLoadoutState(normalizedAddress)
+    return
+  }
   const displayName = getPlayerDisplayName(normalizedAddress)
   const progress = await playerProgressStore.load(normalizedAddress, displayName)
   loadedProfileAddresses.add(normalizedAddress)

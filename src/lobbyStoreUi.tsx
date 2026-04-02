@@ -8,8 +8,8 @@ import {
   ArenaWeaponType,
   getWeaponUpgrades
 } from './shared/loadoutCatalog'
-import { getPlayerGold, isLoadoutWeaponOwned } from './loadoutState'  
-import { sendBuyLoadoutWeapon } from './multiplayer/lobbyClient'    
+import { getPlayerGold, isLoadoutWeaponOwned } from './loadoutState'
+import { sendBuyLoadoutWeapon, sendRequestLoadoutRefresh } from './multiplayer/lobbyClient'
 
 let storeOpen = false
 let selectedWeaponId: LoadoutWeaponId = LOADOUT_WEAPON_DEFINITIONS[0].id
@@ -17,6 +17,7 @@ let selectedWeaponId: LoadoutWeaponId = LOADOUT_WEAPON_DEFINITIONS[0].id
 export function openLobbyStore(): void {
   storeOpen = true
   selectedWeaponId = LOADOUT_WEAPON_DEFINITIONS[0].id
+  sendRequestLoadoutRefresh()
 }
 
 export function closeLobbyStore(): void {
