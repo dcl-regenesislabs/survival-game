@@ -135,6 +135,10 @@ export function sendLoadProfile(): void {
   void room.send('playerLoadProfile', {})
 }
 
+export function sendRequestLoadoutRefresh(): void {
+  void room.send('playerLoadProfile', {})
+}
+
 export function sendJoinLobby(): void {
   void room.send('playerJoinLobby', {})
 }
