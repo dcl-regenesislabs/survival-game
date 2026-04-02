@@ -45,13 +45,22 @@ const GUN_SYSTEM_PRIORITY_LAST = -1000
 const PROJECTILE_HIT_RADIUS = 0.95
 const PROJECTILE_HIT_RADIUS_SQ = PROJECTILE_HIT_RADIUS * PROJECTILE_HIT_RADIUS
 
+// Per-tier gun upgrade stats
+const GUN_UPGRADE_STATS: Record<number, { speed: number; damage: number }> = {
+  1: { speed: 10, damage: 1 },
+  2: { speed: 16, damage: 1 },
+  3: { speed: 24, damage: 2 }
+}
+
 // Projectile: flies straight; hit detection is via TriggerArea on zombies (collider-based)
 const ProjectileComponentSchema = {
   direction: Schemas.Vector3,
   startPosition: Schemas.Vector3,
   canDamage: Schemas.Boolean,
   weaponType: Schemas.String,
-  shotSeq: Schemas.Number
+  shotSeq: Schemas.Number,
+  speed: Schemas.Number,
+  damage: Schemas.Number
 }
 export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
 
@@ -59,6 +68,7 @@ let gunEntity: Entity | null = null
 let gunModelEntity: Entity | null = null
 let shootTimer = 0
 let localShotSeq = 0
+let currentGunUpgradeLevel = 1
 
 function isLocalPlayerInArena(): boolean {
   const localAddress = getLocalAddress()
@@ -107,7 +117,9 @@ function spawnProjectile(
   canDamage: boolean = true,
   weaponType: 'gun' | 'shotgun' | 'minigun' = 'gun',
   shotSeq: number = 0,
-  shooterAddress: string = ''
+  shooterAddress: string = '',
+  speed: number = PROJECTILE_SPEED,
+  damage: number = 1
 ): Vector3 {
   // Bullet direction = gun forward (where the barrel points), so bullet always matches gun aim
   const direction = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
@@ -140,13 +152,16 @@ function spawnProjectile(
     startPosition: Vector3.clone(spawnPos),
     canDamage,
     weaponType,
-    shotSeq
+    shotSeq,
+    speed,
+    damage
   })
   return direction
 }
 
 export function createGun(upgradeLevel: number = 1): Entity {
   if (gunEntity !== null) return gunEntity
+  currentGunUpgradeLevel = Math.max(1, Math.min(3, upgradeLevel))
 
   const gun = engine.addEntity()
   const gunModel = engine.addEntity()
@@ -182,6 +197,7 @@ export function destroyGun(): void {
     engine.removeEntityWithChildren(gunEntity)
     gunEntity = null
     gunModelEntity = null
+    currentGunUpgradeLevel = 1
   }
 }
 
@@ -195,7 +211,8 @@ function projectileSystem(dt: number) {
     const startPos = projData.startPosition
 
     // Move bullet straight; hit detection is done by TriggerArea on zombies (collider-based)
-    const newPos = Vector3.add(currentPos, Vector3.scale(dir, PROJECTILE_SPEED * dt))
+    const bulletSpeed = projData.speed > 0 ? projData.speed : PROJECTILE_SPEED
+    const newPos = Vector3.add(currentPos, Vector3.scale(dir, bulletSpeed * dt))
 
     // Remove if bullet went out of range (out of scene)
     const traveled = Vector3.distance(newPos, startPos)
@@ -217,7 +234,7 @@ function projectileSystem(dt: number) {
       const distSq = dx * dx + dy * dy + dz * dz
       if (distSq > PROJECTILE_HIT_RADIUS_SQ) continue
 
-      damageZombie(zombie, 1, { weaponType: projData.weaponType as 'gun' | 'shotgun' | 'minigun', shotSeq: Math.floor(projData.shotSeq) })
+      damageZombie(zombie, projData.damage > 0 ? projData.damage : 1, { weaponType: projData.weaponType as 'gun' | 'shotgun' | 'minigun', shotSeq: Math.floor(projData.shotSeq) })
       engine.removeEntity(projectile)
       break
     }
@@ -288,7 +305,8 @@ export function gunSystem(dt: number) {
   shootTimer = 0
   playGunAnimation()
   const nextShotSeq = localShotSeq + 1
-  const direction = spawnProjectile(visibleGunPos, visibleGunRot, true, 'gun', nextShotSeq, getLocalAddress() ?? '')
+  const upgradeStats = GUN_UPGRADE_STATS[currentGunUpgradeLevel] ?? GUN_UPGRADE_STATS[1]
+  const direction = spawnProjectile(visibleGunPos, visibleGunRot, true, 'gun', nextShotSeq, getLocalAddress() ?? '', upgradeStats.speed, upgradeStats.damage)
   localShotSeq = nextShotSeq
   sendPlayerShotRequest('gun', visibleGunPos, direction, localShotSeq)
 }
