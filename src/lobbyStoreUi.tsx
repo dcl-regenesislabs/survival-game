@@ -10,6 +10,7 @@ import {
 } from './shared/loadoutCatalog'
 import { getPlayerGold, isLoadoutWeaponOwned } from './loadoutState'
 import { sendBuyLoadoutWeapon, sendRequestLoadoutRefresh } from './multiplayer/lobbyClient'
+import { endUiPointerCapture } from './gameplayInput'
 
 let storeOpen = false
 let selectedWeaponId: LoadoutWeaponId = LOADOUT_WEAPON_DEFINITIONS[0].id
@@ -22,6 +23,7 @@ export function openLobbyStore(): void {
 
 export function closeLobbyStore(): void {
   storeOpen = false
+  endUiPointerCapture()
 }
 
 function getUiCanvasInfo() {

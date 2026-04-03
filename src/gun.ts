@@ -45,11 +45,11 @@ const GUN_SYSTEM_PRIORITY_LAST = -1000
 const PROJECTILE_HIT_RADIUS = 0.95
 const PROJECTILE_HIT_RADIUS_SQ = PROJECTILE_HIT_RADIUS * PROJECTILE_HIT_RADIUS
 
-// Per-tier gun upgrade stats
-const GUN_UPGRADE_STATS: Record<number, { speed: number; damage: number }> = {
-  1: { speed: 10, damage: 1 },
-  2: { speed: 16, damage: 1 },
-  3: { speed: 24, damage: 2 }
+// Per-tier gun upgrade stats (matches UI display in lobbyStoreUi.tsx WEAPON_STATS)
+const GUN_UPGRADE_STATS: Record<number, { damage: number; fireRate: number }> = {
+  1: { damage: 1, fireRate: 0.40 },
+  2: { damage: 1, fireRate: 0.35 },
+  3: { damage: 2, fireRate: 0.30 }
 }
 
 // Projectile: flies straight; hit detection is via TriggerArea on zombies (collider-based)
@@ -118,7 +118,6 @@ function spawnProjectile(
   weaponType: 'gun' | 'shotgun' | 'minigun' = 'gun',
   shotSeq: number = 0,
   shooterAddress: string = '',
-  speed: number = PROJECTILE_SPEED,
   damage: number = 1
 ): Vector3 {
   // Bullet direction = gun forward (where the barrel points), so bullet always matches gun aim
@@ -153,7 +152,7 @@ function spawnProjectile(
     canDamage,
     weaponType,
     shotSeq,
-    speed,
+    speed: PROJECTILE_SPEED,
     damage
   })
   return direction
@@ -295,7 +294,8 @@ export function gunSystem(dt: number) {
 
   if (!isInArena) return
 
-  const effectiveFireRate = FIRE_RATE / getFireRateMultiplier()
+  const upgradeStats = GUN_UPGRADE_STATS[currentGunUpgradeLevel] ?? GUN_UPGRADE_STATS[1]
+  const effectiveFireRate = upgradeStats.fireRate / getFireRateMultiplier()
   shootTimer += dt
   if (shootTimer < effectiveFireRate) return
 
@@ -305,8 +305,7 @@ export function gunSystem(dt: number) {
   shootTimer = 0
   playGunAnimation()
   const nextShotSeq = localShotSeq + 1
-  const upgradeStats = GUN_UPGRADE_STATS[currentGunUpgradeLevel] ?? GUN_UPGRADE_STATS[1]
-  const direction = spawnProjectile(visibleGunPos, visibleGunRot, true, 'gun', nextShotSeq, getLocalAddress() ?? '', upgradeStats.speed, upgradeStats.damage)
+  const direction = spawnProjectile(visibleGunPos, visibleGunRot, true, 'gun', nextShotSeq, getLocalAddress() ?? '', upgradeStats.damage)
   localShotSeq = nextShotSeq
   sendPlayerShotRequest('gun', visibleGunPos, direction, localShotSeq)
 }
