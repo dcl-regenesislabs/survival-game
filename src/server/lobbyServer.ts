@@ -28,7 +28,13 @@ import {
   WAVE_ACTIVE_SECONDS,
   WAVE_REST_SECONDS
 } from '../shared/matchConfig'
-import { ArenaWeaponType, LoadoutWeaponId, LOADOUT_WEAPON_DEFINITIONS, getLoadoutWeaponDefinition } from '../shared/loadoutCatalog'
+import {
+  ArenaWeaponType,
+  DEFAULT_LOADOUT_WEAPON_BY_TIER,
+  LoadoutWeaponId,
+  LOADOUT_WEAPON_DEFINITIONS,
+  getLoadoutWeaponDefinition
+} from '../shared/loadoutCatalog'
 import { createPlayerProgressStore } from './storage/playerProgress'
 import { getServerTime } from '../shared/timeSync'
 import {
@@ -161,11 +167,14 @@ function logLobbyServerEvent(message: string): void {
 }
 
 function getOwnedWeaponIds(address: string): LoadoutWeaponId[] {
+  const defaultOwnedWeaponIds = Object.values(DEFAULT_LOADOUT_WEAPON_BY_TIER).filter(
+    (weaponId): weaponId is LoadoutWeaponId => !!weaponId
+  )
   const progress = playerProgressStore.get(address)
-  if (!progress) return ['gun_t1']
+  if (!progress) return defaultOwnedWeaponIds
 
   const validIds = VALID_WEAPON_IDS
-  const ownedWeaponIds: LoadoutWeaponId[] = ['gun_t1']
+  const ownedWeaponIds: LoadoutWeaponId[] = [...defaultOwnedWeaponIds]
 
   for (const tier of ['tier1', 'tier2', 'tier3', 'tier4'] as const) {
     for (const weaponId of progress.weapons.ownedByTier[tier]) {
@@ -199,10 +208,13 @@ function getExplosiveZombieDamageKey(address: string, zombieId: string): string 
 
 function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
   const progress = playerProgressStore.get(address)
-  if (!progress) return ['gun_t1']
+  const defaultEquippedWeaponIds = Object.values(DEFAULT_LOADOUT_WEAPON_BY_TIER).filter(
+    (weaponId): weaponId is LoadoutWeaponId => !!weaponId
+  )
+  if (!progress) return defaultEquippedWeaponIds
 
   const validIds = VALID_WEAPON_IDS
-  const equippedWeaponIds: LoadoutWeaponId[] = ['gun_t1']
+  const equippedWeaponIds: LoadoutWeaponId[] = []
 
   for (const tier of ['tier1', 'tier2', 'tier3', 'tier4'] as const) {
     const id = progress.weapons.equippedByTier[tier]
@@ -210,6 +222,18 @@ function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
       equippedWeaponIds.push(id as LoadoutWeaponId)
     }
   }
+
+  for (const [tierKey, weaponId] of Object.entries(DEFAULT_LOADOUT_WEAPON_BY_TIER)) {
+    if (!weaponId) continue
+    const alreadyEquippedInTier = equippedWeaponIds.some((equippedWeaponId) => {
+      const weapon = getLoadoutWeaponDefinition(equippedWeaponId)
+      return weapon?.tierKey === tierKey
+    })
+    if (!alreadyEquippedInTier) {
+      equippedWeaponIds.push(weaponId)
+    }
+  }
+
   return equippedWeaponIds
 }
 
@@ -1311,13 +1335,14 @@ export function setupLobbyServer(): void {
     playerProgressStore.mutate(normalizedAddress, (state) => {
       state.profile.gold -= weapon.priceGold
       state.weapons.ownedByTier[weapon.tierKey] = [...state.weapons.ownedByTier[weapon.tierKey], weapon.id]
+      state.weapons.equippedByTier[weapon.tierKey] = weapon.id
     })
     await playerProgressStore.save(normalizedAddress)
     sendPlayerLoadoutState(normalizedAddress)
 
     void room.send('lobbyEvent', {
       type: 'loadout_purchase',
-      message: `${weapon.label} purchased for ${weapon.priceGold} GOLD`
+      message: `${weapon.label} purchased and equipped for ${weapon.priceGold} GOLD`
     })
   })
 

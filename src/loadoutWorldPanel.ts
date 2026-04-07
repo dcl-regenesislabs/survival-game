@@ -299,7 +299,6 @@ export class LoadoutWorldPanel {
 
   private handleActionClick(): void {
     const weapon = this.getSelectedWeapon()
-    if (weapon.priceGold === 0) return
 
     if (!isLoadoutWeaponOwned(weapon.id)) {
       if (getPlayerGold() < weapon.priceGold) return
@@ -320,7 +319,7 @@ export class LoadoutWorldPanel {
 
     return [
       `Gold: ${getPlayerGold()}`,
-      'Default: Gun',
+      'Default loadout: base tiers included',
       `Weapon: ${weapon.label}`,
       `Arena tier: ${weapon.tierKey.toUpperCase()}`,
       `Price: ${weapon.priceGold} GOLD`,
@@ -344,7 +343,6 @@ export class LoadoutWorldPanel {
 
   private getActionLabel(): string {
     const weapon = this.getSelectedWeapon()
-    if (weapon.priceGold === 0) return 'Equipped'
     if (!isLoadoutWeaponOwned(weapon.id)) {
       return getPlayerGold() >= weapon.priceGold ? `Buy ${weapon.priceGold}G` : `Need ${weapon.priceGold}G`
     }
