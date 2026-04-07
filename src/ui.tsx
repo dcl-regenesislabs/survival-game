@@ -148,6 +148,10 @@ export const uiMenu = () => {
     lobbyState?.arenaIntroEndTimeMs && lobbyState.arenaIntroEndTimeMs > timerNowMs
       ? Math.max(0, Math.ceil((lobbyState.arenaIntroEndTimeMs - timerNowMs) / 1000))
       : 0
+  const startCountdownSeconds =
+    lobbyState?.countdownEndTimeMs && lobbyState.countdownEndTimeMs > timerNowMs
+      ? Math.max(0, Math.ceil((lobbyState.countdownEndTimeMs - timerNowMs) / 1000))
+      : 0
   const phaseRemainingSeconds = matchRuntime ? Math.max(0, Math.ceil((matchRuntime.phaseEndTimeMs - timerNowMs) / 1000)) : 0
   const showGameOverOverlay = shouldShowGameOverOverlay()
   const countdownLabel = getWaveCountdownLabel()
@@ -157,10 +161,9 @@ export const uiMenu = () => {
   const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
   const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
   const isInZone = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
-  const countdownOrIntroActive =
-    ((lobbyState?.countdownEndTimeMs ?? 0) > timerNowMs) ||
-    ((lobbyState?.arenaIntroEndTimeMs ?? 0) > timerNowMs)
-  const showStartGameButton = isInZone && !countdownOrIntroActive && !(matchRuntime?.isRunning)
+  const isStartGameButtonLocked = startCountdownSeconds > 0
+  const startGameButtonLabel = isStartGameButtonLocked ? `STARTING IN ${startCountdownSeconds}` : 'START GAME'
+  const showStartGameButton = isInZone && !localReadyForMatch && arenaIntroSeconds <= 0 && !(matchRuntime?.isRunning)
 
   const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
@@ -605,24 +608,30 @@ export const uiMenu = () => {
         >
           <UiEntity
             uiTransform={{
-              width: 260,
+              width: 320,
               height: 64,
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: 8
             }}
-            uiBackground={{ color: Color4.create(0.1, 0.7, 0.25, 0.92) }}
-            onMouseDown={() => {
-              beginUiPointerCapture()
-              sendStartGameManual()
+            uiBackground={{
+              color: isStartGameButtonLocked ? Color4.create(0.22, 0.46, 0.28, 0.92) : Color4.create(0.1, 0.7, 0.25, 0.92)
             }}
+            onMouseDown={
+              isStartGameButtonLocked
+                ? undefined
+                : () => {
+                    beginUiPointerCapture()
+                    sendStartGameManual()
+                  }
+            }
             onMouseUp={endUiPointerCapture}
           >
             <UiEntity
               uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
               uiText={{
-                value: 'START GAME',
-                fontSize: 28,
+                value: startGameButtonLabel,
+                fontSize: 24,
                 color: Color4.White(),
                 textAlign: 'middle-center'
               }}
