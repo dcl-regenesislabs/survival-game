@@ -163,10 +163,6 @@ export class LobbyWorldPanel {
   }
 
   private buildCountdownText(): string {
-    const lobby = getLobbyState()
-    if (lobby?.countdownEndTimeMs && lobby.countdownEndTimeMs > 0) {
-      return `${Math.max(0, Math.ceil((lobby.countdownEndTimeMs - getServerTime()) / 1000))}`
-    }
     return ''
   }
 
