@@ -7,17 +7,13 @@ import {
   getPlayerCombatSnapshot,
   isLocalReadyForMatch
 } from './multiplayer/lobbyClient'
-import { ArenaWeaponType, getArenaWeaponModelPath } from './shared/loadoutCatalog'
+import { ArenaWeaponType, getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loadoutCatalog'
 import {
   WEAPON_DEFAULT_ROTATION,
   WEAPON_DEFAULT_SCALE,
   WEAPON_MODEL_VISUAL_OFFSET,
   WEAPON_ROOT_OFFSET
 } from './shared/weaponVisuals'
-
-const GUN_SHOOT_ANIM = 'DroneGunShoot'
-const SHOTGUN_SHOOT_ANIM = 'DroneShotGunShoot'
-const MINIGUN_SHOOT_ANIM = 'DroneMinigunShoot'
 
 type RemoteWeaponEntry = {
   avatarEntity: Entity
@@ -126,7 +122,7 @@ class ArenaRemoteDefaultWeapons {
     if (!Animator.has(entry.weaponModelEntity)) return
 
     const animator = Animator.getMutable(entry.weaponModelEntity)
-    const clip = getRemoteWeaponShootClip(weaponType)
+    const clip = getRemoteWeaponShootClip(weaponType, entry.upgradeLevel)
     const shootState = animator.states.find((state) => state.clip === clip)
     if (!shootState) return
 
@@ -142,10 +138,8 @@ class ArenaRemoteDefaultWeapons {
 
 let arenaRemoteDefaultWeapons: ArenaRemoteDefaultWeapons | null = null
 
-function getRemoteWeaponShootClip(weaponType: ArenaWeaponType): string {
-  if (weaponType === 'shotgun') return SHOTGUN_SHOOT_ANIM
-  if (weaponType === 'minigun') return MINIGUN_SHOOT_ANIM
-  return GUN_SHOOT_ANIM
+function getRemoteWeaponShootClip(weaponType: ArenaWeaponType, upgradeLevel: number): string {
+  return getArenaWeaponShootClip(weaponType, upgradeLevel)
 }
 
 function applyRemoteWeaponModel(weaponModelEntity: Entity, weaponType: ArenaWeaponType, upgradeLevel: number): void {
@@ -154,7 +148,7 @@ function applyRemoteWeaponModel(weaponModelEntity: Entity, weaponType: ArenaWeap
   })
 
   Animator.createOrReplace(weaponModelEntity, {
-    states: [{ clip: getRemoteWeaponShootClip(weaponType), playing: false, loop: false, speed: 1 }]
+    states: [{ clip: getRemoteWeaponShootClip(weaponType, upgradeLevel), playing: false, loop: false, speed: 1 }]
   })
 }
 

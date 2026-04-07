@@ -8,8 +8,8 @@ import {
   ArenaWeaponType,
   getWeaponUpgrades
 } from './shared/loadoutCatalog'
-import { getPlayerGold, isLoadoutWeaponOwned } from './loadoutState'
-import { sendBuyLoadoutWeapon, sendRequestLoadoutRefresh } from './multiplayer/lobbyClient'
+import { getPlayerGold, isLoadoutWeaponEquipped, isLoadoutWeaponOwned } from './loadoutState'
+import { sendBuyLoadoutWeapon, sendEquipLoadoutWeapon, sendRequestLoadoutRefresh } from './multiplayer/lobbyClient'
 import { endUiPointerCapture } from './gameplayInput'
 
 let storeOpen = false
@@ -346,6 +346,7 @@ function WeaponRow({ weaponType, isLast }: { weaponType: ArenaWeaponType; isLast
 function DetailPanel({ weapon }: { weapon: LoadoutWeaponDefinition }) {
   const { DETAIL_PANEL_W, DETAIL_TITLE_H, DETAIL_SUBTITLE_H, STORE_GRID_HEIGHT } = getStoreMetrics()
   const owned = isLoadoutWeaponOwned(weapon.id)
+  const equipped = isLoadoutWeaponEquipped(weapon.id)
   const unlocked = isPreviousOwned(weapon)
   const gold = getPlayerGold()
   const canAfford = gold >= weapon.priceGold
@@ -435,16 +436,24 @@ function DetailPanel({ weapon }: { weapon: LoadoutWeaponDefinition }) {
 
       <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%' }}>
         <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { bottom: scaleStoreSpacing(8) } }}>
-          <Label value="GOLD: " fontSize={scaleStoreFont(16)} color={C.textGray} />
-          <Label value={`${gold}`} fontSize={scaleStoreFont(22)} color={C.textGold} />
+          <Label
+            value={owned ? 'OWNED' : `PRICE: ${weapon.priceGold} G`}
+            fontSize={scaleStoreFont(20)}
+            color={owned ? C.textGreen : C.textGold}
+          />
         </UiEntity>
 
         {owned ? (
           <UiEntity
             uiTransform={{ width: '100%', height: scaleStoreButton(36), borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
-            uiBackground={{ color: C.btnOwned }}
+            uiBackground={{ color: equipped ? C.btnOwned : C.btnBuy }}
+            onMouseDown={equipped ? undefined : () => sendEquipLoadoutWeapon(weapon.id)}
           >
-            <Label value="✓ OWNED" fontSize={scaleStoreFont(24)} color={C.textGreen} />
+            <Label
+              value={equipped ? 'EQUIPPED' : 'EQUIP'}
+              fontSize={scaleStoreFont(24)}
+              color={equipped ? C.textGreen : C.textWhite}
+            />
           </UiEntity>
         ) : !unlocked ? (
           <UiEntity
@@ -460,7 +469,7 @@ function DetailPanel({ weapon }: { weapon: LoadoutWeaponDefinition }) {
             onMouseDown={canAfford ? () => sendBuyLoadoutWeapon(weapon.id) : undefined}
           >
             <Label
-              value={canAfford ? `BUY  ${weapon.priceGold} G` : `Need ${weapon.priceGold} G`}
+              value="BUY"
               fontSize={scaleStoreFont(20)}
               color={canAfford ? C.textWhite : C.textGray}
             />

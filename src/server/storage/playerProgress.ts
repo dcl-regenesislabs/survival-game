@@ -1,4 +1,5 @@
 import { Storage } from '@dcl/sdk/server'
+import { DEFAULT_LOADOUT_WEAPON_BY_TIER } from '../../shared/loadoutCatalog'
 
 const PROFILE_KEY = 'profile_v1'
 const WEAPONS_KEY = 'weapons_v1'
@@ -49,14 +50,14 @@ function emptyWeapons(): PlayerWeaponsV1 {
     schemaVersion: SCHEMA_VERSION,
     ownedByTier: {
       tier1: ['gun_t1'],
-      tier2: [],
-      tier3: [],
+      tier2: ['shotgun_t1'],
+      tier3: ['minigun_t1'],
       tier4: []
     },
     equippedByTier: {
       tier1: 'gun_t1',
-      tier2: '',
-      tier3: '',
+      tier2: 'shotgun_t1',
+      tier3: 'minigun_t1',
       tier4: ''
     },
     updatedAt: nowMs()
@@ -118,21 +119,42 @@ function normalizeWeapons(value: unknown): PlayerWeaponsV1 {
   if (!maybe || maybe.schemaVersion !== SCHEMA_VERSION) return fallback
 
   const safeArray = (arr: unknown): string[] => (Array.isArray(arr) ? arr.filter((v) => typeof v === 'string') : [])
+  const ownedByTier = {
+    tier1: safeArray(maybe.ownedByTier?.tier1),
+    tier2: safeArray(maybe.ownedByTier?.tier2),
+    tier3: safeArray(maybe.ownedByTier?.tier3),
+    tier4: safeArray(maybe.ownedByTier?.tier4)
+  }
+
+  for (const [tierKey, weaponId] of Object.entries(DEFAULT_LOADOUT_WEAPON_BY_TIER) as Array<[TierKey, string]>) {
+    if (!ownedByTier[tierKey].includes(weaponId)) {
+      ownedByTier[tierKey].unshift(weaponId)
+    }
+  }
+
+  const equippedByTier = {
+    tier1: typeof maybe.equippedByTier?.tier1 === 'string' && maybe.equippedByTier.tier1 ? maybe.equippedByTier.tier1 : 'gun_t1',
+    tier2:
+      typeof maybe.equippedByTier?.tier2 === 'string' && maybe.equippedByTier.tier2
+        ? maybe.equippedByTier.tier2
+        : 'shotgun_t1',
+    tier3:
+      typeof maybe.equippedByTier?.tier3 === 'string' && maybe.equippedByTier.tier3
+        ? maybe.equippedByTier.tier3
+        : 'minigun_t1',
+    tier4: typeof maybe.equippedByTier?.tier4 === 'string' ? maybe.equippedByTier.tier4 : ''
+  }
+
+  for (const [tierKey, weaponId] of Object.entries(DEFAULT_LOADOUT_WEAPON_BY_TIER) as Array<[TierKey, string]>) {
+    if (!ownedByTier[tierKey].includes(equippedByTier[tierKey])) {
+      equippedByTier[tierKey] = weaponId
+    }
+  }
 
   return {
     schemaVersion: SCHEMA_VERSION,
-    ownedByTier: {
-      tier1: safeArray(maybe.ownedByTier?.tier1),
-      tier2: safeArray(maybe.ownedByTier?.tier2),
-      tier3: safeArray(maybe.ownedByTier?.tier3),
-      tier4: safeArray(maybe.ownedByTier?.tier4)
-    },
-    equippedByTier: {
-      tier1: typeof maybe.equippedByTier?.tier1 === 'string' ? maybe.equippedByTier.tier1 : 'gun_t1',
-      tier2: typeof maybe.equippedByTier?.tier2 === 'string' ? maybe.equippedByTier.tier2 : '',
-      tier3: typeof maybe.equippedByTier?.tier3 === 'string' ? maybe.equippedByTier.tier3 : '',
-      tier4: typeof maybe.equippedByTier?.tier4 === 'string' ? maybe.equippedByTier.tier4 : ''
-    },
+    ownedByTier,
+    equippedByTier,
     updatedAt: typeof maybe.updatedAt === 'number' && Number.isFinite(maybe.updatedAt) ? maybe.updatedAt : nowMs()
   }
 }

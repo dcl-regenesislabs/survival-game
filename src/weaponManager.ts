@@ -19,6 +19,7 @@ let weaponHiddenByDeath = false
 let lifecycleSystemInitialized = false
 let shotgunPurchasedInMatch = false
 let minigunPurchasedInMatch = false
+let spawnedWeaponUpgradeLevel = 1
 
 export function getCurrentWeapon(): WeaponType {
   return currentWeapon
@@ -59,11 +60,14 @@ export function purchaseWeapon(type: WeaponType): boolean {
 
 function getEquippedUpgradeLevel(type: WeaponType): number {
   const snapshot = getPlayerLoadoutSnapshot()
+  let matchedUpgradeLevel = 1
   for (const weaponId of snapshot.equippedWeaponIds) {
     const def = getLoadoutWeaponDefinition(weaponId)
-    if (def?.arenaWeaponType === type) return def.upgradeLevel
+    if (def?.arenaWeaponType === type) {
+      matchedUpgradeLevel = Math.max(matchedUpgradeLevel, def.upgradeLevel)
+    }
   }
-  return 1
+  return matchedUpgradeLevel
 }
 
 function destroyCurrentWeapon(): void {
@@ -72,6 +76,7 @@ function destroyCurrentWeapon(): void {
   else if (currentWeapon === 'shotgun') destroyShotGun()
   else if (currentWeapon === 'minigun') destroyMiniGun()
   hasSpawnedWeapon = false
+  spawnedWeaponUpgradeLevel = 1
 }
 
 function createWeapon(type: WeaponType): void {
@@ -80,6 +85,7 @@ function createWeapon(type: WeaponType): void {
   else if (type === 'shotgun') createShotGun(upgradeLevel)
   else if (type === 'minigun') createMiniGun(upgradeLevel)
   hasSpawnedWeapon = true
+  spawnedWeaponUpgradeLevel = upgradeLevel
   sendPlayerArenaWeaponChanged(type, upgradeLevel)
 }
 
@@ -131,6 +137,15 @@ function weaponLifecycleSystem(): void {
   if (weaponHiddenByDeath && !hasSpawnedWeapon) {
     createWeapon(currentWeapon)
     weaponHiddenByDeath = false
+    return
+  }
+
+  if (hasSpawnedWeapon) {
+    const desiredUpgradeLevel = getEquippedUpgradeLevel(currentWeapon)
+    if (desiredUpgradeLevel !== spawnedWeaponUpgradeLevel) {
+      destroyCurrentWeapon()
+      createWeapon(currentWeapon)
+    }
   }
 }
 

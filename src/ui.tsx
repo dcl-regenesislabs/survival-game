@@ -96,23 +96,11 @@ const LOBBY_HUD_GOLD_SOURCE_HEIGHT = 174
 const LOBBY_HUD_GOLD_WIDTH = Math.round(LOBBY_HUD_GOLD_SOURCE_WIDTH * 0.5)
 const LOBBY_HUD_GOLD_HEIGHT = Math.round(LOBBY_HUD_GOLD_SOURCE_HEIGHT * 0.5)
 const LOBBY_HUD_GOLD_UVS = createAtlasUvs(425, 335, LOBBY_HUD_GOLD_SOURCE_WIDTH, LOBBY_HUD_GOLD_SOURCE_HEIGHT)
-const LOBBY_HUD_LOADOUT_SOURCE_WIDTH = 886
-const LOBBY_HUD_LOADOUT_SOURCE_HEIGHT = 160
-const LOBBY_HUD_LOADOUT_WIDTH = Math.round(LOBBY_HUD_LOADOUT_SOURCE_WIDTH * 0.5)
-const LOBBY_HUD_LOADOUT_HEIGHT = Math.round(LOBBY_HUD_LOADOUT_SOURCE_HEIGHT * 0.5)
-const LOBBY_HUD_LOADOUT_UVS = createAtlasUvs(
-  322,
-  593,
-  LOBBY_HUD_LOADOUT_SOURCE_WIDTH,
-  LOBBY_HUD_LOADOUT_SOURCE_HEIGHT
-)
 const LOBBY_HUD_SHOP_SOURCE_WIDTH = 814
 const LOBBY_HUD_SHOP_SOURCE_HEIGHT = 178
 const LOBBY_HUD_SHOP_WIDTH = Math.round(LOBBY_HUD_SHOP_SOURCE_WIDTH * 0.5)
 const LOBBY_HUD_SHOP_HEIGHT = Math.round(LOBBY_HUD_SHOP_SOURCE_HEIGHT * 0.5)
 const LOBBY_HUD_SHOP_UVS = createAtlasUvs(346, 80, LOBBY_HUD_SHOP_SOURCE_WIDTH, LOBBY_HUD_SHOP_SOURCE_HEIGHT)
-const LOBBY_HUD_TOP_ACTION_GAP = 20
-const LOBBY_HUD_TOP_ACTION_OFFSET = Math.round((LOBBY_HUD_SHOP_WIDTH + LOBBY_HUD_TOP_ACTION_GAP) * 0.5)
 const LOBBY_HUD_GOLD_TOP = Math.round((1080 - (LOBBY_HUD_GOLD_HEIGHT + LOBBY_HUD_ITEM_MARGIN_BOTTOM + LOBBY_HUD_SHOP_HEIGHT)) * 0.5)
 
 type AtlasUvs = [number, number, number, number, number, number, number, number]
@@ -655,9 +643,8 @@ export const uiMenu = () => {
         >
           <UiEntity
             uiTransform={{
-              flexDirection: 'row',
               alignItems: 'center',
-              margin: { left: LOBBY_HUD_TOP_ACTION_OFFSET }
+              justifyContent: 'center'
             }}
           >
             <UiEntity
@@ -675,18 +662,6 @@ export const uiMenu = () => {
                 openLobbyStore()
               }}
               onMouseUp={endUiPointerCapture}
-            />
-            <UiEntity
-              uiTransform={{
-                width: LOBBY_HUD_LOADOUT_WIDTH,
-                height: LOBBY_HUD_LOADOUT_HEIGHT,
-                margin: { left: LOBBY_HUD_TOP_ACTION_GAP }
-              }}
-              uiBackground={{
-                textureMode: 'stretch',
-                texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
-                uvs: LOBBY_HUD_LOADOUT_UVS
-              }}
             />
           </UiEntity>
         </UiEntity>

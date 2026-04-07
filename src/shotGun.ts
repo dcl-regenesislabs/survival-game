@@ -25,9 +25,7 @@ import {
   WEAPON_ROOT_OFFSET
 } from './shared/weaponVisuals'
 
-import { getArenaWeaponModelPath } from './shared/loadoutCatalog'
-
-const GUN_SHOOT_ANIM = 'DroneShotGunShoot'
+import { getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loadoutCatalog'
 
 // Gun config - tweak these to your liking
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
@@ -65,10 +63,10 @@ function getNearestZombie(fromPosition: Vector3): Entity | null {
 function playGunAnimation() {
   if (gunModelEntity && Animator.has(gunModelEntity)) {
     const animator = Animator.getMutable(gunModelEntity)
-    const shootState = animator.states.find((s) => s.clip === GUN_SHOOT_ANIM)
+    const shootState = animator.states[0]
     if (shootState) {
       for (const s of animator.states) {
-        s.playing = s.clip === GUN_SHOOT_ANIM
+        s.playing = s === shootState
         s.loop = false
       }
       shootState.playing = true
@@ -160,7 +158,7 @@ export function createShotGun(upgradeLevel: number = 1): Entity {
   })
 
   Animator.create(gunModel, {
-    states: [{ clip: GUN_SHOOT_ANIM, playing: false, loop: false, speed: 1 }]
+    states: [{ clip: getArenaWeaponShootClip('shotgun', upgradeLevel), playing: false, loop: false, speed: 1 }]
   })
 
   gunEntity = gun

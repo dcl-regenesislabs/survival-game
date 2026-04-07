@@ -17,6 +17,12 @@ export type LoadoutWeaponDefinition = {
   previewLabel: string
 }
 
+export const DEFAULT_LOADOUT_WEAPON_BY_TIER: Partial<Record<LoadoutTierKey, LoadoutWeaponId>> = {
+  tier1: 'gun_t1',
+  tier2: 'shotgun_t1',
+  tier3: 'minigun_t1'
+}
+
 export const LOADOUT_WEAPON_DEFINITIONS: LoadoutWeaponDefinition[] = [
   {
     id: 'gun_t1',
@@ -51,7 +57,7 @@ export const LOADOUT_WEAPON_DEFINITIONS: LoadoutWeaponDefinition[] = [
     arenaWeaponType: 'shotgun',
     tierKey: 'tier2',
     upgradeLevel: 1,
-    priceGold: 2,
+    priceGold: 0,
     previewLabel: 'Close-range spread'
   },
   {
@@ -78,7 +84,7 @@ export const LOADOUT_WEAPON_DEFINITIONS: LoadoutWeaponDefinition[] = [
     arenaWeaponType: 'minigun',
     tierKey: 'tier3',
     upgradeLevel: 1,
-    priceGold: 5,
+    priceGold: 0,
     previewLabel: 'Heavy sustained fire'
   },
   {
@@ -127,4 +133,24 @@ export function getArenaWeaponModelPath(weaponType: ArenaWeaponType, upgradeLeve
     return 'assets/scene/Models/drones/minigun/DroneMinigun.glb'
   }
   return 'assets/scene/Models/drones/gun/DroneGun.glb'
+}
+
+export function getArenaWeaponShootClip(weaponType: ArenaWeaponType, upgradeLevel: number): string {
+  const level = Math.max(1, Math.min(3, upgradeLevel))
+  if (weaponType === 'gun') {
+    if (level === 3) return 'DroneGunGoldShoot'
+    if (level === 2) return 'DroneGunUp1Shoot'
+    return 'DroneGunShoot'
+  }
+  if (weaponType === 'shotgun') {
+    if (level === 3) return 'DroneShotGunGoldShoot'
+    if (level === 2) return 'DroneShotGunUp1Shoot'
+    return 'DroneShotGunShoot'
+  }
+  if (weaponType === 'minigun') {
+    if (level === 3) return 'DroneMinigunGoldShoot'
+    if (level === 2) return 'DroneMinigunUp1Shoot'
+    return 'DroneMinigunShoot'
+  }
+  return 'DroneGunShoot'
 }

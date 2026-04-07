@@ -116,7 +116,6 @@ export class LobbyWorldPanel {
     })
     triggerAreaEventsSystem.onTriggerExit(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
-      console.log('[LobbyPanel] Player exited trigger area')
       this.isLocalPlayerInsideTrigger = false
       this.requestLobbyLeaveIfNeeded()
     })
