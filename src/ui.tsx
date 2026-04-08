@@ -8,7 +8,7 @@ import { getGameTime } from './zombie'
 import { isSpeedActive, getSpeedTimeLeft, SPEED_DURATION_SEC } from './speedEffect'
 import { isRaging, getRageTimeLeft, RAGE_DURATION_SEC } from './rageEffect'
 import { getHealthPickupFeedback } from './potions'
-import { beginUiPointerCapture, endUiPointerCapture } from './gameplayInput'
+import { beginUiPointerCapture, endUiPointerCapture, isAutoFireEnabled, isTopViewEnabled, isIsoViewEnabled } from './gameplayInput'
 import {
   getCurrentWeapon,
   getWeaponUnlockCost,
@@ -1150,6 +1150,60 @@ export const uiMenu = () => {
               })}
           </UiEntity>
         </UiEntity>
+      )}
+      {showGameplayHud && isAutoFireEnabled() && (
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { bottom: 190, left: 0 },
+            width: '100%',
+            height: 28,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          uiText={{
+            value: '[F] AUTO FIRE',
+            fontSize: 15,
+            color: Color4.create(1, 0.25, 0.25, 1),
+            textAlign: 'middle-center'
+          }}
+        />
+      )}
+      {showGameplayHud && isTopViewEnabled() && (
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { bottom: 220, left: 0 },
+            width: '100%',
+            height: 28,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          uiText={{
+            value: '[1] TOP VIEW',
+            fontSize: 15,
+            color: Color4.create(0.3, 0.8, 1, 1),
+            textAlign: 'middle-center'
+          }}
+        />
+      )}
+      {showGameplayHud && isIsoViewEnabled() && (
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { bottom: 220, left: 0 },
+            width: '100%',
+            height: 28,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          uiText={{
+            value: '[2] ISO VIEW',
+            fontSize: 15,
+            color: Color4.create(0.3, 0.8, 1, 1),
+            textAlign: 'middle-center'
+          }}
+        />
       )}
       <LobbyStoreUi />
     </UiEntity>

@@ -28,6 +28,7 @@ import { initGunSystems, spawnReplicatedGunShotVisual } from './gun'
 import { initShotGunSystems, spawnReplicatedShotGunShotVisual } from './shotGun'
 import { initMiniGunSystems, spawnReplicatedMiniGunShotVisual } from './miniGun'
 import { initBrickSystem } from './brick'
+import { updateAutoFireToggle, isTopViewEnabled, updateTopViewToggle, isIsoViewEnabled, updateIsoViewToggle } from './gameplayInput'
 import { initHealthBarSystem } from './healthBar'
 import { initWeaponLifecycleSystem } from './weaponManager'
 import {
@@ -73,7 +74,9 @@ import {
   ARENA_WALL_BOTTOM_Z,
   ARENA_WALL_LEFT_X,
   ARENA_WALL_RIGHT_X,
-  ARENA_WALL_TOP_Z
+  ARENA_WALL_TOP_Z,
+  ARENA_CENTER_X,
+  ARENA_CENTER_Z
 } from './shared/arenaConfig'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
@@ -84,6 +87,18 @@ const CINEMATIC_CAMERA_TILT_DEG = 55 // Look down at the scene
 const CINEMATIC_TARGET_SMOOTH_SPEED = 4   // How fast smoothed target follows player (lower = less jitter)
 const CINEMATIC_CAMERA_SMOOTH_SPEED = 6   // How fast camera follows smoothed target
 const CINEMATIC_DT_MAX = 1 / 30            // Cap dt to avoid spikes from hitches (treat as ~30fps min)
+// Top-view camera: overhead angled view that follows the player
+const TOP_VIEW_HEIGHT = 15                // Height above player — adjust to taste
+const TOP_VIEW_DISTANCE = 6              // Distance behind player — adjust to taste
+const TOP_VIEW_TILT_DEG = 70             // Angle looking down — adjust to taste
+const TOP_VIEW_SMOOTH_SPEED = 5          // How fast it follows the player
+const TOP_VIEW_DT_MAX = 1 / 30
+// Iso-view camera: isometric corner view (like the screenshot), 45° rotated
+const ISO_VIEW_HEIGHT = 15               // Height above player — adjust to taste
+const ISO_VIEW_DISTANCE = 8             // Diagonal distance from player — adjust to taste
+const ISO_VIEW_TILT_DEG = 55             // Angle looking down — adjust to taste
+const ISO_VIEW_SMOOTH_SPEED = 5
+const ISO_VIEW_DT_MAX = 1 / 30
 const SKYBOX_DAY_TIME_SECONDS = 12 * 60 * 60 // 12:00
 const SKYBOX_NIGHT_TIME_SECONDS = 0 // 00:00
 
@@ -91,6 +106,14 @@ let useCinematicCamera = false
 let cinematicCameraEntity: ReturnType<typeof engine.addEntity> | null = null
 let cinematicSmoothedTarget = Vector3.create(0, 0, 0)
 let cinematicSmoothedTargetReady = false
+let topViewCameraEntity: ReturnType<typeof engine.addEntity> | null = null
+let topViewSmoothedPos = Vector3.create(0, 0, 0)
+let topViewSmoothedReady = false
+let prevTopViewState = false
+let isoViewCameraEntity: ReturnType<typeof engine.addEntity> | null = null
+let isoViewSmoothedPos = Vector3.create(0, 0, 0)
+let isoViewSmoothedReady = false
+let prevIsoViewState = false
 let appliedSkyboxTime: number | null = null
 const seenRemoteShotKeys = new Set<string>()
 const seenRemoteShotKeyQueue: string[] = []
@@ -111,6 +134,94 @@ function createCinematicCamera() {
   })
   VirtualCamera.create(entity, {})
   return entity
+}
+
+function createTopViewCamera() {
+  const entity = engine.addEntity()
+  Transform.create(entity, {
+    position: Vector3.create(0, 0, 0),
+    rotation: Quaternion.fromEulerDegrees(TOP_VIEW_TILT_DEG, 0, 0),
+    scale: Vector3.One()
+  })
+  VirtualCamera.create(entity, {
+    defaultTransition: { transitionMode: VirtualCamera.Transition.Time(0.6) }
+  })
+  return entity
+}
+
+function topViewCameraSystem(dt: number) {
+  const enabled = isTopViewEnabled()
+
+  // Handle toggle transitions
+  if (enabled !== prevTopViewState) {
+    prevTopViewState = enabled
+    topViewSmoothedReady = false
+    if (!MainCamera.has(engine.CameraEntity)) return
+    MainCamera.getMutable(engine.CameraEntity).virtualCameraEntity =
+      enabled && topViewCameraEntity ? topViewCameraEntity : undefined
+  }
+
+  if (!enabled || !topViewCameraEntity || !Transform.has(engine.PlayerEntity)) return
+
+  const stableDt = Math.min(dt, TOP_VIEW_DT_MAX)
+  const playerPos = Transform.get(engine.PlayerEntity).position
+  const target = Vector3.create(playerPos.x, playerPos.y + TOP_VIEW_HEIGHT, playerPos.z - TOP_VIEW_DISTANCE)
+
+  if (!topViewSmoothedReady) {
+    topViewSmoothedPos = Vector3.clone(target)
+    topViewSmoothedReady = true
+  }
+
+  const factor = 1 - Math.exp(-TOP_VIEW_SMOOTH_SPEED * stableDt)
+  topViewSmoothedPos = Vector3.lerp(topViewSmoothedPos, target, factor)
+  Transform.getMutable(topViewCameraEntity).position = topViewSmoothedPos
+}
+
+function createIsoViewCamera() {
+  const entity = engine.addEntity()
+  // 45° Y rotation = diagonal corner, ISO_VIEW_TILT_DEG X = look down at an angle
+  Transform.create(entity, {
+    position: Vector3.create(0, 0, 0),
+    rotation: Quaternion.fromEulerDegrees(ISO_VIEW_TILT_DEG, 45, 0),
+    scale: Vector3.One()
+  })
+  VirtualCamera.create(entity, {
+    defaultTransition: { transitionMode: VirtualCamera.Transition.Time(0.6) }
+  })
+  return entity
+}
+
+function isoViewCameraSystem(dt: number) {
+  const enabled = isIsoViewEnabled()
+
+  if (enabled !== prevIsoViewState) {
+    prevIsoViewState = enabled
+    isoViewSmoothedReady = false
+    if (!MainCamera.has(engine.CameraEntity)) return
+    MainCamera.getMutable(engine.CameraEntity).virtualCameraEntity =
+      enabled && isoViewCameraEntity ? isoViewCameraEntity : undefined
+  }
+
+  if (!enabled || !isoViewCameraEntity || !Transform.has(engine.PlayerEntity)) return
+
+  const stableDt = Math.min(dt, ISO_VIEW_DT_MAX)
+  const playerPos = Transform.get(engine.PlayerEntity).position
+  // Diagonal offset: pull back equally on X and Z (45° corner)
+  const diag = ISO_VIEW_DISTANCE * 0.707 // sin/cos of 45°
+  const target = Vector3.create(
+    playerPos.x - diag,
+    playerPos.y + ISO_VIEW_HEIGHT,
+    playerPos.z - diag
+  )
+
+  if (!isoViewSmoothedReady) {
+    isoViewSmoothedPos = Vector3.clone(target)
+    isoViewSmoothedReady = true
+  }
+
+  const factor = 1 - Math.exp(-ISO_VIEW_SMOOTH_SPEED * stableDt)
+  isoViewSmoothedPos = Vector3.lerp(isoViewSmoothedPos, target, factor)
+  Transform.getMutable(isoViewCameraEntity).position = isoViewSmoothedPos
 }
 
 function cinematicCameraFollowSystem(dt: number) {
@@ -235,6 +346,14 @@ export function main() {
   cinematicCameraEntity = createCinematicCamera()
   engine.addSystem(cinematicCameraFollowSystem)
   setActiveCamera(false) // Start with regular camera
+  // Top-view camera: overhead angled, toggle with key [1]
+  topViewCameraEntity = createTopViewCamera()
+  engine.addSystem(topViewCameraSystem)
+  engine.addSystem(updateTopViewToggle)
+  // Iso-view camera: diagonal corner view, toggle with key [2]
+  isoViewCameraEntity = createIsoViewCamera()
+  engine.addSystem(isoViewCameraSystem)
+  engine.addSystem(updateIsoViewToggle)
 
   // Blood burst particles (must run every frame to advance _gameTime)
   engine.addSystem(bloodParticleSystem)
@@ -262,6 +381,8 @@ export function main() {
   // Authoritative match waves (30s active / 10s rest)
   initMatchWaveClientSystem()
 
+  // Auto-fire toggle (F key) — must run before weapon systems
+  engine.addSystem(updateAutoFireToggle)
   // Init all weapon systems (active weapon gets spawned when match starts)
   initWeaponLifecycleSystem()
   initGunSystems()
