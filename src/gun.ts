@@ -28,7 +28,7 @@ import { getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loado
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
 const SHOOT_RANGE = 100
-const PROJECTILE_SPEED = 50 // Meters per second - lower = slower bullets
+const PROJECTILE_SPEED = 20 // Meters per second - lower = slower bullets
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 const BULLET_MODEL_SRC = 'assets/scene/Models/bullets/Bullet.glb'
 const MUZZLE_FLASH_MODEL_SRC = 'assets/scene/Models/bullets/GunVFX.glb'
