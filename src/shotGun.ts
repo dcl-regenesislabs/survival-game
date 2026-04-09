@@ -3,18 +3,13 @@ import {
   Entity,
   Transform,
   GltfContainer,
-  Animator,
-  MeshRenderer,
-  Material,
-  MeshCollider,
-  ColliderLayer
+  Animator
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { ZombieComponent } from './zombie'
-import { ProjectileComponent } from './gun'
+import { getProjectileSpawnData, spawnAttachedMuzzleFlashVfx, spawnMuzzleFlashVfx, spawnProjectileEntity } from './gun'
 import { getCurrentWeapon } from './weaponManager'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
-import { getPlayerBulletColor } from './shared/playerColors'
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
 import { isGameplayFireHeld } from './gameplayInput'
@@ -84,20 +79,16 @@ function spawnProjectile(
   canDamage: boolean = true,
   weaponType: 'gun' | 'shotgun' | 'minigun' = 'shotgun',
   shotSeq: number = 0,
-  shooterAddress: string = ''
+  _shooterAddress: string = ''
 ): Vector3 {
-  const baseDirection = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
-  const right = Vector3.normalize(Vector3.rotate(Vector3.Right(), gunWorldRot))
-  const up = Vector3.rotate(Vector3.Up(), gunWorldRot)
-  const offset = Vector3.add(
-    Vector3.add(
-      Vector3.scale(right, MUZZLE_OFFSET_GUN_LOCAL.x),
-      Vector3.scale(up, MUZZLE_OFFSET_GUN_LOCAL.y)
-    ),
-    Vector3.scale(baseDirection, MUZZLE_OFFSET_GUN_LOCAL.z)
-  )
-  const spawnPos = Vector3.add(gunWorldPos, offset)
-  const color = getPlayerBulletColor(shooterAddress)
+  const { direction: baseDirection, right, spawnPos } = getProjectileSpawnData(gunWorldPos, gunWorldRot)
+  if (canDamage && gunModelEntity) {
+    spawnAttachedMuzzleFlashVfx(gunModelEntity)
+  } else if (canDamage && gunEntity) {
+    spawnAttachedMuzzleFlashVfx(gunEntity, MUZZLE_OFFSET_GUN_LOCAL)
+  } else {
+    spawnMuzzleFlashVfx(spawnPos, gunWorldRot)
+  }
 
   // Center, left (+right), right (-right) - each bullet follows its own straight line
   const directions = [
@@ -107,29 +98,7 @@ function spawnProjectile(
   ]
 
   for (const direction of directions) {
-    const projectile = engine.addEntity()
-    Transform.create(projectile, {
-      position: Vector3.clone(spawnPos),
-      scale: Vector3.create(0.18, 0.18, 0.18)
-    })
-    MeshRenderer.setSphere(projectile)
-    Material.setPbrMaterial(projectile, {
-      albedoColor: color.albedo,
-      emissiveColor: color.emissive,
-      emissiveIntensity: 1.5,
-      metallic: 0.0,
-      roughness: 0.3
-    })
-    ProjectileComponent.create(projectile, {
-      direction,
-      startPosition: Vector3.clone(spawnPos),
-      canDamage,
-      weaponType,
-      shotSeq
-    })
-    if (canDamage) {
-      MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
-    }
+    spawnProjectileEntity(spawnPos, direction, canDamage, weaponType, shotSeq, 1, PROJECTILE_SPEED)
   }
   return baseDirection
 }

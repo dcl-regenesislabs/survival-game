@@ -4,15 +4,14 @@ import {
   Transform,
   GltfContainer,
   Animator,
-  MeshRenderer,
-  Material,
+  MeshCollider,
+  ColliderLayer,
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
-import { ZombieComponent, damageZombie } from './zombie'
+import { ZombieComponent, damageZombie, getGameTime } from './zombie'
 import { getCurrentWeapon } from './weaponManager'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
-import { getPlayerBulletColor } from './shared/playerColors'
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
 import { isGameplayFireHeld } from './gameplayInput'
@@ -25,20 +24,33 @@ import {
 
 import { getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loadoutCatalog'
 
-const DEBUG_SHOW_GUN_IN_LOBBY = false
-
 // Gun config - tweak these to your liking
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
 const SHOOT_RANGE = 100
 const PROJECTILE_SPEED = 50 // Meters per second - lower = slower bullets
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
+const BULLET_MODEL_SRC = 'assets/scene/Models/bullets/Bullet.glb'
+const MUZZLE_FLASH_MODEL_SRC = 'assets/scene/Models/bullets/GunVFX.glb'
+const MUZZLE_FLASH_CLIP = 'GunShotVFX01'
+const MUZZLE_FLASH_DURATION = 0.25
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
 const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
+const MUZZLE_FLASH_OFFSET_MODEL_LOCAL = Vector3.create(0, 0, -0.08)
 // How long to freeze gun rotation after shooting (so bullet spawn looks correct). Tweak to match your shoot clip length.
 const GUN_ROTATION_SMOOTH_SPEED = 14
 // Bullet flies straight; remove after this distance from spawn (out of scene)
 const BULLET_MAX_DISTANCE = 40
+const PROJECTILE_COLLIDER_SCALE_VALUE = 0.18
+const PROJECTILE_COLLIDER_SCALE = Vector3.create(
+  PROJECTILE_COLLIDER_SCALE_VALUE,
+  PROJECTILE_COLLIDER_SCALE_VALUE,
+  PROJECTILE_COLLIDER_SCALE_VALUE
+)
+// Keep the gameplay collider small while rendering the GLB at a readable size.
+const PROJECTILE_VISUAL_LOCAL_SCALE_VALUE = 1 / PROJECTILE_COLLIDER_SCALE_VALUE
+const PROJECTILE_VISUAL_SHRINK_START_DISTANCE = 2.5
+const PROJECTILE_VISUAL_SHRINK_END_DISTANCE = 10
 const GUN_SYSTEM_PRIORITY_LAST = -1000
 const PROJECTILE_HIT_RADIUS = 0.95
 const PROJECTILE_HIT_RADIUS_SQ = PROJECTILE_HIT_RADIUS * PROJECTILE_HIT_RADIUS
@@ -54,6 +66,7 @@ const GUN_UPGRADE_STATS: Record<number, { damage: number; fireRate: number }> = 
 const ProjectileComponentSchema = {
   direction: Schemas.Vector3,
   startPosition: Schemas.Vector3,
+  visualEntity: Schemas.Entity,
   canDamage: Schemas.Boolean,
   weaponType: Schemas.String,
   shotSeq: Schemas.Number,
@@ -61,6 +74,9 @@ const ProjectileComponentSchema = {
   damage: Schemas.Number
 }
 export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
+const ProjectileMuzzleFlashComponent = engine.defineComponent('ProjectileMuzzleFlashComponent', {
+  endTime: Schemas.Number
+})
 
 let gunEntity: Entity | null = null
 let gunModelEntity: Entity | null = null
@@ -109,16 +125,10 @@ function playGunAnimation() {
   }
 }
 
-function spawnProjectile(
-  gunWorldPos: Vector3,
-  gunWorldRot: { readonly x: number; readonly y: number; readonly z: number; readonly w: number },
-  canDamage: boolean = true,
-  weaponType: 'gun' | 'shotgun' | 'minigun' = 'gun',
-  shotSeq: number = 0,
-  shooterAddress: string = '',
-  damage: number = 1
-): Vector3 {
-  // Bullet direction = gun forward (where the barrel points), so bullet always matches gun aim
+type WeaponProjectileType = 'gun' | 'shotgun' | 'minigun'
+type RotationLike = { readonly x: number; readonly y: number; readonly z: number; readonly w: number }
+
+export function getProjectileSpawnData(gunWorldPos: Vector3, gunWorldRot: RotationLike) {
   const direction = Vector3.normalize(Vector3.rotate(Vector3.Forward(), gunWorldRot))
   const right = Vector3.rotate(Vector3.Right(), gunWorldRot)
   const up = Vector3.rotate(Vector3.Up(), gunWorldRot)
@@ -129,30 +139,139 @@ function spawnProjectile(
     ),
     Vector3.scale(direction, MUZZLE_OFFSET_GUN_LOCAL.z)
   )
-  const spawnPos = Vector3.add(gunWorldPos, offset)
-  const color = getPlayerBulletColor(shooterAddress)
+
+  return {
+    direction,
+    right,
+    up,
+    spawnPos: Vector3.add(gunWorldPos, offset)
+  }
+}
+
+export function spawnMuzzleFlashVfx(spawnPos: Vector3, gunWorldRot: RotationLike): void {
+  const muzzleFlash = engine.addEntity()
+  Transform.create(muzzleFlash, {
+    position: Vector3.clone(spawnPos),
+    rotation: gunWorldRot,
+    scale: Vector3.One()
+  })
+  GltfContainer.create(muzzleFlash, {
+    src: MUZZLE_FLASH_MODEL_SRC,
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+  Animator.create(muzzleFlash, {
+    states: [{ clip: MUZZLE_FLASH_CLIP, playing: true, loop: false, speed: 1 }]
+  })
+  ProjectileMuzzleFlashComponent.create(muzzleFlash, {
+    endTime: getGameTime() + MUZZLE_FLASH_DURATION
+  })
+}
+
+export function spawnAttachedMuzzleFlashVfx(
+  weaponEntity: Entity,
+  localPosition: Vector3 = MUZZLE_FLASH_OFFSET_MODEL_LOCAL
+): void {
+  const muzzleFlash = engine.addEntity()
+  Transform.create(muzzleFlash, {
+    parent: weaponEntity,
+    position: localPosition,
+    rotation: Quaternion.Identity(),
+    scale: Vector3.One()
+  })
+  GltfContainer.create(muzzleFlash, {
+    src: MUZZLE_FLASH_MODEL_SRC,
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+  Animator.create(muzzleFlash, {
+    states: [{ clip: MUZZLE_FLASH_CLIP, playing: true, loop: false, speed: 1 }]
+  })
+  ProjectileMuzzleFlashComponent.create(muzzleFlash, {
+    endTime: getGameTime() + MUZZLE_FLASH_DURATION
+  })
+}
+
+export function spawnProjectileEntity(
+  spawnPos: Vector3,
+  direction: Vector3,
+  canDamage: boolean,
+  weaponType: WeaponProjectileType,
+  shotSeq: number,
+  damage: number = 1,
+  speed: number = PROJECTILE_SPEED
+): Entity {
   const projectile = engine.addEntity()
   Transform.create(projectile, {
     position: Vector3.clone(spawnPos),
-    scale: Vector3.create(0.18, 0.18, 0.18)
+    rotation: Quaternion.lookRotation(direction),
+    scale: PROJECTILE_COLLIDER_SCALE
   })
-  MeshRenderer.setSphere(projectile)
-  Material.setPbrMaterial(projectile, {
-    albedoColor: color.albedo,
-    emissiveColor: color.emissive,
-    emissiveIntensity: 1.5,
-    metallic: 0.0,
-    roughness: 0.3
+
+  const projectileVisual = engine.addEntity()
+  Transform.create(projectileVisual, {
+    parent: projectile,
+    position: Vector3.Zero(),
+    rotation: Quaternion.Identity(),
+    scale: Vector3.create(
+      PROJECTILE_VISUAL_LOCAL_SCALE_VALUE,
+      PROJECTILE_VISUAL_LOCAL_SCALE_VALUE,
+      PROJECTILE_VISUAL_LOCAL_SCALE_VALUE
+    )
   })
+  GltfContainer.create(projectileVisual, {
+    src: BULLET_MODEL_SRC,
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+
   ProjectileComponent.create(projectile, {
     direction,
     startPosition: Vector3.clone(spawnPos),
+    visualEntity: projectileVisual,
     canDamage,
     weaponType,
     shotSeq,
-    speed: PROJECTILE_SPEED,
+    speed,
     damage
   })
+
+  if (canDamage) {
+    MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
+  }
+
+  return projectile
+}
+
+function getProjectileVisualScaleFactor(traveled: number): number {
+  if (traveled <= PROJECTILE_VISUAL_SHRINK_START_DISTANCE) return 1
+  const shrinkT = Math.min(
+    1,
+    (traveled - PROJECTILE_VISUAL_SHRINK_START_DISTANCE) /
+      (PROJECTILE_VISUAL_SHRINK_END_DISTANCE - PROJECTILE_VISUAL_SHRINK_START_DISTANCE)
+  )
+  return 1 - shrinkT
+}
+
+function spawnProjectile(
+  gunWorldPos: Vector3,
+  gunWorldRot: RotationLike,
+  canDamage: boolean = true,
+  weaponType: WeaponProjectileType = 'gun',
+  shotSeq: number = 0,
+  _shooterAddress: string = '',
+  damage: number = 1,
+  attachFlashToWeapon: boolean = canDamage
+): Vector3 {
+  const { direction, spawnPos } = getProjectileSpawnData(gunWorldPos, gunWorldRot)
+  if (attachFlashToWeapon && gunModelEntity) {
+    spawnAttachedMuzzleFlashVfx(gunModelEntity)
+  } else if (attachFlashToWeapon && gunEntity) {
+    spawnAttachedMuzzleFlashVfx(gunEntity, MUZZLE_OFFSET_GUN_LOCAL)
+  } else {
+    spawnMuzzleFlashVfx(spawnPos, gunWorldRot)
+  }
+  spawnProjectileEntity(spawnPos, direction, canDamage, weaponType, shotSeq, damage, PROJECTILE_SPEED)
   return direction
 }
 
@@ -214,12 +333,23 @@ function projectileSystem(dt: number) {
     // Remove if bullet went out of range (out of scene)
     const traveled = Vector3.distance(newPos, startPos)
     if (traveled > BULLET_MAX_DISTANCE) {
-      engine.removeEntity(projectile)
+      engine.removeEntityWithChildren(projectile)
       continue
     }
 
     const mutableTransform = Transform.getMutable(projectile)
     mutableTransform.position = newPos
+
+    if (Transform.has(projData.visualEntity)) {
+      const scaleFactor = getProjectileVisualScaleFactor(traveled)
+      if (scaleFactor <= 0) {
+        engine.removeEntity(projData.visualEntity)
+      } else {
+        const visualScale = PROJECTILE_VISUAL_LOCAL_SCALE_VALUE * scaleFactor
+        const visualTransform = Transform.getMutable(projData.visualEntity)
+        visualTransform.scale = Vector3.create(visualScale, visualScale, visualScale)
+      }
+    }
 
     if (!projData.canDamage) continue
 
@@ -232,18 +362,27 @@ function projectileSystem(dt: number) {
       if (distSq > PROJECTILE_HIT_RADIUS_SQ) continue
 
       damageZombie(zombie, projData.damage > 0 ? projData.damage : 1, { weaponType: projData.weaponType as 'gun' | 'shotgun' | 'minigun', shotSeq: Math.floor(projData.shotSeq) })
-      engine.removeEntity(projectile)
+      engine.removeEntityWithChildren(projectile)
       break
     }
   }
+}
+
+function projectileMuzzleFlashSystem(): void {
+  const now = getGameTime()
+  const toRemove: Entity[] = []
+  for (const [entity, muzzleFlash] of engine.getEntitiesWith(ProjectileMuzzleFlashComponent)) {
+    if (now < muzzleFlash.endTime) continue
+    toRemove.push(entity)
+  }
+  for (const entity of toRemove) engine.removeEntityWithChildren(entity)
 }
 
 export function gunSystem(dt: number) {
   if (!Transform.has(engine.PlayerEntity)) return
 
   const isInArena = isLocalPlayerInArena()
-  const shouldShowDebugLobbyGun = DEBUG_SHOW_GUN_IN_LOBBY && !isInArena
-  const shouldTrackGun = shouldShowDebugLobbyGun || (isInArena && getCurrentWeapon() === 'gun')
+  const shouldTrackGun = isInArena && getCurrentWeapon() === 'gun'
 
   if (!shouldTrackGun) {
     if (gunEntity) destroyGun()
@@ -251,7 +390,6 @@ export function gunSystem(dt: number) {
   }
 
   if (!gunEntity) {
-    if (!shouldShowDebugLobbyGun) return
     createGun()
   }
 
@@ -290,8 +428,6 @@ export function gunSystem(dt: number) {
     visibleGunRot = Quaternion.multiply(playerTransform.rotation, mutableGunTransform.rotation)
   }
 
-  if (!isInArena) return
-
   const upgradeStats = GUN_UPGRADE_STATS[currentGunUpgradeLevel] ?? GUN_UPGRADE_STATS[1]
   const effectiveFireRate = upgradeStats.fireRate / getFireRateMultiplier()
   shootTimer += dt
@@ -302,6 +438,7 @@ export function gunSystem(dt: number) {
 
   shootTimer = 0
   playGunAnimation()
+
   const nextShotSeq = localShotSeq + 1
   const direction = spawnProjectile(visibleGunPos, visibleGunRot, true, 'gun', nextShotSeq, getLocalAddress() ?? '', upgradeStats.damage)
   localShotSeq = nextShotSeq
@@ -318,5 +455,6 @@ export function spawnReplicatedGunShotVisual(origin: Vector3, direction: Vector3
 
 export function initGunSystems() {
   engine.addSystem(projectileSystem)
+  engine.addSystem(projectileMuzzleFlashSystem)
   engine.addSystem(gunSystem, GUN_SYSTEM_PRIORITY_LAST, 'gunSystem')
 }
