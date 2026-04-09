@@ -29,7 +29,7 @@ import { initGunSystems, spawnReplicatedGunShotVisual } from './gun'
 import { initShotGunSystems, spawnReplicatedShotGunShotVisual } from './shotGun'
 import { initMiniGunSystems, spawnReplicatedMiniGunShotVisual } from './miniGun'
 import { initBrickSystem } from './brick'
-import { initFireHazardClient, fireHazardSystem } from './fireHazard'
+import { initLavaHazardClient, lavaHazardSystem } from './lavaHazard'
 import { updateAutoFireToggle, isTopViewEnabled, updateTopViewToggle, isIsoViewEnabled, updateIsoViewToggle } from './gameplayInput'
 import { initHealthBarSystem } from './healthBar'
 import { initWeaponLifecycleSystem } from './weaponManager'
@@ -70,6 +70,7 @@ import {
   ARENA_FLOOR_POSITION_X,
   ARENA_FLOOR_POSITION_Z,
   ARENA_FLOOR_SCALE,
+  ARENA_FLOOR_WORLD_SIZE_X,
   ARENA_WALL_LENGTH_SCALE,
   ARENA_WALL_BOTTOM_Z,
   ARENA_WALL_LEFT_X,
@@ -311,11 +312,10 @@ export function main() {
   initTimeSync({ isServer: false })
 
   // Dark overlay plane for arena contrast — matches the floor GLB footprint (48x48)
-  const floorSize = (ARENA_CENTER_X - ARENA_FLOOR_POSITION_X) * 2
   const arenaFloorOverlay = engine.addEntity()
   Transform.create(arenaFloorOverlay, {
     position: Vector3.create(ARENA_CENTER_X, 0.02, ARENA_CENTER_Z),
-    scale: Vector3.create(floorSize, 0.01, floorSize)
+    scale: Vector3.create(ARENA_FLOOR_WORLD_SIZE_X, 0.01, ARENA_FLOOR_WORLD_SIZE_X)
   })
   MeshRenderer.setBox(arenaFloorOverlay)
   MeshCollider.setBox(arenaFloorOverlay, ColliderLayer.CL_NONE)
@@ -328,7 +328,7 @@ export function main() {
   setupLobbyClient()
   setupShotReplicationClient()
   initPotionSyncClient()
-  initFireHazardClient()
+  initLavaHazardClient()
   setPlayerDamageReporter((amount) => {
     if (isPlayerDead()) return
     sendPlayerDamageRequest(amount)
@@ -376,7 +376,7 @@ export function main() {
   // Potion pickup and visual (tilt + spin)
   engine.addSystem(potionPickupSystem)
   engine.addSystem(potionVisualSystem)
-  engine.addSystem(fireHazardSystem)
+  engine.addSystem(lavaHazardSystem)
   initDeathAnimationSystem()
   // Authoritative match waves (30s active / 10s rest)
   initMatchWaveClientSystem()
