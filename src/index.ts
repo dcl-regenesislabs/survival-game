@@ -13,7 +13,8 @@ import {
   Material
 } from '@dcl/sdk/ecs'
 import { isServer } from '@dcl/sdk/network'
-import { Vector3, Quaternion } from '@dcl/sdk/math'
+import { Vector2, Vector3, Quaternion } from '@dcl/sdk/math'
+import { TextureFilterMode, TextureWrapMode } from '@dcl/ecs/dist/components/generated/pb/decentraland/common/texture.gen'
 import { setupUi } from './ui'
 import {
   spawnZombie,
@@ -312,6 +313,7 @@ export function main() {
 
   // Dark overlay plane for arena contrast — matches the floor GLB footprint (48x48)
   const floorSize = (ARENA_CENTER_X - ARENA_FLOOR_POSITION_X) * 2
+  const arenaFloorTextureRepeat = floorSize / 4
   const arenaFloorOverlay = engine.addEntity()
   Transform.create(arenaFloorOverlay, {
     position: Vector3.create(ARENA_CENTER_X, 0.02, ARENA_CENTER_Z),
@@ -320,7 +322,13 @@ export function main() {
   MeshRenderer.setBox(arenaFloorOverlay)
   MeshCollider.setBox(arenaFloorOverlay, ColliderLayer.CL_NONE)
   Material.setPbrMaterial(arenaFloorOverlay, {
-    albedoColor: { r: 0.12, g: 0.12, b: 0.12, a: 1 },
+    texture: Material.Texture.Common({
+      src: 'assets/images/FloorBrickTexture01.png',
+      wrapMode: TextureWrapMode.TWM_REPEAT,
+      filterMode: TextureFilterMode.TFM_TRILINEAR,
+      tiling: Vector2.create(arenaFloorTextureRepeat, arenaFloorTextureRepeat)
+    }),
+    albedoColor: { r: 0.8, g: 0.8, b: 0.8, a: 1 },
     roughness: 1,
     metallic: 0
   })
