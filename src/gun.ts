@@ -31,7 +31,7 @@ const DEBUG_SHOW_GUN_IN_LOBBY = false
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
 const SHOOT_RANGE = 100
-const PROJECTILE_SPEED = 10 // Meters per second - lower = slower bullets
+const PROJECTILE_SPEED = 50 // Meters per second - lower = slower bullets
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
 const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
