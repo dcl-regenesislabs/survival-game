@@ -31,7 +31,7 @@ import { getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loado
 const ROUNDS_PER_SECOND = 5 // Minigun fires faster
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (0.2s = 5 rounds/sec)
 const SHOOT_RANGE = 100
-const PROJECTILE_SPEED = 50 // Meters per second - lower = slower bullets
+const PROJECTILE_SPEED = 20 // Meters per second - lower = slower bullets
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
 const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
