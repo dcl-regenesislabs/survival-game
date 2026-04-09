@@ -155,6 +155,20 @@ const LobbyMessages = {
   lobbyEvent: Schemas.Map({
     type: Schemas.String,
     message: Schemas.String
+  }),
+  fireHazardSpawned: Schemas.Map({
+    fireId: Schemas.String,
+    positionX: Schemas.Number,
+    positionY: Schemas.Number,
+    positionZ: Schemas.Number,
+    expiresAtMs: Schemas.Int64
+  }),
+  fireHazardExpired: Schemas.Map({
+    fireId: Schemas.String
+  }),
+  fireHazardsCleared: Schemas.Map({}),
+  fireHazardDamageRequest: Schemas.Map({
+    fireId: Schemas.String
   })
 }
 

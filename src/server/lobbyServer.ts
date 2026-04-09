@@ -70,6 +70,11 @@ const POTION_PICKUP_RADIUS = 2.5
 const POTION_MIN_SEPARATION = 1.75
 const POTION_POSITION_SEARCH_ATTEMPTS = 16
 const POTION_POSITION_RING_STEP = 0.7
+const FIRE_HAZARD_FIRST_WAVE = 4          // Fire hazards start at this wave
+const FIRE_HAZARD_LIFETIME_MS = 10_000    // How long each fire lasts
+const FIRE_HAZARD_DAMAGE_COOLDOWN_MS = 800 // Server-side min interval between damage ticks
+const FIRE_HAZARD_COUNT_BASE = 2           // Fires at wave 4
+const FIRE_HAZARD_COUNT_MAX = 6            // Max fires at high waves
 const DISCONNECTED_PLAYER_GRACE_MS = 3000
 const DISCONNECTED_PLAYER_RECONCILE_INTERVAL_SECONDS = 0.5
 const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
@@ -138,6 +143,14 @@ type ActivePotionState = {
   positionZ: number
   expiresAtMs: number
 }
+type ActiveFireHazardState = {
+  fireId: string
+  positionX: number
+  positionY: number
+  positionZ: number
+  expiresAtMs: number
+  lastDamageByAddress: Map<string, number>
+}
 type PendingTeamWipeReturn = {
   players: LobbyPlayer[]
   executeAtMs: number
@@ -145,10 +158,12 @@ type PendingTeamWipeReturn = {
 
 let nextZombieSequence = 0
 let nextPotionSequence = 0
+let nextFireSequence = 0
 const zombieSpawnAtById = new Map<string, ZombieSpawnState>()
 const deadZombieIds = new Set<string>()
 const explodedZombieIds = new Set<string>()
 const activePotionsById = new Map<string, ActivePotionState>()
+const activeFireHazardsById = new Map<string, ActiveFireHazardState>()
 const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
@@ -367,6 +382,7 @@ function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>)
   awardedWaveGoldMilestones.clear()
   lastRageShieldHitAtMsByPlayerAndZombie.clear()
   clearActivePotions(true)
+  clearAllFireHazards()
 }
 
 function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
@@ -469,6 +485,19 @@ function sendActivePotionsTo(address: string): void {
   const normalizedAddress = address.toLowerCase()
   for (const potion of activePotionsById.values()) {
     sendPotionSpawn(potion, [normalizedAddress])
+  }
+}
+
+function sendActiveFireHazardsTo(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  for (const fire of activeFireHazardsById.values()) {
+    void room.send('fireHazardSpawned', {
+      fireId: fire.fireId,
+      positionX: fire.positionX,
+      positionY: fire.positionY,
+      positionZ: fire.positionZ,
+      expiresAtMs: fire.expiresAtMs
+    }, { to: [normalizedAddress] })
   }
 }
 
@@ -579,6 +608,50 @@ function expirePotions(now: number): void {
     activePotionsById.delete(potionId)
     void room.send('potionExpired', { potionId })
   }
+}
+
+function spawnFireHazardsForWave(waveNumber: number, now: number): void {
+  if (waveNumber < FIRE_HAZARD_FIRST_WAVE) return
+  // Scale count: +1 fire every 2 waves beyond wave 4, capped at max
+  const count = Math.min(
+    FIRE_HAZARD_COUNT_BASE + Math.floor((waveNumber - FIRE_HAZARD_FIRST_WAVE) / 2),
+    FIRE_HAZARD_COUNT_MAX
+  )
+  for (let i = 0; i < count; i++) {
+    nextFireSequence += 1
+    const positionX = ARENA_SPAWN_MIN_X + Math.random() * (ARENA_SPAWN_MAX_X - ARENA_SPAWN_MIN_X)
+    const positionZ = ARENA_SPAWN_MIN_Z + Math.random() * (ARENA_SPAWN_MAX_Z - ARENA_SPAWN_MIN_Z)
+    const fire: ActiveFireHazardState = {
+      fireId: `f${nextFireSequence}`,
+      positionX,
+      positionY: 0,
+      positionZ,
+      expiresAtMs: now + FIRE_HAZARD_LIFETIME_MS,
+      lastDamageByAddress: new Map()
+    }
+    activeFireHazardsById.set(fire.fireId, fire)
+    void room.send('fireHazardSpawned', {
+      fireId: fire.fireId,
+      positionX: fire.positionX,
+      positionY: fire.positionY,
+      positionZ: fire.positionZ,
+      expiresAtMs: fire.expiresAtMs
+    })
+  }
+}
+
+function expireFireHazards(now: number): void {
+  for (const [fireId, fire] of activeFireHazardsById) {
+    if (fire.expiresAtMs > now) continue
+    activeFireHazardsById.delete(fireId)
+    void room.send('fireHazardExpired', { fireId })
+  }
+}
+
+function clearAllFireHazards(): void {
+  if (activeFireHazardsById.size === 0) return
+  activeFireHazardsById.clear()
+  void room.send('fireHazardsCleared', {})
 }
 
 function applyZombieDamage(zombieId: string, damage: number, killerAddress: string, now: number): boolean {
@@ -1175,6 +1248,7 @@ function startZombieWaves(address: string, startReason: 'manual' | 'auto' = 'man
   runtime.startedByAddress = normalizedAddress
   clearZombieTracking(runtime)
   sendWaveSpawnPlan(runtime.waveNumber, runtime.serverNowMs)
+  spawnFireHazardsForWave(runtime.waveNumber, runtime.serverNowMs)
   logLobbyServerEvent(`WavesStarted by ${normalizedAddress}`)
 
   for (const player of state.arenaPlayers) {
@@ -1210,6 +1284,7 @@ function waveRuntimeSystem(dt: number): void {
   const now = getServerTime()
   runtime.serverNowMs = now
   expirePotions(now)
+  expireFireHazards(now)
   recomputeZombiesAlive(runtime, now)
 
   if (pendingTeamWipeReturn && now >= pendingTeamWipeReturn.executeAtMs) {
@@ -1268,6 +1343,7 @@ function waveRuntimeSystem(dt: number): void {
     runtime.cyclePhase = WaveCyclePhase.ACTIVE
     runtime.phaseEndTimeMs = now + runtime.activeDurationSeconds * 1000
     sendWaveSpawnPlan(runtime.waveNumber, now)
+    spawnFireHazardsForWave(runtime.waveNumber, now)
     void room.send('lobbyEvent', {
       type: 'wave_active',
       message: `Wave ${runtime.waveNumber} started`
@@ -1300,6 +1376,7 @@ export function setupLobbyServer(): void {
     sendPowerupStatesTo(context.from)
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
+      sendActiveFireHazardsTo(context.from)
     }
   })
 
@@ -1424,6 +1501,7 @@ export function setupLobbyServer(): void {
     sendPowerupStatesTo(context.from)
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
+      sendActiveFireHazardsTo(context.from)
     }
   })
 
@@ -1573,6 +1651,41 @@ export function setupLobbyServer(): void {
     const amount = Math.max(1, Math.min(3, requestedAmount))
     state.lastDamageRequestAtMs = now
     state.hp = Math.max(0, state.hp - amount)
+    if (state.hp <= 0) {
+      state.isDead = true
+      state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
+    }
+    sendPlayerHealthState(normalizedAddress)
+
+    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
+      endMatchAndReturnToLobby('All players died. Returning to lobby.')
+    }
+  })
+
+  room.onMessage('fireHazardDamageRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+
+    const lobbyState = getLobbyState()
+    if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+    const runtime = getMatchRuntimeMutable()
+    if (!runtime.isRunning) return
+
+    const fire = activeFireHazardsById.get(data.fireId)
+    if (!fire) return
+
+    const now = getServerTime()
+    const lastDamageAt = fire.lastDamageByAddress.get(normalizedAddress) ?? 0
+    if (now - lastDamageAt < FIRE_HAZARD_DAMAGE_COOLDOWN_MS) return
+
+    const state = getOrCreatePlayerCombatState(normalizedAddress)
+    if (state.isDead) return
+    if (isRageShieldActive(state, now)) return
+
+    fire.lastDamageByAddress.set(normalizedAddress, now)
+    state.hp = Math.max(0, state.hp - 1)
     if (state.hp <= 0) {
       state.isDead = true
       state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000

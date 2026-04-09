@@ -8,8 +8,9 @@ import {
   VirtualCamera,
   MeshCollider,
   ColliderLayer,
-  SkyboxTime,
-  Name
+  Name,
+  MeshRenderer,
+  Material
 } from '@dcl/sdk/ecs'
 import { isServer } from '@dcl/sdk/network'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
@@ -28,6 +29,7 @@ import { initGunSystems, spawnReplicatedGunShotVisual } from './gun'
 import { initShotGunSystems, spawnReplicatedShotGunShotVisual } from './shotGun'
 import { initMiniGunSystems, spawnReplicatedMiniGunShotVisual } from './miniGun'
 import { initBrickSystem } from './brick'
+import { initFireHazardClient, fireHazardSystem } from './fireHazard'
 import { updateAutoFireToggle, isTopViewEnabled, updateTopViewToggle, isIsoViewEnabled, updateIsoViewToggle } from './gameplayInput'
 import { initHealthBarSystem } from './healthBar'
 import { initWeaponLifecycleSystem } from './weaponManager'
@@ -47,7 +49,6 @@ import { setupLobbyServer } from './server/lobbyServer'
 import {
   getLocalAddress,
   getLobbyState,
-  getMatchRuntimeState,
   isLocalReadyForMatch,
   sendPlayerDamageRequest,
   setupLobbyClient
@@ -64,7 +65,6 @@ import {
 import { initArenaRemotePowerups } from './arenaRemotePowerups'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
-import { WaveCyclePhase } from './shared/matchRuntimeSchemas'
 import { room } from './shared/messages'
 import {
   ARENA_FLOOR_POSITION_X,
@@ -76,7 +76,8 @@ import {
   ARENA_WALL_RIGHT_X,
   ARENA_WALL_TOP_Z,
   ARENA_CENTER_X,
-  ARENA_CENTER_Z
+  ARENA_CENTER_Z,
+  ARENA_SIZE
 } from './shared/arenaConfig'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
@@ -99,8 +100,6 @@ const ISO_VIEW_DISTANCE = 8             // Diagonal distance from player — adj
 const ISO_VIEW_TILT_DEG = 55             // Angle looking down — adjust to taste
 const ISO_VIEW_SMOOTH_SPEED = 5
 const ISO_VIEW_DT_MAX = 1 / 30
-const SKYBOX_DAY_TIME_SECONDS = 12 * 60 * 60 // 12:00
-const SKYBOX_NIGHT_TIME_SECONDS = 0 // 00:00
 
 let useCinematicCamera = false
 let cinematicCameraEntity: ReturnType<typeof engine.addEntity> | null = null
@@ -114,7 +113,6 @@ let isoViewCameraEntity: ReturnType<typeof engine.addEntity> | null = null
 let isoViewSmoothedPos = Vector3.create(0, 0, 0)
 let isoViewSmoothedReady = false
 let prevIsoViewState = false
-let appliedSkyboxTime: number | null = null
 const seenRemoteShotKeys = new Set<string>()
 const seenRemoteShotKeyQueue: string[] = []
 const MAX_SEEN_REMOTE_SHOTS = 512
@@ -246,21 +244,6 @@ function cinematicCameraFollowSystem(dt: number) {
   camTransform.position = Vector3.lerp(currentPos, cinematicSmoothedTarget, cameraFactor)
 }
 
-function setSkyboxFixedTime(seconds: number): void {
-  if (appliedSkyboxTime === seconds) return
-  appliedSkyboxTime = seconds
-  if (SkyboxTime.has(engine.RootEntity)) {
-    SkyboxTime.getMutable(engine.RootEntity).fixedTime = seconds
-    return
-  }
-  SkyboxTime.create(engine.RootEntity, { fixedTime: seconds })
-}
-
-function waveSkyboxSystem(): void { 
-  const runtime = getMatchRuntimeState()
-  const isWaveActive = !!runtime?.isRunning && runtime.cyclePhase === WaveCyclePhase.ACTIVE
-  setSkyboxFixedTime(isWaveActive ? SKYBOX_NIGHT_TIME_SECONDS : SKYBOX_DAY_TIME_SECONDS)
-}
 
 function setActiveCamera(cinematic: boolean) {
   useCinematicCamera = cinematic
@@ -326,9 +309,26 @@ export function main() {
   }
 
   initTimeSync({ isServer: false })
+
+  // Dark overlay plane for arena contrast — matches the floor GLB footprint (48x48)
+  const floorSize = (ARENA_CENTER_X - ARENA_FLOOR_POSITION_X) * 2
+  const arenaFloorOverlay = engine.addEntity()
+  Transform.create(arenaFloorOverlay, {
+    position: Vector3.create(ARENA_CENTER_X, 0.02, ARENA_CENTER_Z),
+    scale: Vector3.create(floorSize, 0.01, floorSize)
+  })
+  MeshRenderer.setBox(arenaFloorOverlay)
+  MeshCollider.setBox(arenaFloorOverlay, ColliderLayer.CL_NONE)
+  Material.setPbrMaterial(arenaFloorOverlay, {
+    albedoColor: { r: 0.12, g: 0.12, b: 0.12, a: 1 },
+    roughness: 1,
+    metallic: 0
+  })
+
   setupLobbyClient()
   setupShotReplicationClient()
   initPotionSyncClient()
+  initFireHazardClient()
   setPlayerDamageReporter((amount) => {
     if (isPlayerDead()) return
     sendPlayerDamageRequest(amount)
@@ -340,7 +340,6 @@ export function main() {
   // Loadout panel disabled
   // initLoadoutWorldPanel()
   setupUi()
-  engine.addSystem(waveSkyboxSystem, undefined, 'wave-skybox-system')
 
   // Cinematic camera: follows player position only, fixed world rotation (Diablo-style)
   cinematicCameraEntity = createCinematicCamera()
@@ -377,6 +376,7 @@ export function main() {
   // Potion pickup and visual (tilt + spin)
   engine.addSystem(potionPickupSystem)
   engine.addSystem(potionVisualSystem)
+  engine.addSystem(fireHazardSystem)
   initDeathAnimationSystem()
   // Authoritative match waves (30s active / 10s rest)
   initMatchWaveClientSystem()
