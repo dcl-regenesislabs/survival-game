@@ -45,6 +45,12 @@ import {
   ARENA_SPAWN_MIN_X,
   ARENA_SPAWN_MIN_Z
 } from '../shared/arenaConfig'
+import {
+  LAVA_DAMAGE_INTERVAL_MS,
+  shouldSpawnLavaForWave,
+  type LavaHazardTileState
+} from '../shared/lavaHazardConfig'
+import { buildLavaHazardsForWave } from './lavaHazardPatterns'
 
 let lobbyEntity: ReturnType<typeof engine.addEntity> | null = null
 let matchRuntimeEntity: ReturnType<typeof engine.addEntity> | null = null
@@ -70,11 +76,7 @@ const POTION_PICKUP_RADIUS = 2.5
 const POTION_MIN_SEPARATION = 1.75
 const POTION_POSITION_SEARCH_ATTEMPTS = 16
 const POTION_POSITION_RING_STEP = 0.7
-const FIRE_HAZARD_FIRST_WAVE = 4          // Fire hazards start at this wave
-const FIRE_HAZARD_LIFETIME_MS = 10_000    // How long each fire lasts
-const FIRE_HAZARD_DAMAGE_COOLDOWN_MS = 800 // Server-side min interval between damage ticks
-const FIRE_HAZARD_COUNT_BASE = 2           // Fires at wave 4
-const FIRE_HAZARD_COUNT_MAX = 6            // Max fires at high waves
+const LAVA_BATCH_SIZE = 96
 const DISCONNECTED_PLAYER_GRACE_MS = 3000
 const DISCONNECTED_PLAYER_RECONCILE_INTERVAL_SECONDS = 0.5
 const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
@@ -132,6 +134,7 @@ type PlayerCombatState = {
   respawnAtMs: number
   lastDamageRequestAtMs: number
   lastHealRequestAtMs: number
+  lastLavaDamageAtMs: number
   rageShieldEndAtMs: number
   speedEndAtMs: number
 }
@@ -143,14 +146,8 @@ type ActivePotionState = {
   positionZ: number
   expiresAtMs: number
 }
-type ActiveFireHazardState = {
-  fireId: string
-  positionX: number
-  positionY: number
-  positionZ: number
-  expiresAtMs: number
-  lastDamageByAddress: Map<string, number>
-}
+type ActiveLavaHazardState = LavaHazardTileState
+type ScheduledLavaHazardState = LavaHazardTileState
 type PendingTeamWipeReturn = {
   players: LobbyPlayer[]
   executeAtMs: number
@@ -158,12 +155,13 @@ type PendingTeamWipeReturn = {
 
 let nextZombieSequence = 0
 let nextPotionSequence = 0
-let nextFireSequence = 0
+let nextLavaSequence = 0
 const zombieSpawnAtById = new Map<string, ZombieSpawnState>()
 const deadZombieIds = new Set<string>()
 const explodedZombieIds = new Set<string>()
 const activePotionsById = new Map<string, ActivePotionState>()
-const activeFireHazardsById = new Map<string, ActiveFireHazardState>()
+const scheduledLavaHazardsById = new Map<string, ScheduledLavaHazardState>()
+const activeLavaHazardsById = new Map<string, ActiveLavaHazardState>()
 const loadedProfileAddresses = new Set<string>()
 const awardedWaveGoldMilestones = new Set<number>()
 const playerCombatStateByAddress = new Map<string, PlayerCombatState>()
@@ -382,7 +380,7 @@ function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>)
   awardedWaveGoldMilestones.clear()
   lastRageShieldHitAtMsByPlayerAndZombie.clear()
   clearActivePotions(true)
-  clearAllFireHazards()
+  clearAllLavaHazards()
 }
 
 function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
@@ -395,6 +393,7 @@ function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
     respawnAtMs: 0,
     lastDamageRequestAtMs: 0,
     lastHealRequestAtMs: 0,
+    lastLavaDamageAtMs: 0,
     rageShieldEndAtMs: 0,
     speedEndAtMs: 0
   }
@@ -410,6 +409,7 @@ function resetPlayerCombatState(address: string): void {
   state.respawnAtMs = 0
   state.lastDamageRequestAtMs = 0
   state.lastHealRequestAtMs = 0
+  state.lastLavaDamageAtMs = 0
   state.rageShieldEndAtMs = 0
   state.speedEndAtMs = 0
   arenaWeaponByAddress.set(normalizedAddress, { weaponType: 'gun', upgradeLevel: 1 })
@@ -488,17 +488,30 @@ function sendActivePotionsTo(address: string): void {
   }
 }
 
-function sendActiveFireHazardsTo(address: string): void {
-  const normalizedAddress = address.toLowerCase()
-  for (const fire of activeFireHazardsById.values()) {
-    void room.send('fireHazardSpawned', {
-      fireId: fire.fireId,
-      positionX: fire.positionX,
-      positionY: fire.positionY,
-      positionZ: fire.positionZ,
-      expiresAtMs: fire.expiresAtMs
-    }, { to: [normalizedAddress] })
+function sendLavaHazardSpawnBatches(hazards: LavaHazardTileState[], targets?: string[]): void {
+  if (hazards.length === 0) return
+  for (let index = 0; index < hazards.length; index += LAVA_BATCH_SIZE) {
+    const payload = { hazards: hazards.slice(index, index + LAVA_BATCH_SIZE) }
+    if (targets && targets.length > 0) {
+      void room.send('lavaHazardsSpawned', payload, { to: targets })
+    } else {
+      void room.send('lavaHazardsSpawned', payload)
+    }
   }
+}
+
+function sendLavaHazardExpiredBatches(lavaIds: string[]): void {
+  if (lavaIds.length === 0) return
+  for (let index = 0; index < lavaIds.length; index += LAVA_BATCH_SIZE) {
+    void room.send('lavaHazardsExpired', {
+      lavaIds: lavaIds.slice(index, index + LAVA_BATCH_SIZE)
+    })
+  }
+}
+
+function sendActiveLavaHazardsTo(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  sendLavaHazardSpawnBatches([...activeLavaHazardsById.values()], [normalizedAddress])
 }
 
 function clearActivePotions(notifyClients: boolean): void {
@@ -610,48 +623,45 @@ function expirePotions(now: number): void {
   }
 }
 
-function spawnFireHazardsForWave(waveNumber: number, now: number): void {
-  if (waveNumber < FIRE_HAZARD_FIRST_WAVE) return
-  // Scale count: +1 fire every 2 waves beyond wave 4, capped at max
-  const count = Math.min(
-    FIRE_HAZARD_COUNT_BASE + Math.floor((waveNumber - FIRE_HAZARD_FIRST_WAVE) / 2),
-    FIRE_HAZARD_COUNT_MAX
-  )
-  for (let i = 0; i < count; i++) {
-    nextFireSequence += 1
-    const positionX = ARENA_SPAWN_MIN_X + Math.random() * (ARENA_SPAWN_MAX_X - ARENA_SPAWN_MIN_X)
-    const positionZ = ARENA_SPAWN_MIN_Z + Math.random() * (ARENA_SPAWN_MAX_Z - ARENA_SPAWN_MIN_Z)
-    const fire: ActiveFireHazardState = {
-      fireId: `f${nextFireSequence}`,
-      positionX,
-      positionY: 0,
-      positionZ,
-      expiresAtMs: now + FIRE_HAZARD_LIFETIME_MS,
-      lastDamageByAddress: new Map()
-    }
-    activeFireHazardsById.set(fire.fireId, fire)
-    void room.send('fireHazardSpawned', {
-      fireId: fire.fireId,
-      positionX: fire.positionX,
-      positionY: fire.positionY,
-      positionZ: fire.positionZ,
-      expiresAtMs: fire.expiresAtMs
-    })
+function getNextLavaHazardId(): string {
+  nextLavaSequence += 1
+  return `l${nextLavaSequence}`
+}
+
+function queueLavaHazardsForWave(waveNumber: number, now: number): void {
+  if (!shouldSpawnLavaForWave(waveNumber)) return
+  const hazards = buildLavaHazardsForWave(waveNumber, now, getNextLavaHazardId)
+  for (const lava of hazards) {
+    scheduledLavaHazardsById.set(lava.lavaId, lava)
   }
 }
 
-function expireFireHazards(now: number): void {
-  for (const [fireId, fire] of activeFireHazardsById) {
-    if (fire.expiresAtMs > now) continue
-    activeFireHazardsById.delete(fireId)
-    void room.send('fireHazardExpired', { fireId })
+function spawnScheduledLavaHazards(now: number): void {
+  const hazardsToSpawn: LavaHazardTileState[] = []
+  for (const [lavaId, lava] of scheduledLavaHazardsById) {
+    if (lava.warningAtMs > now) continue
+    scheduledLavaHazardsById.delete(lavaId)
+    activeLavaHazardsById.set(lavaId, lava)
+    hazardsToSpawn.push(lava)
   }
+  sendLavaHazardSpawnBatches(hazardsToSpawn)
 }
 
-function clearAllFireHazards(): void {
-  if (activeFireHazardsById.size === 0) return
-  activeFireHazardsById.clear()
-  void room.send('fireHazardsCleared', {})
+function expireLavaHazards(now: number): void {
+  const expiredLavaIds: string[] = []
+  for (const [lavaId, lava] of activeLavaHazardsById) {
+    if (lava.expiresAtMs > now) continue
+    activeLavaHazardsById.delete(lavaId)
+    expiredLavaIds.push(lavaId)
+  }
+  sendLavaHazardExpiredBatches(expiredLavaIds)
+}
+
+function clearAllLavaHazards(): void {
+  if (scheduledLavaHazardsById.size === 0 && activeLavaHazardsById.size === 0) return
+  scheduledLavaHazardsById.clear()
+  activeLavaHazardsById.clear()
+  void room.send('lavaHazardsCleared', {})
 }
 
 function applyZombieDamage(zombieId: string, damage: number, killerAddress: string, now: number): boolean {
@@ -1248,7 +1258,8 @@ function startZombieWaves(address: string, startReason: 'manual' | 'auto' = 'man
   runtime.startedByAddress = normalizedAddress
   clearZombieTracking(runtime)
   sendWaveSpawnPlan(runtime.waveNumber, runtime.serverNowMs)
-  spawnFireHazardsForWave(runtime.waveNumber, runtime.serverNowMs)
+  queueLavaHazardsForWave(runtime.waveNumber, runtime.serverNowMs)
+  spawnScheduledLavaHazards(runtime.serverNowMs)
   logLobbyServerEvent(`WavesStarted by ${normalizedAddress}`)
 
   for (const player of state.arenaPlayers) {
@@ -1284,7 +1295,8 @@ function waveRuntimeSystem(dt: number): void {
   const now = getServerTime()
   runtime.serverNowMs = now
   expirePotions(now)
-  expireFireHazards(now)
+  spawnScheduledLavaHazards(now)
+  expireLavaHazards(now)
   recomputeZombiesAlive(runtime, now)
 
   if (pendingTeamWipeReturn && now >= pendingTeamWipeReturn.executeAtMs) {
@@ -1328,6 +1340,7 @@ function waveRuntimeSystem(dt: number): void {
   if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
     runtime.cyclePhase = WaveCyclePhase.REST
     runtime.phaseEndTimeMs = now + runtime.restDurationSeconds * 1000
+    clearAllLavaHazards()
     grantWaveMilestoneGold(runtime.waveNumber, lobbyState.arenaPlayers)
     for (const player of lobbyState.arenaPlayers) {
       playerProgressStore.mutate(player.address, (progress) => {
@@ -1343,7 +1356,8 @@ function waveRuntimeSystem(dt: number): void {
     runtime.cyclePhase = WaveCyclePhase.ACTIVE
     runtime.phaseEndTimeMs = now + runtime.activeDurationSeconds * 1000
     sendWaveSpawnPlan(runtime.waveNumber, now)
-    spawnFireHazardsForWave(runtime.waveNumber, now)
+    queueLavaHazardsForWave(runtime.waveNumber, now)
+    spawnScheduledLavaHazards(now)
     void room.send('lobbyEvent', {
       type: 'wave_active',
       message: `Wave ${runtime.waveNumber} started`
@@ -1376,7 +1390,7 @@ export function setupLobbyServer(): void {
     sendPowerupStatesTo(context.from)
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
-      sendActiveFireHazardsTo(context.from)
+      sendActiveLavaHazardsTo(context.from)
     }
   })
 
@@ -1501,7 +1515,7 @@ export function setupLobbyServer(): void {
     sendPowerupStatesTo(context.from)
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
-      sendActiveFireHazardsTo(context.from)
+      sendActiveLavaHazardsTo(context.from)
     }
   })
 
@@ -1662,10 +1676,11 @@ export function setupLobbyServer(): void {
     }
   })
 
-  room.onMessage('fireHazardDamageRequest', (data, context) => {
+  room.onMessage('lavaHazardDamageRequest', (data, context) => {
     if (!context) return
     const normalizedAddress = context.from.toLowerCase()
     if (!isPlayerInArena(normalizedAddress)) return
+    if (!data.lavaId) return
 
     const lobbyState = getLobbyState()
     if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
@@ -1673,18 +1688,17 @@ export function setupLobbyServer(): void {
     const runtime = getMatchRuntimeMutable()
     if (!runtime.isRunning) return
 
-    const fire = activeFireHazardsById.get(data.fireId)
-    if (!fire) return
-
     const now = getServerTime()
-    const lastDamageAt = fire.lastDamageByAddress.get(normalizedAddress) ?? 0
-    if (now - lastDamageAt < FIRE_HAZARD_DAMAGE_COOLDOWN_MS) return
+    const lava = activeLavaHazardsById.get(data.lavaId)
+    if (!lava) return
+    if (now < lava.activeAtMs || now >= lava.expiresAtMs) return
 
     const state = getOrCreatePlayerCombatState(normalizedAddress)
     if (state.isDead) return
     if (isRageShieldActive(state, now)) return
+    if (now - state.lastLavaDamageAtMs < LAVA_DAMAGE_INTERVAL_MS) return
 
-    fire.lastDamageByAddress.set(normalizedAddress, now)
+    state.lastLavaDamageAtMs = now
     state.hp = Math.max(0, state.hp - 1)
     if (state.hp <= 0) {
       state.isDead = true

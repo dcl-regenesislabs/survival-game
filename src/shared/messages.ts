@@ -156,19 +156,26 @@ const LobbyMessages = {
     type: Schemas.String,
     message: Schemas.String
   }),
-  fireHazardSpawned: Schemas.Map({
-    fireId: Schemas.String,
-    positionX: Schemas.Number,
-    positionY: Schemas.Number,
-    positionZ: Schemas.Number,
-    expiresAtMs: Schemas.Int64
+  lavaHazardsSpawned: Schemas.Map({
+    hazards: Schemas.Array(
+      Schemas.Map({
+        lavaId: Schemas.String,
+        gridX: Schemas.Number,
+        gridZ: Schemas.Number,
+        modelVariant: Schemas.Number,
+        rotationQuarterTurns: Schemas.Number,
+        warningAtMs: Schemas.Int64,
+        activeAtMs: Schemas.Int64,
+        expiresAtMs: Schemas.Int64
+      })
+    )
   }),
-  fireHazardExpired: Schemas.Map({
-    fireId: Schemas.String
+  lavaHazardsExpired: Schemas.Map({
+    lavaIds: Schemas.Array(Schemas.String)
   }),
-  fireHazardsCleared: Schemas.Map({}),
-  fireHazardDamageRequest: Schemas.Map({
-    fireId: Schemas.String
+  lavaHazardsCleared: Schemas.Map({}),
+  lavaHazardDamageRequest: Schemas.Map({
+    lavaId: Schemas.String
   })
 }
 
