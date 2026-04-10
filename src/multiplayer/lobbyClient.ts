@@ -13,6 +13,7 @@ import { ArenaWeaponType } from '../shared/loadoutCatalog'
 import { WAVE_ACTIVE_SECONDS, WAVE_REST_SECONDS } from '../shared/matchConfig'
 import { ARENA_CENTER_X, ARENA_CENTER_Z } from '../shared/arenaConfig'
 import { getServerTime } from '../shared/timeSync'
+import { setIsoViewEnabled } from '../gameplayInput'
 
 let latestLobbyEvent = ''
 let latestLobbyEventType = ''
@@ -109,6 +110,7 @@ export function setupLobbyClient(): void {
     const localAddress = getLocalAddress()
     if (!localAddress || !data.addresses.includes(localAddress)) return
     localReadyForMatch = true
+    setIsoViewEnabled(true)
     movePlayerTo({
       newRelativePosition: {
         x: data.positionX,
@@ -125,6 +127,7 @@ export function setupLobbyClient(): void {
   room.onMessage('lobbyReturnTeleport', (data) => {
     const localAddress = getLocalAddress()
     if (!localAddress || !data.addresses.includes(localAddress)) return
+    setIsoViewEnabled(false)
     setLocalAvatarHidden(false)
     resetDeathAnimationState()
     resetLocalMatchUiState()

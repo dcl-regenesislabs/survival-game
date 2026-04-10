@@ -59,6 +59,11 @@ export function isIsoViewEnabled(): boolean {
   return isoViewEnabled
 }
 
+export function setIsoViewEnabled(value: boolean): void {
+  isoViewEnabled = value
+  if (value) topViewEnabled = false
+}
+
 export function updateIsoViewToggle(): void {
   const isPressed = inputSystem.isPressed(InputAction.IA_ACTION_4)
   if (isPressed && !prevAction4Pressed) {

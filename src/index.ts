@@ -349,7 +349,7 @@ export function main() {
   topViewCameraEntity = createTopViewCamera()
   engine.addSystem(topViewCameraSystem)
   engine.addSystem(updateTopViewToggle)
-  // Iso-view camera: diagonal corner view, toggle with key [2]
+  // Iso-view camera: diagonal corner view, toggle with key [2] — activates on arena entry
   isoViewCameraEntity = createIsoViewCamera()
   engine.addSystem(isoViewCameraSystem)
   engine.addSystem(updateIsoViewToggle)
