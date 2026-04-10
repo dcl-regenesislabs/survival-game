@@ -489,6 +489,43 @@ const BLOOD_MATERIAL = {
   roughness: 0.8
 }
 
+// Blood splat decals — random GLB from pool, flat on floor, random Y rotation
+const BLOOD_SPLAT_GLBS = [
+  'assets/scene/Models/blood/Blood01.glb',
+  'assets/scene/Models/blood/Blood02.glb',
+  'assets/scene/Models/blood/Blood03.glb',
+  'assets/scene/Models/blood/Blood04.glb'
+]
+const BLOOD_SPLAT_LIFETIME = 15 // seconds before it disappears
+const BloodSplatComponent = engine.defineComponent('BloodSplatComponent', { removeAtTime: Schemas.Number })
+
+function spawnBloodSplat(pos: Vector3): void {
+  const src = BLOOD_SPLAT_GLBS[Math.floor(Math.random() * BLOOD_SPLAT_GLBS.length)]
+  const yRot = Math.random() * 360
+  const entity = engine.addEntity()
+  Transform.create(entity, {
+    position: Vector3.create(pos.x, 0.03, pos.z),
+    rotation: Quaternion.fromEulerDegrees(0, yRot, 0),
+    scale: Vector3.One()
+  })
+  GltfContainer.create(entity, {
+    src,
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+  BloodSplatComponent.create(entity, { removeAtTime: getGameTime() + BLOOD_SPLAT_LIFETIME })
+}
+
+/** Tick: remove expired blood splats */
+export function bloodSplatSystem(): void {
+  const now = getGameTime()
+  const toRemove: Entity[] = []
+  for (const [entity, splat] of engine.getEntitiesWith(BloodSplatComponent)) {
+    if (now >= splat.removeAtTime) toRemove.push(entity)
+  }
+  for (const e of toRemove) engine.removeEntity(e)
+}
+
 /** Spawn blood-like particles bursting outward from a point (world position). */
 export function spawnBloodAtPosition(center: Vector3): void {
   spawnBloodBurst(center, HIT_BURST_COUNT, HIT_BURST_SPEED, BLOOD_BURST_DURATION, HIT_BURST_SCALE)
@@ -596,6 +633,7 @@ export function despawnZombieByNetworkId(zombieId: string): boolean {
       if (pos) {
         const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
         spawnBloodBurst(burstCenter, DEATH_BURST_COUNT, DEATH_BURST_SPEED, BLOOD_BURST_DURATION, DEATH_BURST_SCALE)
+        spawnBloodSplat(pos)
       }
       engine.removeEntity(entity)
       return true
