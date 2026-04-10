@@ -356,6 +356,7 @@ export function spawnZombie(options?: SpawnZombieOptions): Entity {
   })
 
   createHealthBarForZombie(zombie, 3) // default height
+  spawnZombieVfx(spawnPos)
   return zombie
 }
 
@@ -395,6 +396,7 @@ export function spawnQuickZombie(options?: SpawnZombieOptions): Entity {
   })
 
   createHealthBarForZombie(zombie, 2, 1.55) // a bit lower
+  spawnZombieVfx(spawnPos)
   return zombie
 }
 
@@ -435,6 +437,7 @@ export function spawnTankZombie(options?: SpawnZombieOptions): Entity {
   })
 
   createHealthBarForZombie(zombie, 10, 2.75) // a bit higher
+  spawnZombieVfx(spawnPos)
   return zombie
 }
 
@@ -522,6 +525,53 @@ export function bloodSplatSystem(): void {
   const toRemove: Entity[] = []
   for (const [entity, splat] of engine.getEntitiesWith(BloodSplatComponent)) {
     if (now >= splat.removeAtTime) toRemove.push(entity)
+  }
+  for (const e of toRemove) engine.removeEntity(e)
+}
+
+// Spawn VFX — GraveFloorVFX sinks into the ground as the zombie rises
+const SPAWN_VFX_GLB = 'assets/scene/Models/Floor02/GraveFloorVFX.glb'
+const SPAWN_VFX_SINK_DEPTH = 0.6  // how far down it sinks (meters)
+const SPAWN_VFX_DURATION = ZOMBIE_UP_DURATION  // matches the rise-up animation
+const SpawnVfxComponent = engine.defineComponent('SpawnVfxComponent', {
+  startTime: Schemas.Number,
+  duration: Schemas.Number,
+  baseX: Schemas.Number,
+  baseZ: Schemas.Number
+})
+
+function spawnZombieVfx(pos: Vector3): void {
+  const entity = engine.addEntity()
+  Transform.create(entity, {
+    position: Vector3.create(pos.x, 0.0, pos.z),
+    rotation: Quaternion.fromEulerDegrees(0, Math.random() * 360, 0),
+    scale: Vector3.One()
+  })
+  GltfContainer.create(entity, {
+    src: SPAWN_VFX_GLB,
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+  SpawnVfxComponent.create(entity, {
+    startTime: getGameTime(),
+    duration: SPAWN_VFX_DURATION,
+    baseX: pos.x,
+    baseZ: pos.z
+  })
+}
+
+/** Tick: sink spawn VFX into the ground over the zombie's rise animation, then remove */
+export function spawnVfxSystem(): void {
+  const now = getGameTime()
+  const toRemove: Entity[] = []
+  for (const [entity, vfx] of engine.getEntitiesWith(SpawnVfxComponent)) {
+    const t = Math.min((now - vfx.startTime) / vfx.duration, 1)
+    if (t >= 1) {
+      toRemove.push(entity)
+    } else {
+      const y = -SPAWN_VFX_SINK_DEPTH * t
+      Transform.getMutable(entity).position = Vector3.create(vfx.baseX, y, vfx.baseZ)
+    }
   }
   for (const e of toRemove) engine.removeEntity(e)
 }
