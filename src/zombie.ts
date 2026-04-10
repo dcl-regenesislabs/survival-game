@@ -166,6 +166,7 @@ let reportPlayerDamageToServer: ((amount: number) => void) | null = null
 const lastRageShieldHitAtByZombieKey = new Map<string, number>()
 const explodedZombieIds = new Set<string>()
 const exploderWarningRingByZombie = new Map<Entity, Entity>()
+
 export function setZombieHitReporter(
   reporter: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null
 ): void {
@@ -544,7 +545,7 @@ function spawnZombieVfx(pos: Vector3): void {
   const entity = engine.addEntity()
   Transform.create(entity, {
     position: Vector3.create(pos.x, 0.0, pos.z),
-    rotation: Quaternion.fromEulerDegrees(0, Math.random() * 360, 0),
+    rotation: Quaternion.Identity(),
     scale: Vector3.One()
   })
   GltfContainer.create(entity, {
