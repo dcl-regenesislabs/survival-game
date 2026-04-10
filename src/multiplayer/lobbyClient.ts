@@ -42,6 +42,8 @@ function resetLocalMatchUiState(): void {
   lastTeamWipeAffectedLocalPlayer = false
   playerCombatStateByAddress.clear()
   latestLobbyEventType = ''
+  setIsoViewEnabled(false)
+  setAutoFireEnabled(false)
   setLocalAvatarHidden(false)
   resetToIdle()
   resetArenaWeaponProgress()
