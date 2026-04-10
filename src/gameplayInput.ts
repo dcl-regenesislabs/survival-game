@@ -30,6 +30,10 @@ export function isAutoFireEnabled(): boolean {
   return autoFireEnabled
 }
 
+export function setAutoFireEnabled(value: boolean): void {
+  autoFireEnabled = value
+}
+
 export function updateAutoFireToggle(): void {
   const isPressed = inputSystem.isPressed(InputAction.IA_SECONDARY)
   if (isPressed && !prevSecondaryPressed) {
