@@ -156,10 +156,19 @@ type PendingTeamWipeReturn = {
 let nextZombieSequence = 0
 let nextPotionSequence = 0
 let nextLavaSequence = 0
+let nextCollectibleSequence = 0
 const zombieSpawnAtById = new Map<string, ZombieSpawnState>()
 const deadZombieIds = new Set<string>()
 const explodedZombieIds = new Set<string>()
 const activePotionsById = new Map<string, ActivePotionState>()
+type ActiveCollectibleState = {
+  collectibleId: string
+  positionX: number
+  positionY: number
+  positionZ: number
+  expiresAtMs: number
+}
+const activeCollectiblesById = new Map<string, ActiveCollectibleState>()
 const scheduledLavaHazardsById = new Map<string, ScheduledLavaHazardState>()
 const activeLavaHazardsById = new Map<string, ActiveLavaHazardState>()
 const loadedProfileAddresses = new Set<string>()
@@ -381,6 +390,7 @@ function clearZombieTracking(runtime: ReturnType<typeof getMatchRuntimeMutable>)
   lastRageShieldHitAtMsByPlayerAndZombie.clear()
   clearActivePotions(true)
   clearAllLavaHazards()
+  clearAllCollectibles()
 }
 
 function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
@@ -664,6 +674,55 @@ function clearAllLavaHazards(): void {
   void room.send('lavaHazardsCleared', {})
 }
 
+const COLLECTIBLE_LIFETIME_MS = 30_000
+
+function spawnCollectibleDrop(x: number, y: number, z: number, now: number): void {
+  const collectibleId = `col_${nextCollectibleSequence++}`
+  const expiresAtMs = Math.floor(now + COLLECTIBLE_LIFETIME_MS)
+  const col: ActiveCollectibleState = {
+    collectibleId,
+    positionX: x,
+    positionY: y,
+    positionZ: z,
+    expiresAtMs
+  }
+  activeCollectiblesById.set(collectibleId, col)
+  void room.send('collectibleSpawned', {
+    collectibleId,
+    positionX: x,
+    positionY: y,
+    positionZ: z,
+    expiresAtMs
+  })
+}
+
+function sendActiveCollectiblesTo(address: string): void {
+  for (const col of activeCollectiblesById.values()) {
+    void room.send('collectibleSpawned', {
+      collectibleId: col.collectibleId,
+      positionX: col.positionX,
+      positionY: col.positionY,
+      positionZ: col.positionZ,
+      expiresAtMs: col.expiresAtMs
+    }, { to: [address] })
+  }
+}
+
+function tickCollectibleExpiry(now: number): void {
+  for (const [id, col] of activeCollectiblesById) {
+    if (now >= col.expiresAtMs) {
+      activeCollectiblesById.delete(id)
+      void room.send('collectibleExpired', { collectibleId: id })
+    }
+  }
+}
+
+function clearAllCollectibles(): void {
+  if (activeCollectiblesById.size === 0) return
+  activeCollectiblesById.clear()
+  void room.send('collectiblesCleared', {})
+}
+
 function applyZombieDamage(zombieId: string, damage: number, killerAddress: string, now: number): boolean {
   const normalizedAddress = killerAddress.toLowerCase()
   const runtime = getMatchRuntimeMutable()
@@ -685,6 +744,7 @@ function applyZombieDamage(zombieId: string, damage: number, killerAddress: stri
   recomputeZombiesAlive(runtime, now)
   void room.send('zombieDied', { zombieId, killerAddress: normalizedAddress })
   trySpawnPotionDrops(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ)
+  spawnCollectibleDrop(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ, now)
   return true
 }
 
@@ -1297,6 +1357,7 @@ function waveRuntimeSystem(dt: number): void {
   expirePotions(now)
   spawnScheduledLavaHazards(now)
   expireLavaHazards(now)
+  tickCollectibleExpiry(now)
   recomputeZombiesAlive(runtime, now)
 
   if (pendingTeamWipeReturn && now >= pendingTeamWipeReturn.executeAtMs) {
@@ -1391,6 +1452,7 @@ export function setupLobbyServer(): void {
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
       sendActiveLavaHazardsTo(context.from)
+      sendActiveCollectiblesTo(context.from)
     }
   })
 
@@ -1516,6 +1578,7 @@ export function setupLobbyServer(): void {
     if (isPlayerInArena(context.from)) {
       sendActivePotionsTo(context.from)
       sendActiveLavaHazardsTo(context.from)
+      sendActiveCollectiblesTo(context.from)
     }
   })
 
@@ -1610,6 +1673,42 @@ export function setupLobbyServer(): void {
     sendPlayerPowerupState(normalizedAddress)
     void room.send('potionClaimed', {
       potionId: data.potionId,
+      claimerAddress: normalizedAddress
+    })
+  })
+
+  room.onMessage('collectiblePickupRequest', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    if (!isPlayerInArena(normalizedAddress)) return
+    if (!data.collectibleId) return
+
+    const col = activeCollectiblesById.get(data.collectibleId)
+    if (!col) {
+      void room.send('collectibleClaimRejected', { collectibleId: data.collectibleId }, { to: [normalizedAddress] })
+      return
+    }
+
+    const now = getServerTime()
+    if (col.expiresAtMs <= now) {
+      activeCollectiblesById.delete(data.collectibleId)
+      void room.send('collectibleExpired', { collectibleId: data.collectibleId })
+      return
+    }
+
+    const playerPosition = getPlayerPosition(normalizedAddress)
+    const COLLECTIBLE_SERVER_PICKUP_RADIUS = 3.5
+    if (
+      playerPosition &&
+      distanceXZ(playerPosition.x, playerPosition.z, col.positionX, col.positionZ) > COLLECTIBLE_SERVER_PICKUP_RADIUS
+    ) {
+      void room.send('collectibleClaimRejected', { collectibleId: data.collectibleId }, { to: [normalizedAddress] })
+      return
+    }
+
+    activeCollectiblesById.delete(data.collectibleId)
+    void room.send('collectibleClaimed', {
+      collectibleId: data.collectibleId,
       claimerAddress: normalizedAddress
     })
   })
