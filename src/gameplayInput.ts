@@ -1,4 +1,5 @@
-import { inputSystem, InputAction } from '@dcl/sdk/ecs'
+import { engine, inputSystem, InputAction } from '@dcl/sdk/ecs'
+import { ZombieComponent } from './zombie'
 
 let uiPointerCaptureActive = false
 let autoFireEnabled = false
@@ -77,10 +78,18 @@ export function updateIsoViewToggle(): void {
   prevAction4Pressed = isPressed
 }
 
+function hasLiveZombies(): boolean {
+  for (const _ of engine.getEntitiesWith(ZombieComponent)) return true
+  return false
+}
+
 export function isGameplayFireHeld(): boolean {
   syncUiPointerCapture()
   if (uiPointerCaptureActive) return false
-  if (autoFireEnabled) return true
+  if (autoFireEnabled) {
+    if (!hasLiveZombies()) return false
+    return true
+  }
 
   return (
     inputSystem.isPressed(InputAction.IA_POINTER) ||
