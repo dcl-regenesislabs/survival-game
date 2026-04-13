@@ -1,5 +1,6 @@
 import { engine, inputSystem, InputAction } from '@dcl/sdk/ecs'
 import { ZombieComponent } from './zombie'
+import { isPlayerDead } from './playerHealth'
 
 let uiPointerCaptureActive = false
 let autoFireEnabled = false
@@ -85,6 +86,7 @@ function hasLiveZombies(): boolean {
 
 export function isGameplayFireHeld(): boolean {
   syncUiPointerCapture()
+  if (isPlayerDead()) return false
   if (uiPointerCaptureActive) return false
   if (autoFireEnabled) {
     if (!hasLiveZombies()) return false

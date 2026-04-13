@@ -106,7 +106,7 @@ const SPAWN_CENTER_SAFE_RADIUS = 8.5
 const SPAWN_CENTER_SAFE_RADIUS_SQ = SPAWN_CENTER_SAFE_RADIUS * SPAWN_CENTER_SAFE_RADIUS
 const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
-const TEAM_WIPE_UI_DELAY_MS = 2000
+const TEAM_WIPE_UI_DELAY_MS = 0
 const TEAM_WIPE_TELEPORT_DELAY_MS = 3000
 const ARENA_TELEPORT_POSITION = { x: ARENA_CENTER_X, y: 0, z: ARENA_CENTER_Z }
 const ARENA_TELEPORT_LOOK_AT = { x: ARENA_CENTER_X, y: 1, z: ARENA_CENTER_Z + 1 }
@@ -615,7 +615,7 @@ function spawnPotionAt(positionX: number, positionY: number, positionZ: number, 
   sendPotionSpawn(potion)
 }
 
-function trySpawnPotionDrops(positionX: number, positionY: number, positionZ: number): void {
+function trySpawnPotionDrops(positionX: number, positionY: number, positionZ: number): Array<{ x: number; z: number }> {
   const occupiedPositions: Array<{ x: number; z: number }> = []
 
   if (Math.random() < HEALTH_POTION_DROP_CHANCE) {
@@ -633,6 +633,8 @@ function trySpawnPotionDrops(positionX: number, positionY: number, positionZ: nu
     spawnPotionAt(spawn.positionX, spawn.positionY, spawn.positionZ, 'speed')
     occupiedPositions.push({ x: spawn.positionX, z: spawn.positionZ })
   }
+
+  return occupiedPositions
 }
 
 function isRageShieldActive(state: PlayerCombatState, now: number): boolean {
@@ -770,8 +772,12 @@ function applyZombieDamage(
   const dropX = deathPos?.x ?? spawnState.spawnX
   const dropY = deathPos?.y ?? spawnState.spawnY
   const dropZ = deathPos?.z ?? spawnState.spawnZ
-  trySpawnPotionDrops(dropX, dropY, dropZ)
-  spawnCollectibleDrop(dropX, dropY, dropZ, now)
+  const occupiedDropPositions = trySpawnPotionDrops(dropX, dropY, dropZ)
+  const collectibleSpawn =
+    occupiedDropPositions.length > 0
+      ? getAvailablePotionPosition(dropX, dropY, dropZ, occupiedDropPositions)
+      : { positionX: dropX, positionY: dropY, positionZ: dropZ }
+  spawnCollectibleDrop(collectibleSpawn.positionX, collectibleSpawn.positionY, collectibleSpawn.positionZ, now)
   return true
 }
 

@@ -13,6 +13,7 @@ import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotReq
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
 import { isGameplayFireHeld } from './gameplayInput'
+import { isPlayerDead } from './playerHealth'
 import {
   MINIGUN_HEAT_RECOVERY_SECONDS,
   MINIGUN_OVERHEAT_LOCK_SECONDS,
@@ -172,6 +173,10 @@ export function destroyMiniGun(): void {
 }
 
 export function miniGunSystem(dt: number) {
+  if (isPlayerDead()) {
+    if (gunEntity) destroyMiniGun()
+    return
+  }
   const isOverheatLocked = tickMinigunOverheatLock(dt)
   if (getCurrentWeapon() !== 'minigun' || !Transform.has(engine.PlayerEntity) || !gunEntity) {
     if (!isOverheatLocked) coolMinigunHeat(dt)

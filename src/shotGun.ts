@@ -13,6 +13,7 @@ import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotReq
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
 import { isGameplayFireHeld } from './gameplayInput'
+import { isPlayerDead } from './playerHealth'
 import {
   WEAPON_DEFAULT_ROTATION,
   WEAPON_DEFAULT_SCALE,
@@ -144,6 +145,10 @@ export function destroyShotGun(): void {
 }
 
 export function shotGunSystem(dt: number) {
+  if (isPlayerDead()) {
+    if (gunEntity) destroyShotGun()
+    return
+  }
   if (getCurrentWeapon() !== 'shotgun' || !Transform.has(engine.PlayerEntity) || !gunEntity) return
   const localAddress = getLocalAddress()
   const lobbyState = getLobbyState()
