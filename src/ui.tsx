@@ -1,6 +1,7 @@
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { movePlayerTo } from '~system/RestrictedActions'
+import { getExplorerInformation } from '~system/Runtime'
 import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
 import {
   getPlayerDamageOverlayAlpha,
@@ -97,6 +98,9 @@ const HUD_LOBBY_SHEET_SRC = 'assets/images/HUD_LOBBY2.png'
 const HUD_LOBBY_SHEET_WIDTH = 1536
 const HUD_LOBBY_SHEET_HEIGHT = 1024
 const BLOOD_DAMAGE_FRAME_TEXTURE_SRC = 'assets/images/blood_frame.png'
+const DEATH_DAMAGE_FRAME_ALPHA = 1
+const DEATH_BACKDROP_ALPHA = 0.42
+const GAME_OVER_BACKDROP_ALPHA = 0.58
 const LOBBY_HUD_LEFT_MARGIN = 48
 const LOBBY_HUD_ITEM_MARGIN_BOTTOM = 28
 const LOBBY_HUD_TOP_MARGIN = 32
@@ -127,15 +131,30 @@ function scaleUiValue(value: number, scale: number): number {
   return Math.max(1, Math.round(value * scale))
 }
 
-function isMobileRuntime(): boolean {
+function detectMobileUserAgent(): boolean {
   const navigatorLike = (globalThis as { navigator?: { userAgent?: string } }).navigator
   const userAgent = navigatorLike?.userAgent ?? ''
   return /android|iphone|ipad|ipod|mobile/i.test(userAgent)
 }
 
-const IS_MOBILE_RUNTIME = isMobileRuntime()
+let isMobileRuntime = detectMobileUserAgent()
+let runtimePlatformLookupRequested = false
+
+async function resolveRuntimePlatform(): Promise<void> {
+  try {
+    const info = await getExplorerInformation({})
+    const platform = (info.platform ?? '').toLowerCase()
+    isMobileRuntime = platform === 'mobile' || (platform === 'web' && detectMobileUserAgent())
+  } catch {
+    isMobileRuntime = detectMobileUserAgent()
+  }
+}
 
 export function setupUi() {
+  if (!runtimePlatformLookupRequested) {
+    runtimePlatformLookupRequested = true
+    void resolveRuntimePlatform()
+  }
   ReactEcsRenderer.setUiRenderer(uiMenu, { virtualWidth: 1920, virtualHeight: 1080 })
 }
 
@@ -179,6 +198,11 @@ export const uiMenu = () => {
   const currentWeapon = getCurrentWeapon()
   const playerGold = getPlayerGold()
   const damageOverlayAlpha = showGameplayHud ? getPlayerDamageOverlayAlpha(timerNowMs) : 0
+  const showPersistentDeathFrame = showGameOverOverlay || (playerDead && showDeathOverlay)
+  const showDeathBackdrop = showPersistentDeathFrame && !isMobileRuntime
+  const combinedDamageOverlayAlpha = showPersistentDeathFrame
+    ? DEATH_DAMAGE_FRAME_ALPHA
+    : damageOverlayAlpha
   const respawnSecondsLeft = Math.max(0, Math.ceil((getRespawnAtMs() - timerNowMs) / 1000))
   const playerHpRatio = Math.max(0, Math.min(1, getPlayerHp() / MAX_HP))
   const hpFrameScale = PLAYER_HP_FRAME_WIDTH / 968
@@ -209,7 +233,7 @@ export const uiMenu = () => {
     activeEffectBarCount > 0
       ? activeEffectBarCount * effectBarHeight + Math.max(0, activeEffectBarCount - 1) * effectBarGap + 4
       : 0
-  const weaponBarScale = IS_MOBILE_RUNTIME ? MOBILE_WEAPON_BAR_SCALE : 1
+  const weaponBarScale = isMobileRuntime ? MOBILE_WEAPON_BAR_SCALE : 1
   const weaponBarBottomOffset = scaleUiValue(24, weaponBarScale)
   const weaponBarSidePadding = scaleUiValue(24, weaponBarScale)
   const weaponItemSideMargin = scaleUiValue(19, weaponBarScale)
@@ -267,7 +291,7 @@ export const uiMenu = () => {
           texture: { src: BLOOD_DAMAGE_FRAME_TEXTURE_SRC, filterMode: 'bi-linear', wrapMode: 'clamp' }
         }}
       />
-      {damageOverlayAlpha > 0.01 && !showGameOverOverlay && (
+      {combinedDamageOverlayAlpha > 0.01 && (
         <UiEntity
           uiTransform={{
             width: '100%',
@@ -276,9 +300,22 @@ export const uiMenu = () => {
             position: { left: 0, top: 0 }
           }}
           uiBackground={{
-            color: Color4.create(1, 1, 1, damageOverlayAlpha), 
+            color: Color4.create(1, 1, 1, combinedDamageOverlayAlpha),
             textureMode: 'stretch',
             texture: { src: BLOOD_DAMAGE_FRAME_TEXTURE_SRC, filterMode: 'bi-linear', wrapMode: 'clamp' }
+          }}
+        />
+      )}
+      {showDeathBackdrop && (
+        <UiEntity
+          uiTransform={{
+            width: '100%',
+            height: '100%',
+            positionType: 'absolute',
+            position: { left: 0, top: 0 }
+          }}
+          uiBackground={{
+            color: Color4.create(0.08, 0.01, 0.01, showGameOverOverlay ? GAME_OVER_BACKDROP_ALPHA : DEATH_BACKDROP_ALPHA)
           }}
         />
       )}
@@ -767,24 +804,31 @@ export const uiMenu = () => {
             justifyContent: 'center'
           }}
         >
-          <UiEntity
+          <OutlinedText
             uiTransform={{
-              width: 744,
-              height: 524,
+              width: 900,
+              height: 120,
               positionType: 'absolute',
-              position: { top: 330 }
+              position: { top: 410 },
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
-            uiBackground={{
-              textureMode: 'stretch',
-              texture: { src: 'assets/images/death2.png', filterMode: 'bi-linear', wrapMode: 'clamp' }
+            uiText={{
+              value: 'YOU DIED',
+              fontSize: 108,
+              color: Color4.create(0.98, 0.24, 0.18, 1),
+              textAlign: 'middle-center'
             }}
+            outlineColor={Color4.create(0.1, 0, 0, 0.95)}
+            outlineScale={4}
+            outlineKeyPrefix='death-overlay-title'
           />
-          <UiEntity
+          <OutlinedText
             uiTransform={{
               width: 744,
               height: 48,
               positionType: 'absolute',
-              position: { top: 610 },
+              position: { top: 580 },
               alignItems: 'center',
               justifyContent: 'center'
             }}
@@ -794,6 +838,9 @@ export const uiMenu = () => {
               color: Color4.create(0.95, 0.88, 0.76, 1),
               textAlign: 'middle-center'
             }}
+            outlineColor={Color4.create(0.08, 0.03, 0.02, 0.95)}
+            outlineScale={2}
+            outlineKeyPrefix='death-overlay-subtitle'
           />
         </UiEntity>
       )}
@@ -808,24 +855,31 @@ export const uiMenu = () => {
             justifyContent: 'center'
           }}
         >
-          <UiEntity
+          <OutlinedText
             uiTransform={{
-              width: 744,
-              height: 524,
+              width: 980,
+              height: 128,
               positionType: 'absolute',
-              position: { top: 330 }
+              position: { top: 400 },
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
-            uiBackground={{
-              textureMode: 'stretch',
-              texture: { src: 'assets/images/game_over_2.png', filterMode: 'bi-linear', wrapMode: 'clamp' }
+            uiText={{
+              value: 'GAME OVER',
+              fontSize: 110,
+              color: Color4.create(1, 0.2, 0.14, 1),
+              textAlign: 'middle-center'
             }}
+            outlineColor={Color4.create(0.08, 0, 0, 0.98)}
+            outlineScale={4}
+            outlineKeyPrefix='game-over-title'
           />
-          <UiEntity
+          <OutlinedText
             uiTransform={{
               width: 744,
               height: 48,
               positionType: 'absolute',
-              position: { top: 610 },
+              position: { top: 580 },
               alignItems: 'center',
               justifyContent: 'center'
             }}
@@ -835,6 +889,9 @@ export const uiMenu = () => {
               color: Color4.create(0.95, 0.88, 0.76, 1),
               textAlign: 'middle-center'
             }}
+            outlineColor={Color4.create(0.08, 0.03, 0.02, 0.95)}
+            outlineScale={2}
+            outlineKeyPrefix='game-over-subtitle'
           />
         </UiEntity>
       )}
