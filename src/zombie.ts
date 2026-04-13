@@ -30,6 +30,7 @@ import {
   getRageShieldRadius,
   isRaging
 } from './rageEffect'
+import { isIsoViewEnabled } from './viewModes'
 
 // Animation clip names from Zombie.glb
 const ANIM_ZOMBIE_UP = 'ZombieUP'
@@ -149,7 +150,8 @@ const REWARD_TEXT_RISE_SPEED = 1.15
 const REWARD_TEXT_BASE_COLOR = Color4.create(0.0, 1.0, 0.92, 1)
 const REWARD_TEXT_Y_OFFSET = 2.7
 const REWARD_TEXT_SCALE = 0.9
-const REWARD_TEXT_FACING_FIX = Quaternion.fromEulerDegrees(0, 180, 0)
+const REWARD_TEXT_YAW_FIX_DEG = 180
+const REWARD_TEXT_ISO_TILT_DEG = 45
 const REWARD_TEXT_POOL_SIZE = 24
 
 const rewardTextPool: Entity[] = []
@@ -798,6 +800,7 @@ export function explosionVfxSystem(): void {
 
 export function rewardTextSystem(dt: number) {
   const cameraPos = Transform.has(engine.CameraEntity) ? Transform.get(engine.CameraEntity).position : null
+  const pitchDeg = isIsoViewEnabled() ? REWARD_TEXT_ISO_TILT_DEG : 0
   for (const [entity, reward, transform] of engine.getEntitiesWith(RewardTextComponent, Transform, TextShape)) {
     if (!reward.active) continue
 
@@ -820,8 +823,8 @@ export function rewardTextSystem(dt: number) {
       toCam.y = 0
       const lenXZ = Math.sqrt(toCam.x * toCam.x + toCam.z * toCam.z)
       if (lenXZ > 0.001) {
-        const faceCam = Quaternion.lookRotation(Vector3.normalize(toCam))
-        mutableTransform.rotation = Quaternion.multiply(REWARD_TEXT_FACING_FIX, faceCam)
+        const yawDeg = (Math.atan2(toCam.x, toCam.z) * 180) / Math.PI
+        mutableTransform.rotation = Quaternion.fromEulerDegrees(pitchDeg, yawDeg + REWARD_TEXT_YAW_FIX_DEG, 0)
       }
     }
 

@@ -1,13 +1,19 @@
 import { engine, inputSystem, InputAction } from '@dcl/sdk/ecs'
 import { ZombieComponent } from './zombie'
 import { isPlayerDead } from './playerHealth'
+import {
+  isTopViewEnabled,
+  toggleTopView,
+  isIsoViewEnabled,
+  toggleIsoView
+} from './viewModes'
+
+export { isTopViewEnabled, setTopViewEnabled, isIsoViewEnabled, setIsoViewEnabled } from './viewModes'
 
 let uiPointerCaptureActive = false
 let autoFireEnabled = false
 let prevSecondaryPressed = false
-let topViewEnabled = false
 let prevAction3Pressed = false
-let isoViewEnabled = false
 let prevAction4Pressed = false
 
 function syncUiPointerCapture(): void {
@@ -44,37 +50,18 @@ export function updateAutoFireToggle(): void {
   prevSecondaryPressed = isPressed
 }
 
-export function isTopViewEnabled(): boolean {
-  return topViewEnabled
-}
-
-export function setTopViewEnabled(value: boolean): void {
-  topViewEnabled = value
-}
-
 export function updateTopViewToggle(): void {
   const isPressed = inputSystem.isPressed(InputAction.IA_ACTION_3)
   if (isPressed && !prevAction3Pressed) {
-    topViewEnabled = !topViewEnabled
-    if (topViewEnabled) isoViewEnabled = false
+    toggleTopView()
   }
   prevAction3Pressed = isPressed
-}
-
-export function isIsoViewEnabled(): boolean {
-  return isoViewEnabled
-}
-
-export function setIsoViewEnabled(value: boolean): void {
-  isoViewEnabled = value
-  if (value) topViewEnabled = false
 }
 
 export function updateIsoViewToggle(): void {
   const isPressed = inputSystem.isPressed(InputAction.IA_ACTION_4)
   if (isPressed && !prevAction4Pressed) {
-    isoViewEnabled = !isoViewEnabled
-    if (isoViewEnabled) topViewEnabled = false
+    toggleIsoView()
   }
   prevAction4Pressed = isPressed
 }
