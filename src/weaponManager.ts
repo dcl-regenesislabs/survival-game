@@ -80,6 +80,7 @@ function destroyCurrentWeapon(): void {
 }
 
 function createWeapon(type: WeaponType): void {
+  if (isPlayerDead()) return
   const upgradeLevel = getEquippedUpgradeLevel(type)
   if (type === 'gun') createGun(upgradeLevel)
   else if (type === 'shotgun') createShotGun(upgradeLevel)

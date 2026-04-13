@@ -2,7 +2,15 @@ import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { movePlayerTo } from '~system/RestrictedActions'
 import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
-import { getPlayerHp, isPlayerDead, MAX_HP, getRespawnAtMs, getRespawnDelay, shouldShowDeathOverlay } from './playerHealth'
+import {
+  getPlayerDamageOverlayAlpha,
+  getPlayerHp,
+  isPlayerDead,
+  MAX_HP,
+  getRespawnAtMs,
+  getRespawnDelay,
+  shouldShowDeathOverlay
+} from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
 import { getGameTime } from './zombie'
 import { isSpeedActive, getSpeedTimeLeft, SPEED_DURATION_SEC } from './speedEffect'
@@ -88,6 +96,7 @@ const BRICK_TARGET_RETICLE_UVS = [0.555339, 0.71875, 0.555339, 0.910156, 0.69401
 const HUD_LOBBY_SHEET_SRC = 'assets/images/HUD_LOBBY2.png'
 const HUD_LOBBY_SHEET_WIDTH = 1536
 const HUD_LOBBY_SHEET_HEIGHT = 1024
+const BLOOD_DAMAGE_FRAME_TEXTURE_SRC = 'assets/images/blood_frame.png'
 const LOBBY_HUD_LEFT_MARGIN = 48
 const LOBBY_HUD_ITEM_MARGIN_BOTTOM = 28
 const LOBBY_HUD_TOP_MARGIN = 32
@@ -169,6 +178,7 @@ export const uiMenu = () => {
   const brickTargetModeActive = isBrickTargetModeActive()
   const currentWeapon = getCurrentWeapon()
   const playerGold = getPlayerGold()
+  const damageOverlayAlpha = showGameplayHud ? getPlayerDamageOverlayAlpha(timerNowMs) : 0
   const respawnSecondsLeft = Math.max(0, Math.ceil((getRespawnAtMs() - timerNowMs) / 1000))
   const playerHpRatio = Math.max(0, Math.min(1, getPlayerHp() / MAX_HP))
   const hpFrameScale = PLAYER_HP_FRAME_WIDTH / 968
@@ -244,6 +254,34 @@ export const uiMenu = () => {
         justifyContent: 'flex-start'
       }}
     >
+      <UiEntity
+        uiTransform={{
+          width: 1,
+          height: 1,
+          positionType: 'absolute',
+          position: { left: 0, top: 0 }
+        }}
+        uiBackground={{
+          color: Color4.create(1, 1, 1, 0),
+          textureMode: 'stretch',
+          texture: { src: BLOOD_DAMAGE_FRAME_TEXTURE_SRC, filterMode: 'bi-linear', wrapMode: 'clamp' }
+        }}
+      />
+      {damageOverlayAlpha > 0.01 && !showGameOverOverlay && (
+        <UiEntity
+          uiTransform={{
+            width: '100%',
+            height: '100%',
+            positionType: 'absolute',
+            position: { left: 0, top: 0 }
+          }}
+          uiBackground={{
+            color: Color4.create(1, 1, 1, damageOverlayAlpha), 
+            textureMode: 'stretch',
+            texture: { src: BLOOD_DAMAGE_FRAME_TEXTURE_SRC, filterMode: 'bi-linear', wrapMode: 'clamp' }
+          }}
+        />
+      )}
       {(rageActive || speedActive) && (
         <UiEntity
           uiTransform={{
@@ -779,7 +817,7 @@ export const uiMenu = () => {
             }}
             uiBackground={{
               textureMode: 'stretch',
-              texture: { src: 'assets/images/gameover2.png', filterMode: 'bi-linear', wrapMode: 'clamp' }
+              texture: { src: 'assets/images/game_over_2.png', filterMode: 'bi-linear', wrapMode: 'clamp' }
             }}
           />
           <UiEntity

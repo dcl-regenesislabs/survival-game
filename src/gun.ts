@@ -15,6 +15,7 @@ import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotReq
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
 import { isGameplayFireHeld, isIsoViewEnabled } from './gameplayInput'
+import { isPlayerDead } from './playerHealth'
 import {
   WEAPON_DEFAULT_ROTATION,
   WEAPON_DEFAULT_SCALE,
@@ -85,6 +86,7 @@ let localShotSeq = 0
 let currentGunUpgradeLevel = 1
 
 function isLocalPlayerInArena(): boolean {
+  if (isPlayerDead()) return false
   const localAddress = getLocalAddress()
   const lobbyState = getLobbyState()
   return (
@@ -383,7 +385,7 @@ export function gunSystem(dt: number) {
   if (!Transform.has(engine.PlayerEntity)) return
 
   const isInArena = isLocalPlayerInArena()
-  const shouldTrackGun = isInArena && getCurrentWeapon() === 'gun'
+  const shouldTrackGun = !isPlayerDead() && isInArena && getCurrentWeapon() === 'gun'
 
   if (!shouldTrackGun) {
     if (gunEntity) destroyGun()
