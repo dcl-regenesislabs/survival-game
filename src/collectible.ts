@@ -1,10 +1,12 @@
-import { engine, Entity, Material, MeshCollider, MeshRenderer, Schemas, Transform, ColliderLayer } from '@dcl/sdk/ecs'
-import { Color4, Vector3 } from '@dcl/sdk/math'
+import { engine, Entity, GltfContainer, Schemas, Transform } from '@dcl/sdk/ecs'
+import { Vector3 } from '@dcl/sdk/math'
 import { room } from './shared/messages'
 import { getServerTime } from './shared/timeSync'
-import { getGameTime } from './zombie'
+import { getGameTime, spawnZcRewardTextAtPosition } from './zombie'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch } from './multiplayer/lobbyClient'
+import { addZombieCoins, COINS_PER_KILL } from './zombieCoins'
 
+const ZCOIN_GLB = 'assets/scene/Models/zcoins/Zcoin.glb'
 const COLLECTIBLE_PICKUP_RADIUS = 1.8
 const COLLECTIBLE_FLOAT_HEIGHT = 0.5   // base height above ground
 const COLLECTIBLE_BOB_AMPLITUDE = 0.12 // how much it bobs up/down
@@ -42,16 +44,12 @@ function createCollectibleEntity(
   const entity = engine.addEntity()
   Transform.create(entity, {
     position: Vector3.create(position.x, position.y + COLLECTIBLE_FLOAT_HEIGHT, position.z),
-    scale: Vector3.create(0.35, 0.35, 0.35)
+    scale: Vector3.One()
   })
-  MeshRenderer.setSphere(entity)
-  MeshCollider.setSphere(entity, ColliderLayer.CL_NONE)
-  Material.setPbrMaterial(entity, {
-    albedoColor: Color4.create(0.15, 0.9, 1.0, 0.9),
-    emissiveColor: Color4.create(0.1, 0.6, 1.0, 1),
-    emissiveIntensity: 1.8,
-    roughness: 0.2,
-    metallic: 0.6
+  GltfContainer.create(entity, {
+    src: ZCOIN_GLB,
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
   })
 
   CollectibleComponent.create(entity, {
@@ -90,8 +88,15 @@ export function initCollectibleClient(): void {
   })
 
   room.onMessage('collectibleClaimed', (data) => {
+    const entity = localCollectibleById.get(data.collectibleId)
+    const localAddress = getLocalAddress()
+    if (entity && CollectibleComponent.has(entity) && localAddress && data.claimerAddress.toLowerCase() === localAddress) {
+      const col = CollectibleComponent.get(entity)
+      const pos = { x: col.baseX, y: COLLECTIBLE_FLOAT_HEIGHT, z: col.baseZ }
+      addZombieCoins(COINS_PER_KILL)
+      spawnZcRewardTextAtPosition(Vector3.create(pos.x, pos.y, pos.z), COINS_PER_KILL)
+    }
     removeCollectibleById(data.collectibleId)
-    // TODO: apply effect to local player if data.claimerAddress === localAddress
   })
 
   room.onMessage('collectibleExpired', (data) => {

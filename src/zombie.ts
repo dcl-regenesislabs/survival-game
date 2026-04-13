@@ -160,14 +160,14 @@ type SpawnZombieOptions = {
 
 type ZombieHitWeaponType = 'gun' | 'shotgun' | 'minigun'
 
-let reportServerZombieHit: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null = null
+let reportServerZombieHit: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number, posX: number, posY: number, posZ: number) => void) | null = null
 let zombieDeathSoundEntity: Entity | null = null
 let reportPlayerDamageToServer: ((amount: number) => void) | null = null
 const lastRageShieldHitAtByZombieKey = new Map<string, number>()
 const explodedZombieIds = new Set<string>()
 const exploderWarningRingByZombie = new Map<Entity, Entity>()
 export function setZombieHitReporter(
-  reporter: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number) => void) | null
+  reporter: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number, posX: number, posY: number, posZ: number) => void) | null
 ): void {
   reportServerZombieHit = reporter
 }
@@ -737,7 +737,8 @@ export function damageZombie(
   const zombie = ZombieComponent.get(entity)
   if (zombie.networkId) {
     if (hitSource) {
-      reportServerZombieHit?.(zombie.networkId, amount, hitSource.weaponType, hitSource.shotSeq)
+      const pos = Transform.has(entity) ? Transform.get(entity).position : { x: 0, y: 0, z: 0 }
+      reportServerZombieHit?.(zombie.networkId, amount, hitSource.weaponType, hitSource.shotSeq, pos.x, pos.y, pos.z)
     }
     return false
   }

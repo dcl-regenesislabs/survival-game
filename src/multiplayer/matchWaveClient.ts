@@ -130,11 +130,14 @@ function requestZombieHitToServer(
   zombieId: string,
   damage: number,
   weaponType: 'gun' | 'shotgun' | 'minigun',
-  shotSeq: number
+  shotSeq: number,
+  positionX: number,
+  positionY: number,
+  positionZ: number
 ): void {
   if (!zombieId) return
   if (!isLocalPlayerInCurrentMatch()) return
-  void room.send('zombieHitRequest', { zombieId, damage, weaponType, shotSeq })
+  void room.send('zombieHitRequest', { zombieId, damage, weaponType, shotSeq, positionX, positionY, positionZ })
 }
 
 export function initMatchWaveClientSystem(): void {
@@ -154,14 +157,9 @@ export function initMatchWaveClientSystem(): void {
   })
 
   room.onMessage('zombieDied', (data) => {
-    const zombiePos = getZombiePositionByNetworkId(data.zombieId)
     pendingSpawns = pendingSpawns.filter((spawn) => spawn.zombieId !== data.zombieId)
     spawnedZombieIds.delete(data.zombieId)
     pendingZombieHpById.delete(data.zombieId)
-    if (data.killerAddress && data.killerAddress.toLowerCase() === getLocalAddress() && zombiePos) {
-      addZombieCoins(COINS_PER_KILL)
-      spawnZcRewardTextAtPosition(zombiePos, COINS_PER_KILL)
-    }
     despawnZombieByNetworkId(data.zombieId)
   })
 

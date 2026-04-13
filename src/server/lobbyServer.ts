@@ -723,7 +723,13 @@ function clearAllCollectibles(): void {
   void room.send('collectiblesCleared', {})
 }
 
-function applyZombieDamage(zombieId: string, damage: number, killerAddress: string, now: number): boolean {
+function applyZombieDamage(
+  zombieId: string,
+  damage: number,
+  killerAddress: string,
+  now: number,
+  deathPos?: { x: number; y: number; z: number } | null
+): boolean {
   const normalizedAddress = killerAddress.toLowerCase()
   const runtime = getMatchRuntimeMutable()
   const spawnState = zombieSpawnAtById.get(zombieId)
@@ -743,8 +749,11 @@ function applyZombieDamage(zombieId: string, damage: number, killerAddress: stri
   explodedZombieIds.delete(zombieId)
   recomputeZombiesAlive(runtime, now)
   void room.send('zombieDied', { zombieId, killerAddress: normalizedAddress })
-  trySpawnPotionDrops(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ)
-  spawnCollectibleDrop(spawnState.spawnX, spawnState.spawnY, spawnState.spawnZ, now)
+  const dropX = deathPos?.x ?? spawnState.spawnX
+  const dropY = deathPos?.y ?? spawnState.spawnY
+  const dropZ = deathPos?.z ?? spawnState.spawnZ
+  trySpawnPotionDrops(dropX, dropY, dropZ)
+  spawnCollectibleDrop(dropX, dropY, dropZ, now)
   return true
 }
 
@@ -1617,7 +1626,10 @@ export function setupLobbyServer(): void {
 
     const damage = getWeaponHitDamage(normalizedAddress, data.weaponType as ArenaWeaponType)
     zombieHitAllowanceByShotKey.set(allowanceKey, remainingHits - 1)
-    applyZombieDamage(data.zombieId, damage, normalizedAddress, now)
+    const deathPos = (Number.isFinite(data.positionX) && Number.isFinite(data.positionY) && Number.isFinite(data.positionZ))
+      ? { x: data.positionX, y: data.positionY, z: data.positionZ }
+      : null
+    applyZombieDamage(data.zombieId, damage, normalizedAddress, now, deathPos)
   })
 
   room.onMessage('zombieExplodeRequest', (data, context) => {
