@@ -6,6 +6,7 @@ import { room } from '../shared/messages'
 import {
   CLIENT_BASE_GROUP_SIZE,
   CLIENT_GROUP_GROWTH_EVERY_WAVES,
+  CLIENT_GROUP_STAGGER_MS,
   CLIENT_MAX_GROUP_SIZE,
   CLIENT_SPAWN_INTERVAL_SECONDS,
   EXPLODER_ZOMBIE_BASE_CHANCE,
@@ -80,7 +81,7 @@ const LAVA_BATCH_SIZE = 96
 const DISCONNECTED_PLAYER_GRACE_MS = 3000
 const DISCONNECTED_PLAYER_RECONCILE_INTERVAL_SECONDS = 0.5
 const SHOT_RATE_LIMIT_MS_BY_WEAPON: Record<ArenaWeaponType, number> = {
-  gun: 450,
+  gun: 400,
   shotgun: 450,
   minigun: 120
 }
@@ -95,6 +96,14 @@ const ZOMBIE_MAX_HP_BY_TYPE: Record<ZombieType, number> = {
   tank: 10,
   exploder: 15
 }
+const GUN_UPGRADE_FIRE_RATE_MS: Record<number, number> = {
+  1: 400,
+  2: 350,
+  3: 300
+}
+const SPAWN_EDGE_BAND_WIDTH = 4.75
+const SPAWN_CENTER_SAFE_RADIUS = 8.5
+const SPAWN_CENTER_SAFE_RADIUS_SQ = SPAWN_CENTER_SAFE_RADIUS * SPAWN_CENTER_SAFE_RADIUS
 const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
 const TEAM_WIPE_UI_DELAY_MS = 2000
@@ -275,6 +284,15 @@ function getWeaponHitDamage(address: string, weaponType: ArenaWeaponType): numbe
     return GUN_UPGRADE_DAMAGE[upgradeLevel] ?? 1
   }
   return 1
+}
+
+function getWeaponShotRateLimitMs(address: string, weaponType: ArenaWeaponType): number {
+  if (weaponType === 'gun') {
+    const { upgradeLevel } = getPlayerArenaWeaponState(address)
+    return GUN_UPGRADE_FIRE_RATE_MS[upgradeLevel] ?? SHOT_RATE_LIMIT_MS_BY_WEAPON.gun
+  }
+
+  return SHOT_RATE_LIMIT_MS_BY_WEAPON[weaponType]
 }
 
 function sendPlayerArenaWeaponState(address: string, to?: string[]): void {
@@ -1124,14 +1142,48 @@ function pickZombieType(waveNumber: number): ZombieType {
 }
 
 function randomSpawnPoint() {
-  const spawnX = ARENA_SPAWN_MIN_X + Math.random() * (ARENA_SPAWN_MAX_X - ARENA_SPAWN_MIN_X)
-  const spawnZ = ARENA_SPAWN_MIN_Z + Math.random() * (ARENA_SPAWN_MAX_Z - ARENA_SPAWN_MIN_Z)
-  return { spawnX, spawnY: 0, spawnZ }
+  const minX = ARENA_SPAWN_MIN_X
+  const maxX = ARENA_SPAWN_MAX_X
+  const minZ = ARENA_SPAWN_MIN_Z
+  const maxZ = ARENA_SPAWN_MAX_Z
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const edge = Math.floor(Math.random() * 4)
+    let spawnX = minX
+    let spawnZ = minZ
+
+    if (edge === 0) {
+      spawnX = minX + Math.random() * SPAWN_EDGE_BAND_WIDTH
+      spawnZ = minZ + Math.random() * (maxZ - minZ)
+    } else if (edge === 1) {
+      spawnX = maxX - Math.random() * SPAWN_EDGE_BAND_WIDTH
+      spawnZ = minZ + Math.random() * (maxZ - minZ)
+    } else if (edge === 2) {
+      spawnX = minX + Math.random() * (maxX - minX)
+      spawnZ = minZ + Math.random() * SPAWN_EDGE_BAND_WIDTH
+    } else {
+      spawnX = minX + Math.random() * (maxX - minX)
+      spawnZ = maxZ - Math.random() * SPAWN_EDGE_BAND_WIDTH
+    }
+
+    const dx = spawnX - ARENA_CENTER_X
+    const dz = spawnZ - ARENA_CENTER_Z
+    if (dx * dx + dz * dz >= SPAWN_CENTER_SAFE_RADIUS_SQ) {
+      return { spawnX, spawnY: 0, spawnZ }
+    }
+  }
+
+  return {
+    spawnX: Math.random() < 0.5 ? minX : maxX,
+    spawnY: 0,
+    spawnZ: minZ + Math.random() * (maxZ - minZ)
+  }
 }
 
 function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDurationSeconds: number, playerCount: number) {
   const intervalMs = Math.floor(CLIENT_SPAWN_INTERVAL_SECONDS * 1000)
   const activeMs = Math.floor(activeDurationSeconds * 1000)
+  const latestSpawnAtMs = startAtMs + activeMs - 100
   const exploderCooldownMs = Math.floor(EXPLODER_ZOMBIE_COOLDOWN_SECONDS * 1000)
   // Scale group size with player count: +10% per additional player (1p=1x, 2p=1.1x, 3p=1.2x, 4p=1.3x)
   const playerMultiplier = 0.9 + Math.max(1, playerCount) * 0.1
@@ -1145,6 +1197,7 @@ function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDuratio
     let groupHasExploder = false
 
     for (let i = 0; i < groupSize; i++) {
+      const spawnAtMs = Math.min(groupSpawnAtMs + i * CLIENT_GROUP_STAGGER_MS, latestSpawnAtMs)
       nextZombieSequence += 1
       const point = randomSpawnPoint()
       const zombieId = `w${waveNumber}_z${nextZombieSequence}`
@@ -1153,15 +1206,15 @@ function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDuratio
       if (
         waveNumber >= EXPLODER_ZOMBIE_UNLOCK_WAVE &&
         !groupHasExploder &&
-        groupSpawnAtMs - lastExploderSpawnAtMs >= exploderCooldownMs
+        spawnAtMs - lastExploderSpawnAtMs >= exploderCooldownMs
       ) {
         const maxSimultaneousExploders = getExploderMaxSimultaneousForWave(waveNumber)
-        const exploderPlanningWindowStartMs = groupSpawnAtMs - exploderCooldownMs * maxSimultaneousExploders
+        const exploderPlanningWindowStartMs = spawnAtMs - exploderCooldownMs * maxSimultaneousExploders
         const explodersAlreadyPlanned = spawns.filter(
           (spawn) =>
             spawn.zombieType === 'exploder' &&
             spawn.spawnAtMs >= exploderPlanningWindowStartMs &&
-            spawn.spawnAtMs <= groupSpawnAtMs
+            spawn.spawnAtMs <= spawnAtMs
         ).length
         const canSpawnExploder = explodersAlreadyPlanned < maxSimultaneousExploders
         const shouldForceTutorialExploder = waveNumber === EXPLODER_ZOMBIE_UNLOCK_WAVE && !guaranteedExploderSpawned
@@ -1171,7 +1224,7 @@ function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDuratio
           zombieType = 'exploder'
           groupHasExploder = true
           guaranteedExploderSpawned = true
-          lastExploderSpawnAtMs = groupSpawnAtMs
+          lastExploderSpawnAtMs = spawnAtMs
         }
       }
 
@@ -1181,7 +1234,7 @@ function buildWaveSpawnPlan(waveNumber: number, startAtMs: number, activeDuratio
         spawnX: point.spawnX,
         spawnY: point.spawnY,
         spawnZ: point.spawnZ,
-        spawnAtMs: groupSpawnAtMs
+        spawnAtMs
       })
     }
   }
@@ -1774,7 +1827,7 @@ export function setupLobbyServer(): void {
     const now = getServerTime()
     const rateLimitKey = `${normalizedAddress}:${weaponType}`
     const lastShotAtMs = lastShotAtMsByPlayerAndWeapon.get(rateLimitKey) ?? 0
-    const effectiveShotRateLimitMs = SHOT_RATE_LIMIT_MS_BY_WEAPON[weaponType] / getPlayerFireRateMultiplier(state, now)
+    const effectiveShotRateLimitMs = getWeaponShotRateLimitMs(normalizedAddress, weaponType) / getPlayerFireRateMultiplier(state, now)
     if (now - lastShotAtMs < effectiveShotRateLimitMs) return
 
     const originX = Number(data.originX)

@@ -14,7 +14,7 @@ import { getCurrentWeapon } from './weaponManager'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
 import { getFireRateMultiplier } from './speedEffect'
 import { getLocalRotationFromWorld } from './shared/weaponMath'
-import { isGameplayFireHeld } from './gameplayInput'
+import { isGameplayFireHeld, isIsoViewEnabled } from './gameplayInput'
 import {
   WEAPON_DEFAULT_ROTATION,
   WEAPON_DEFAULT_SCALE,
@@ -28,7 +28,7 @@ import { getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loado
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
 const SHOOT_RANGE = 100
-const PROJECTILE_SPEED = 20 // Meters per second - lower = slower bullets
+const PROJECTILE_SPEED = 28 // Faster bullets make auto-aim feel more responsive
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 const BULLET_MODEL_SRC = 'assets/scene/Models/bullets/Bullet.glb'
 const MUZZLE_FLASH_MODEL_SRC = 'assets/scene/Models/bullets/GunVFX.glb'
@@ -38,9 +38,9 @@ const MUZZLE_FLASH_DURATION = 0.25
 const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
 const MUZZLE_FLASH_OFFSET_MODEL_LOCAL = Vector3.create(0, 0, -0.08)
 // How long to freeze gun rotation after shooting (so bullet spawn looks correct). Tweak to match your shoot clip length.
-const GUN_ROTATION_SMOOTH_SPEED = 14
+const GUN_ROTATION_SMOOTH_SPEED = 20
 // Bullet flies straight; remove after this distance from spawn (out of scene)
-const BULLET_MAX_DISTANCE = 40
+const BULLET_MAX_DISTANCE = 48
 const PROJECTILE_COLLIDER_SCALE_VALUE = 0.18
 const PROJECTILE_COLLIDER_SCALE = Vector3.create(
   PROJECTILE_COLLIDER_SCALE_VALUE,
@@ -52,7 +52,7 @@ const PROJECTILE_VISUAL_LOCAL_SCALE_VALUE = 1 / PROJECTILE_COLLIDER_SCALE_VALUE
 const PROJECTILE_VISUAL_SHRINK_START_DISTANCE = 2.5
 const PROJECTILE_VISUAL_SHRINK_END_DISTANCE = 10
 const GUN_SYSTEM_PRIORITY_LAST = -1000
-const PROJECTILE_HIT_RADIUS = 0.95
+const PROJECTILE_HIT_RADIUS = 1.15
 const PROJECTILE_HIT_RADIUS_SQ = PROJECTILE_HIT_RADIUS * PROJECTILE_HIT_RADIUS
 
 // Per-tier gun upgrade stats (matches UI display in lobbyStoreUi.tsx WEAPON_STATS)
@@ -244,6 +244,7 @@ export function spawnProjectileEntity(
 }
 
 function getProjectileVisualScaleFactor(traveled: number): number {
+  if (isIsoViewEnabled()) return 1
   if (traveled <= PROJECTILE_VISUAL_SHRINK_START_DISTANCE) return 1
   const shrinkT = Math.min(
     1,

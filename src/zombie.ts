@@ -138,6 +138,9 @@ const EXPLODER_VFX_DURATION = 1.25
 const EXPLODER_VFX_SCALE = 1.8
 const EXPLODER_WARNING_RING_THICKNESS = 0.06
 const EXPLODER_WARNING_RING_ALPHA = 0.68
+const ZOMBIE_SEPARATION_RADIUS = 0.95
+const ZOMBIE_SEPARATION_RADIUS_SQ = ZOMBIE_SEPARATION_RADIUS * ZOMBIE_SEPARATION_RADIUS
+const ZOMBIE_SEPARATION_WEIGHT = 0.35
 // When a zombie is within this range of a brick, it targets the brick instead of the player
 const BRICK_AGRO_RANGE = 2.5
 const ZOMBIE_DEATH_SOUND_URL = 'assets/sounds/alex_jauk-zombie-screaming-207590.mp3'
@@ -834,6 +837,89 @@ function distanceXZ(a: Vector3, b: Vector3): number {
   return Math.sqrt(dx * dx + dz * dz)
 }
 
+type ZombieMovementEntry = [
+  Entity,
+  ReturnType<typeof ZombieComponent.get>,
+  ReturnType<typeof Transform.get>,
+  ReturnType<typeof GltfContainer.get>,
+  ReturnType<typeof Animator.get>
+]
+
+type BrickObstacle = { entity: Entity; position: Vector3 }
+
+function getZombieSeparationDirection(
+  zombie: Entity,
+  zombiePos: Vector3,
+  zombieEntries: ZombieMovementEntry[]
+): Vector3 {
+  let pushX = 0
+  let pushZ = 0
+
+  for (const [otherZombie, otherZombieData, otherTransform] of zombieEntries) {
+    if (otherZombie === zombie) continue
+    if (otherZombieData.state === ZombieState.SPAWNING || otherZombieData.state === ZombieState.EXPLODING) continue
+
+    const dx = zombiePos.x - otherTransform.position.x
+    const dz = zombiePos.z - otherTransform.position.z
+    const distSq = dx * dx + dz * dz
+    if (distSq <= 0.0001 || distSq >= ZOMBIE_SEPARATION_RADIUS_SQ) continue
+
+    const dist = Math.sqrt(distSq)
+    const strength = (ZOMBIE_SEPARATION_RADIUS - dist) / ZOMBIE_SEPARATION_RADIUS
+    pushX += (dx / dist) * strength
+    pushZ += (dz / dist) * strength
+  }
+
+  const pushLenSq = pushX * pushX + pushZ * pushZ
+  if (pushLenSq <= 0.0001) return Vector3.Zero()
+
+  const pushLen = Math.sqrt(pushLenSq)
+  return Vector3.create(pushX / pushLen, 0, pushZ / pushLen)
+}
+
+function isMoveBlockedByBrick(candidatePos: Vector3, bricks: BrickObstacle[]): boolean {
+  for (const { position } of bricks) {
+    if (distanceXZ(candidatePos, position) <= BRICK_RADIUS) return true
+  }
+  return false
+}
+
+function getCandidateMovePosition(startPos: Vector3, dir: Vector3, moveAmount: number): Vector3 | null {
+  const lenSq = dir.x * dir.x + dir.z * dir.z
+  if (lenSq <= 0.0001) return null
+  const normalized = lenSq >= 0.999 && lenSq <= 1.001 ? dir : Vector3.normalize(dir)
+  return Vector3.create(
+    startPos.x + normalized.x * moveAmount,
+    startPos.y,
+    startPos.z + normalized.z * moveAmount
+  )
+}
+
+function resolveZombieMovePosition(
+  startPos: Vector3,
+  primaryDir: Vector3,
+  fallbackDir: Vector3,
+  moveAmount: number,
+  bricks: BrickObstacle[]
+): Vector3 {
+  const candidates = [
+    primaryDir,
+    fallbackDir,
+    Vector3.create(primaryDir.x, 0, 0),
+    Vector3.create(0, 0, primaryDir.z),
+    Vector3.create(fallbackDir.x, 0, 0),
+    Vector3.create(0, 0, fallbackDir.z)
+  ]
+
+  for (const candidateDir of candidates) {
+    const candidatePos = getCandidateMovePosition(startPos, candidateDir, moveAmount)
+    if (!candidatePos) continue
+    if (!isMoveBlockedByBrick(candidatePos, bricks)) return candidatePos
+  }
+
+  return Vector3.clone(startPos)
+}
+
 type NearestPlayerTarget = {
   position: Vector3
   isLocalPlayer: boolean
@@ -883,13 +969,14 @@ export function zombieSystem(dt: number) {
   const rageShieldRadius = getRageShieldRadius()
   const rageShieldHitIntervalSec = getRageShieldHitIntervalSec()
   const bricks = getBricks()
-
-  for (const [zombie, zombieData, transform] of engine.getEntitiesWith(
+  const zombieEntries = Array.from(engine.getEntitiesWith(
     ZombieComponent,
     Transform,
     GltfContainer,
     Animator
-  )) {
+  ))
+
+  for (const [zombie, zombieData, transform] of zombieEntries) {
     const mutableZombie = ZombieComponent.getMutable(zombie)
     const mutableTransform = Transform.getMutable(zombie)
 
@@ -1020,20 +1107,24 @@ export function zombieSystem(dt: number) {
 
     // Move toward target
     const normalizedDir = Vector3.normalize(direction)
-    const moveAmount = mutableZombie.speed * dt
-    let newPos = Vector3.add(zombiePos, Vector3.scale(normalizedDir, moveAmount))
-    newPos.y = zombiePos.y
-
-    // Collision: do not move into any brick
-    for (const { position } of bricks) {
-      if (distanceXZ(newPos, position) <= BRICK_RADIUS) {
-        newPos = Vector3.clone(zombiePos)
-        break
-      }
+    const separationDir = distance > mutableZombie.attackRange + 0.75
+      ? getZombieSeparationDirection(zombie, zombiePos, zombieEntries)
+      : Vector3.Zero()
+    let moveDir = normalizedDir
+    const blendedDir = Vector3.create(
+      normalizedDir.x + separationDir.x * ZOMBIE_SEPARATION_WEIGHT,
+      0,
+      normalizedDir.z + separationDir.z * ZOMBIE_SEPARATION_WEIGHT
+    )
+    const blendedDirLenSq = blendedDir.x * blendedDir.x + blendedDir.z * blendedDir.z
+    if (blendedDirLenSq > 0.0001) {
+      moveDir = Vector3.normalize(blendedDir)
     }
+    const moveAmount = mutableZombie.speed * dt
+    const newPos = resolveZombieMovePosition(zombiePos, moveDir, normalizedDir, moveAmount, bricks)
     mutableTransform.position = newPos
 
-    const lookRotation = Quaternion.lookRotation(normalizedDir)
+    const lookRotation = Quaternion.lookRotation(moveDir)
     mutableTransform.rotation = lookRotation
   }
 }
