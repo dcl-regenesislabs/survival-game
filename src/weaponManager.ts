@@ -9,8 +9,8 @@ import { getPlayerLoadoutSnapshot } from './loadoutState'
 import { getLoadoutWeaponDefinition } from './shared/loadoutCatalog'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
-export const SHOTGUN_UNLOCK_COST_ZC = 300
-export const MINIGUN_UNLOCK_COST_ZC = 900
+export const SHOTGUN_UNLOCK_COST_ZC = 5
+export const MINIGUN_UNLOCK_COST_ZC = 10
 
 let currentWeapon: WeaponType = 'gun'
 let arenaWeaponEnabled = false
