@@ -9,7 +9,8 @@ export const WAVE_REST_SECONDS = 10
 export const CLIENT_SPAWN_INTERVAL_SECONDS = 4
 export const CLIENT_BASE_GROUP_SIZE = 2
 export const CLIENT_GROUP_GROWTH_EVERY_WAVES = 3
-export const CLIENT_MAX_GROUP_SIZE = 6
+export const CLIENT_MAX_GROUP_SIZE = 4
+export const CLIENT_GROUP_STAGGER_MS = 300
 
 // Enemy mix progression
 export const QUICK_ZOMBIE_UNLOCK_WAVE = 3
