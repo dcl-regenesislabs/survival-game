@@ -46,6 +46,7 @@ import { speedEffectSystem } from './speedEffect'
 import { initRageAura } from './rageAura'
 import { initSpeedAura } from './speedAura'
 import { initPotionSyncClient, potionPickupSystem, potionVisualSystem } from './potions'
+import { initCollectibleClient, collectibleSystem } from './collectible'
 import { EntityNames } from '../assets/scene/entity-names'
 import { setupLobbyServer } from './server/lobbyServer'
 import {
@@ -330,6 +331,7 @@ export function main() {
   setupLobbyClient()
   setupShotReplicationClient()
   initPotionSyncClient()
+  initCollectibleClient()
   initLavaHazardClient()
   setPlayerDamageReporter((amount) => {
     if (isPlayerDead()) return
@@ -380,6 +382,7 @@ export function main() {
   // Potion pickup and visual (tilt + spin)
   engine.addSystem(potionPickupSystem)
   engine.addSystem(potionVisualSystem)
+  engine.addSystem(collectibleSystem)
   engine.addSystem(lavaHazardSystem)
   initDeathAnimationSystem()
   // Authoritative match waves (30s active / 10s rest)

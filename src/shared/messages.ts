@@ -33,7 +33,10 @@ const LobbyMessages = {
     zombieId: Schemas.String,
     damage: Schemas.Number,
     weaponType: Schemas.String,
-    shotSeq: Schemas.Number
+    shotSeq: Schemas.Number,
+    positionX: Schemas.Number,
+    positionY: Schemas.Number,
+    positionZ: Schemas.Number
   }),
   rageShieldHitRequest: Schemas.Map({
     zombieId: Schemas.String
@@ -176,6 +179,27 @@ const LobbyMessages = {
   lavaHazardsCleared: Schemas.Map({}),
   lavaHazardDamageRequest: Schemas.Map({
     lavaId: Schemas.String
+  }),
+  collectibleSpawned: Schemas.Map({
+    collectibleId: Schemas.String,
+    positionX: Schemas.Number,
+    positionY: Schemas.Number,
+    positionZ: Schemas.Number,
+    expiresAtMs: Schemas.Int64
+  }),
+  collectiblePickupRequest: Schemas.Map({
+    collectibleId: Schemas.String
+  }),
+  collectibleClaimed: Schemas.Map({
+    collectibleId: Schemas.String,
+    claimerAddress: Schemas.String
+  }),
+  collectibleExpired: Schemas.Map({
+    collectibleId: Schemas.String
+  }),
+  collectiblesCleared: Schemas.Map({}),
+  collectibleClaimRejected: Schemas.Map({
+    collectibleId: Schemas.String
   })
 }
 
