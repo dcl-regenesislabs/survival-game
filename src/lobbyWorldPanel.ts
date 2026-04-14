@@ -19,21 +19,18 @@ import {
   sendLeaveLobby
 } from './multiplayer/lobbyClient'
 import { getServerTime } from './shared/timeSync'
+import { RoomId, ROOM_IDS, getArenaRoomConfig } from './shared/roomConfig'
 
-const PANEL_WORLD_SCALE = Vector3.create(6.4, 3.8, 0.2)
 const PANEL_UPDATE_INTERVAL_SECONDS = 0.2
-const JOIN_TEXT_WORLD_POSITION = Vector3.create(67.25, 5.6, 47.25)
-const JOIN_COUNTDOWN_WORLD_POSITION = Vector3.create(67.25, 4.5, 43.75)
 const LOBBY_REQUEST_COOLDOWN_MS = 1000
 
 type Entity = ReturnType<typeof engine.addEntity>
 
 export class LobbyWorldPanel {
-  private rootEntity: Entity
-  private panelEntity = engine.addEntity()
-  private textEntity = engine.addEntity()
-  private countdownTextEntity = engine.addEntity()
-  private triggerEntity: Entity
+  private readonly roomId: RoomId
+  private readonly textEntity = engine.addEntity()
+  private readonly countdownTextEntity = engine.addEntity()
+  private readonly triggerEntity: Entity
   private updateAccumulator = 0
   private lastRenderedPlayersText = ''
   private lastRenderedCountdownText = ''
@@ -41,11 +38,12 @@ export class LobbyWorldPanel {
   private lastJoinRequestAtMs = 0
   private lastLeaveRequestAtMs = 0
 
-  constructor() {
-    this.rootEntity = this.requireSceneEntity(EntityNames.Lobby02_glb)
-    this.triggerEntity = this.requireSceneEntity(EntityNames.trigger_room_1)
+  constructor(roomId: RoomId) {
+    this.roomId = roomId
+    const roomConfig = getArenaRoomConfig(roomId)
+    this.triggerEntity = this.requireSceneEntity(roomConfig.triggerEntityName)
     this.createPanel()
-    engine.addSystem((dt) => this.updateSystem(dt), undefined, 'lobby-world-panel-system')
+    engine.addSystem((dt) => this.updateSystem(dt), undefined, `lobby-world-panel-system-${roomId}`)
   }
 
   private requireSceneEntity(entityName: EntityNames): Entity {
@@ -57,15 +55,15 @@ export class LobbyWorldPanel {
   }
 
   private createPanel(): void {
-    Transform.create(this.panelEntity, {
-      parent: this.rootEntity,
-      position: Vector3.Zero(),
-      rotation: Quaternion.Identity(),
-      scale: PANEL_WORLD_SCALE
-    })
+    // Derive text positions from the trigger entity's world position so both
+    // room panels always appear at the correct location regardless of layout.
+    const triggerTransform = Transform.getOrNull(this.triggerEntity)
+    const baseX = triggerTransform?.position.x ?? 0
+    const baseY = triggerTransform?.position.y ?? 0
+    const baseZ = triggerTransform?.position.z ?? 0
 
     Transform.create(this.textEntity, {
-      position: JOIN_TEXT_WORLD_POSITION,
+      position: Vector3.create(baseX, baseY + 5.6, baseZ + 3.5),
       rotation: Quaternion.Identity(),
       scale: Vector3.create(0.3, 0.3, 0.3)
     })
@@ -89,7 +87,7 @@ export class LobbyWorldPanel {
     })
 
     Transform.create(this.countdownTextEntity, {
-      position: JOIN_COUNTDOWN_WORLD_POSITION,
+      position: Vector3.create(baseX, baseY + 4.5, baseZ),
       rotation: Quaternion.Identity(),
       scale: Vector3.create(0.22, 0.22, 0.22)
     })
@@ -110,7 +108,6 @@ export class LobbyWorldPanel {
     TriggerArea.setBox(this.triggerEntity)
     triggerAreaEventsSystem.onTriggerEnter(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
-      console.log('[LobbyPanel] Player entered trigger area')
       this.isLocalPlayerInsideTrigger = true
       this.requestLobbyJoinIfNeeded()
     })
@@ -123,19 +120,19 @@ export class LobbyWorldPanel {
 
   private requestLobbyJoinIfNeeded(): void {
     const localAddress = getLocalAddress()
-    const lobby = getLobbyState()
+    const lobby = getLobbyState(this.roomId)
     const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
     if (isAlreadyJoined) return
 
     const nowMs = Date.now()
     if (nowMs - this.lastJoinRequestAtMs < LOBBY_REQUEST_COOLDOWN_MS) return
     this.lastJoinRequestAtMs = nowMs
-    sendCreateMatchAndJoin()
+    sendCreateMatchAndJoin(this.roomId)
   }
 
   private requestLobbyLeaveIfNeeded(): void {
     const localAddress = getLocalAddress()
-    const lobby = getLobbyState()
+    const lobby = getLobbyState(this.roomId)
     const isAlreadyJoined = !!localAddress && !!lobby?.players.find((player) => player.address === localAddress)
     if (!isAlreadyJoined) return
     if (this.shouldIgnoreTriggerExitLeave()) return
@@ -143,26 +140,34 @@ export class LobbyWorldPanel {
     const nowMs = Date.now()
     if (nowMs - this.lastLeaveRequestAtMs < LOBBY_REQUEST_COOLDOWN_MS) return
     this.lastLeaveRequestAtMs = nowMs
-    sendLeaveLobby()
+    sendLeaveLobby(this.roomId)
   }
 
   private shouldIgnoreTriggerExitLeave(): boolean {
     if (isLocalReadyForMatch()) return true
 
-    const matchRuntime = getMatchRuntimeState()
+    const matchRuntime = getMatchRuntimeState(this.roomId)
     if (matchRuntime?.isRunning) return true
 
-    const lobby = getLobbyState()
+    const lobby = getLobbyState(this.roomId)
     return !!(lobby?.arenaIntroEndTimeMs && lobby.arenaIntroEndTimeMs > getServerTime())
   }
 
   private buildPlayersText(): string {
-    const lobby = getLobbyState()
+    const lobby = getLobbyState(this.roomId)
     const joinedCount = lobby?.players.length ?? 0
     return `Players Joined: ${joinedCount}/${MATCH_MAX_PLAYERS}`
   }
 
   private buildCountdownText(): string {
+    const lobby = getLobbyState(this.roomId)
+    const nowMs = getServerTime()
+    if (lobby?.countdownEndTimeMs && lobby.countdownEndTimeMs > nowMs) {
+      return `STARTING IN ${Math.max(0, Math.ceil((lobby.countdownEndTimeMs - nowMs) / 1000))}`
+    }
+    if (lobby?.arenaIntroEndTimeMs && lobby.arenaIntroEndTimeMs > nowMs) {
+      return `GET READY ${Math.max(0, Math.ceil((lobby.arenaIntroEndTimeMs - nowMs) / 1000))}`
+    }
     return ''
   }
 
@@ -185,6 +190,6 @@ export class LobbyWorldPanel {
   }
 }
 
-export function initLobbyWorldPanel(): LobbyWorldPanel {
-  return new LobbyWorldPanel()
+export function initLobbyWorldPanel(): LobbyWorldPanel[] {
+  return ROOM_IDS.map((roomId) => new LobbyWorldPanel(roomId))
 }

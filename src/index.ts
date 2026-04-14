@@ -5,12 +5,7 @@ import {
   InputAction,
   Transform,
   MainCamera,
-  VirtualCamera,
-  MeshCollider,
-  ColliderLayer,
-  Name,
-  MeshRenderer,
-  Material
+  VirtualCamera
 } from '@dcl/sdk/ecs'
 import { isServer } from '@dcl/sdk/network'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
@@ -69,20 +64,6 @@ import { initArenaRemotePowerups } from './arenaRemotePowerups'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { room } from './shared/messages'
-import {
-  ARENA_FLOOR_POSITION_X,
-  ARENA_FLOOR_POSITION_Z,
-  ARENA_FLOOR_SCALE,
-  ARENA_FLOOR_WORLD_SIZE_X,
-  ARENA_WALL_LENGTH_SCALE,
-  ARENA_WALL_BOTTOM_Z,
-  ARENA_WALL_LEFT_X,
-  ARENA_WALL_RIGHT_X,
-  ARENA_WALL_TOP_Z,
-  ARENA_CENTER_X,
-  ARENA_CENTER_Z,
-  ARENA_SIZE
-} from './shared/arenaConfig'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
 const CINEMATIC_CAMERA_HEIGHT = 12
@@ -313,20 +294,6 @@ export function main() {
   }
 
   initTimeSync({ isServer: false })
-
-  // Dark overlay plane for arena contrast — matches the floor GLB footprint (48x48)
-  const arenaFloorOverlay = engine.addEntity()
-  Transform.create(arenaFloorOverlay, {
-    position: Vector3.create(ARENA_CENTER_X, 0.02, ARENA_CENTER_Z),
-    scale: Vector3.create(ARENA_FLOOR_WORLD_SIZE_X, 0.01, ARENA_FLOOR_WORLD_SIZE_X)
-  })
-  MeshRenderer.setBox(arenaFloorOverlay)
-  MeshCollider.setBox(arenaFloorOverlay, ColliderLayer.CL_NONE)
-  Material.setPbrMaterial(arenaFloorOverlay, {
-    albedoColor: { r: 0.12, g: 0.12, b: 0.12, a: 1 },
-    roughness: 1,
-    metallic: 0
-  })
 
   setupLobbyClient()
   setupShotReplicationClient()

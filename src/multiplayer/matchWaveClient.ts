@@ -4,6 +4,7 @@ import { room } from '../shared/messages'
 import { getServerTime } from '../shared/timeSync'
 import {
   applyZombieHealthUpdateByNetworkId,
+  despawnAllZombies,
   explodeZombieByNetworkId,
   despawnZombieByNetworkId,
   getZombiePositionByNetworkId,
@@ -15,6 +16,7 @@ import {
   spawnZcRewardTextAtPosition
 } from '../zombie'
 import { getLocalAddress, getLobbyState } from './lobbyClient'
+import { getCurrentRoomId } from '../roomRuntime'
 import { addZombieCoins, COINS_PER_KILL } from '../zombieCoins'
 
 type ZombieType = 'basic' | 'quick' | 'tank' | 'exploder'
@@ -33,6 +35,8 @@ let isWaveSpawnListenerRegistered = false
 let pendingSpawns: PlannedSpawn[] = []
 const spawnedZombieIds = new Set<string>()
 const pendingZombieHpById = new Map<string, number>()
+let lastWaveRoomId = getCurrentRoomId()
+let areWaveEntitiesCleared = false
 
 function isLocalPlayerInCurrentMatch(): boolean {
   const lobbyState = getLobbyState()
@@ -112,11 +116,28 @@ function spawnPlannedZombie(spawn: PlannedSpawn): void {
 }
 
 function plannedSpawnSystem(): void {
-  if (!isLocalPlayerInCurrentMatch()) {
+  const currentRoomId = getCurrentRoomId()
+  if (lastWaveRoomId !== currentRoomId) {
     pendingSpawns = []
     pendingZombieHpById.clear()
+    spawnedZombieIds.clear()
+    despawnAllZombies()
+    lastWaveRoomId = currentRoomId
+    areWaveEntitiesCleared = true
+  }
+
+  if (!isLocalPlayerInCurrentMatch()) {
+    if (!areWaveEntitiesCleared) {
+      pendingSpawns = []
+      pendingZombieHpById.clear()
+      spawnedZombieIds.clear()
+      despawnAllZombies()
+      areWaveEntitiesCleared = true
+    }
     return
   }
+
+  areWaveEntitiesCleared = false
 
   const nowMs = getServerTime()
   while (pendingSpawns.length > 0 && pendingSpawns[0].spawnAtMs <= nowMs) {

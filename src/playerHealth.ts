@@ -1,7 +1,7 @@
 import { engine, Transform } from '@dcl/sdk/ecs'
 import { Vector3 } from '@dcl/sdk/math'
 import { movePlayerTo } from '~system/RestrictedActions'
-import { ARENA_CENTER } from './shared/arenaConfig'
+import { getCurrentRoomConfig } from './roomRuntime'
 import { getServerTime } from './shared/timeSync'
 
 export const MAX_HP = 5
@@ -15,8 +15,6 @@ let damageOverlayTriggeredAtMs = 0
 let damageOverlayPeakAlpha = 0
 let hasReceivedAuthoritativeHealthState = false
 
-/** Respawn position in scene (center of play area) */
-const RESPAWN_POSITION = Vector3.create(ARENA_CENTER.x, 0, ARENA_CENTER.z)
 const RESPAWN_DELAY = 5 // seconds to show "You Died" before respawning
 const DEATH_OVERLAY_DELAY_MS = 0
 const DAMAGE_OVERLAY_HOLD_MS = 80
@@ -98,9 +96,12 @@ function triggerDamageOverlay(damageTaken: number, nowMs: number): void {
 
 /** Respawn player: move to spawn, restore HP, clear death state. */
 export function respawnPlayer(): void {
+  const roomConfig = getCurrentRoomConfig()
+  const respawnPosition = roomConfig.respawnPosition
+  const respawnLookAt = roomConfig.respawnLookAt
   movePlayerTo({
-    newRelativePosition: { x: RESPAWN_POSITION.x, y: RESPAWN_POSITION.y, z: RESPAWN_POSITION.z },
-    cameraTarget: { x: RESPAWN_POSITION.x, y: 1, z: RESPAWN_POSITION.z + 1 }
+    newRelativePosition: { x: respawnPosition.x, y: respawnPosition.y, z: respawnPosition.z },
+    cameraTarget: { x: respawnLookAt.x, y: respawnLookAt.y, z: respawnLookAt.z }
   })
   resetPlayerHealthState()
 }

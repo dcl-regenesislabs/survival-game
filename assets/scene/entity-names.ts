@@ -5,7 +5,6 @@
  * Object containing all entity names in the scene for autocomplete support.
  */
 export enum EntityNames {
-  Floor02_glb = "Floor02.glb",
   JoinArea01_glb = "JoinArea01.glb",
   JoinArea01_glb_2 = "JoinArea01.glb_2",
   JoinArea01_glb_3 = "JoinArea01.glb_3",
@@ -15,14 +14,20 @@ export enum EntityNames {
   NewGameText_glb_2 = "NewGameText.glb_2",
   NewGameText_glb_3 = "NewGameText.glb_3",
   NewGameText_glb_4 = "NewGameText.glb_4",
+  Plane = "Plane",
+  Plane_2 = "Plane_2",
   WallArena01_glb = "WallArena01.glb",
   WallArena01_glb_2 = "WallArena01.glb_2",
   WallArena01_glb_3 = "WallArena01.glb_3",
   WallArena01_glb_4 = "WallArena01.glb_4",
+  WallArena01_glb_5 = "WallArena01.glb_5",
   WallColumn_glb = "WallColumn.glb",
   WallColumn_glb_2 = "WallColumn.glb_2",
   WallColumn_glb_3 = "WallColumn.glb_3",
   WallColumn_glb_4 = "WallColumn.glb_4",
+  WallColumn_glb_5 = "WallColumn.glb_5",
+  arena_1 = "arena_1",
+  arena_2 = "arena_2",
   npc_collider_1 = "npc_collider_1",
   npc_collider_2 = "npc_collider_2",
   npcs01_glb = "npcs01.glb",

@@ -3,17 +3,27 @@ import { registerMessages } from '@dcl/sdk/network'
 
 const LobbyMessages = {
   playerLoadProfile: Schemas.Map({}),
-  playerJoinLobby: Schemas.Map({}),
-  playerLeaveLobby: Schemas.Map({}),
+  playerJoinLobby: Schemas.Map({
+    roomId: Schemas.String
+  }),
+  playerLeaveLobby: Schemas.Map({
+    roomId: Schemas.String
+  }),
   buyLoadoutWeapon: Schemas.Map({
     weaponId: Schemas.String
   }),
   equipLoadoutWeapon: Schemas.Map({
     weaponId: Schemas.String
   }),
-  createMatch: Schemas.Map({}),
-  createMatchAndJoin: Schemas.Map({}),
-  startGameManual: Schemas.Map({}),
+  createMatch: Schemas.Map({
+    roomId: Schemas.String
+  }),
+  createMatchAndJoin: Schemas.Map({
+    roomId: Schemas.String
+  }),
+  startGameManual: Schemas.Map({
+    roomId: Schemas.String
+  }),
   waveSpawnPlan: Schemas.Map({
     waveNumber: Schemas.Number,
     startAtMs: Schemas.Int64,

@@ -1,10 +1,5 @@
 import { Vector3 } from '@dcl/sdk/math'
-import {
-  ARENA_FLOOR_POSITION_X,
-  ARENA_FLOOR_POSITION_Z,
-  ARENA_FLOOR_WORLD_SIZE_X,
-  ARENA_FLOOR_WORLD_SIZE_Z
-} from './arenaConfig'
+import { RoomId, getArenaRoomConfig } from './roomConfig'
 
 export const LAVA_MODEL_SRCS = [
   'assets/asset-packs/lava/lava.glb',
@@ -14,10 +9,8 @@ export const LAVA_MODEL_SRCS = [
 
 export const LAVA_FIRST_WAVE = 1
 export const LAVA_ZONE_WORLD_SIZE = 4
-export const LAVA_WORLD_MIN_X = ARENA_FLOOR_POSITION_X
-export const LAVA_WORLD_MIN_Z = ARENA_FLOOR_POSITION_Z
-export const LAVA_WORLD_SIZE_X = ARENA_FLOOR_WORLD_SIZE_X
-export const LAVA_WORLD_SIZE_Z = ARENA_FLOOR_WORLD_SIZE_Z
+export const LAVA_WORLD_SIZE_X = getArenaRoomConfig('room_1').floorSizeX
+export const LAVA_WORLD_SIZE_Z = getArenaRoomConfig('room_1').floorSizeZ
 export const LAVA_GRID_SIZE_X = Math.floor(LAVA_WORLD_SIZE_X / LAVA_ZONE_WORLD_SIZE)
 export const LAVA_GRID_SIZE_Z = Math.floor(LAVA_WORLD_SIZE_Z / LAVA_ZONE_WORLD_SIZE)
 export const LAVA_GRID_SIZE = Math.min(LAVA_GRID_SIZE_X, LAVA_GRID_SIZE_Z)
@@ -59,21 +52,36 @@ export function getLavaTileKey(gridX: number, gridZ: number): string {
   return `${gridX}:${gridZ}`
 }
 
+export function getRoomLavaTileKey(roomId: RoomId, gridX: number, gridZ: number): string {
+  return `${roomId}:${gridX}:${gridZ}`
+}
+
 export function isLavaGridInBounds(gridX: number, gridZ: number): boolean {
   return gridX >= 0 && gridZ >= 0 && gridX < LAVA_GRID_SIZE_X && gridZ < LAVA_GRID_SIZE_Z
 }
 
-export function getLavaWorldPosition(gridX: number, gridZ: number, scaleY: number = LAVA_TILE_ACTIVE_SCALE_Y): Vector3 {
+export function getLavaWorldPosition(
+  roomId: RoomId,
+  gridX: number,
+  gridZ: number,
+  scaleY: number = LAVA_TILE_ACTIVE_SCALE_Y
+): Vector3 {
+  const roomConfig = getArenaRoomConfig(roomId)
   return Vector3.create(
-    LAVA_WORLD_MIN_X + gridX * LAVA_ZONE_WORLD_SIZE + LAVA_ZONE_WORLD_SIZE * 0.5,
+    roomConfig.floorMinX + gridX * LAVA_ZONE_WORLD_SIZE + LAVA_ZONE_WORLD_SIZE * 0.5,
     scaleY * 0.5,
-    LAVA_WORLD_MIN_Z + gridZ * LAVA_ZONE_WORLD_SIZE + LAVA_ZONE_WORLD_SIZE * 0.5
+    roomConfig.floorMinZ + gridZ * LAVA_ZONE_WORLD_SIZE + LAVA_ZONE_WORLD_SIZE * 0.5
   )
 }
 
-export function getLavaGridCoordsFromWorld(positionX: number, positionZ: number): { gridX: number; gridZ: number } | null {
-  const gridX = Math.floor((positionX - LAVA_WORLD_MIN_X) / LAVA_ZONE_WORLD_SIZE)
-  const gridZ = Math.floor((positionZ - LAVA_WORLD_MIN_Z) / LAVA_ZONE_WORLD_SIZE)
+export function getLavaGridCoordsFromWorld(
+  roomId: RoomId,
+  positionX: number,
+  positionZ: number
+): { gridX: number; gridZ: number } | null {
+  const roomConfig = getArenaRoomConfig(roomId)
+  const gridX = Math.floor((positionX - roomConfig.floorMinX) / LAVA_ZONE_WORLD_SIZE)
+  const gridZ = Math.floor((positionZ - roomConfig.floorMinZ) / LAVA_ZONE_WORLD_SIZE)
   if (!isLavaGridInBounds(gridX, gridZ)) return null
   return { gridX, gridZ }
 }

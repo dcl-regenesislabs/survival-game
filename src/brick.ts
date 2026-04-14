@@ -12,7 +12,7 @@ import {
 import { syncEntity } from '@dcl/sdk/network'
 import { Vector3, Quaternion, Color3, Color4 } from '@dcl/sdk/math'
 import { spendZombieCoins } from './zombieCoins'
-import { ARENA_BRICK_MAX_X, ARENA_BRICK_MAX_Z, ARENA_BRICK_MIN_X, ARENA_BRICK_MIN_Z } from './shared/arenaConfig'
+import { getCurrentRoomConfig } from './roomRuntime'
 import {
   BRICK_COST_BASE,
   BRICK_COST_TIER_2, BRICK_COST_TIER_2_WAVE,
@@ -117,12 +117,13 @@ const BRICK_TARGET_TIMEOUT_MS = 5000
 const GRID_SIZE = 1
 // Arena play area bounds live in shared config; leave a 1-unit margin for brick placement
 function snapToGrid(v: Vector3): Vector3 {
+  const roomConfig = getCurrentRoomConfig()
   const snappedX = Math.round(v.x / GRID_SIZE) * GRID_SIZE
   const snappedZ = Math.round(v.z / GRID_SIZE) * GRID_SIZE
   return Vector3.create(
-    Math.max(ARENA_BRICK_MIN_X, Math.min(ARENA_BRICK_MAX_X, snappedX)),
+    Math.max(roomConfig.brickMinX, Math.min(roomConfig.brickMaxX, snappedX)),
     v.y,
-    Math.max(ARENA_BRICK_MIN_Z, Math.min(ARENA_BRICK_MAX_Z, snappedZ))
+    Math.max(roomConfig.brickMinZ, Math.min(roomConfig.brickMaxZ, snappedZ))
   )
 }
 const BRICK_TARGET_PREVIEW_SCALE = 1.05

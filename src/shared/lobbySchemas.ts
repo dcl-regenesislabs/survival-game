@@ -11,6 +11,7 @@ const LobbyPlayerSchema = Schemas.Map({
 })
 
 const LobbyStateSchema = {
+  roomId: Schemas.String,
   phase: Schemas.EnumString<LobbyPhase>(LobbyPhase, LobbyPhase.LOBBY),
   matchId: Schemas.String,
   hostAddress: Schemas.String,
@@ -21,6 +22,7 @@ const LobbyStateSchema = {
 }
 
 export const LobbyStateComponent = engine.defineComponent('LobbyStateComponent', LobbyStateSchema, {
+  roomId: 'room_1',
   phase: LobbyPhase.LOBBY,
   matchId: '',
   hostAddress: '',
@@ -36,6 +38,7 @@ export type LobbyPlayer = {
 }
 
 export type LobbyStateSnapshot = {
+  roomId: string
   phase: LobbyPhase
   matchId: string
   hostAddress: string

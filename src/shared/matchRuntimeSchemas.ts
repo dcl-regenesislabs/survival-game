@@ -7,6 +7,7 @@ export enum WaveCyclePhase {
 }
 
 const MatchRuntimeStateSchema = {
+  roomId: Schemas.String,
   isRunning: Schemas.Boolean,
   waveNumber: Schemas.Number,
   cyclePhase: Schemas.EnumString<WaveCyclePhase>(WaveCyclePhase, WaveCyclePhase.ACTIVE),
@@ -20,6 +21,7 @@ const MatchRuntimeStateSchema = {
 }
 
 export const MatchRuntimeStateComponent = engine.defineComponent('MatchRuntimeStateComponent', MatchRuntimeStateSchema, {
+  roomId: 'room_1',
   isRunning: false,
   waveNumber: 0,
   cyclePhase: WaveCyclePhase.ACTIVE,
@@ -33,6 +35,7 @@ export const MatchRuntimeStateComponent = engine.defineComponent('MatchRuntimeSt
 })
 
 export type MatchRuntimeSnapshot = {
+  roomId: string
   isRunning: boolean
   waveNumber: number
   cyclePhase: WaveCyclePhase
