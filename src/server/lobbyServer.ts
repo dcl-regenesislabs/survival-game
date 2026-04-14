@@ -306,6 +306,13 @@ function getExplosiveZombieDamageKey(address: string, zombieId: string): string 
   return `${address.toLowerCase()}:${zombieId}`
 }
 
+function isPlayerZombieTrackingKeyForRoom(key: string, roomId: RoomId): boolean {
+  const separatorIndex = key.indexOf(':')
+  if (separatorIndex < 0 || separatorIndex >= key.length - 1) return false
+  const zombieId = key.slice(separatorIndex + 1)
+  return zombieId.startsWith(`${roomId}_`)
+}
+
 function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
   const progress = playerProgressStore.get(address)
   const defaultEquippedWeaponIds = Object.values(DEFAULT_LOADOUT_WEAPON_BY_TIER).filter(
@@ -473,12 +480,12 @@ function clearZombieTracking(roomId: RoomId, runtime: ReturnType<typeof getMatch
   runtime.zombiesPlanned = 0
   roomState.awardedWaveGoldMilestones.clear()
   for (const damageKey of [...explosiveZombieDamageByPlayerKey]) {
-    if (damageKey.includes(`:${roomId}_`)) {
+    if (isPlayerZombieTrackingKeyForRoom(damageKey, roomId)) {
       explosiveZombieDamageByPlayerKey.delete(damageKey)
     }
   }
   for (const hitKey of [...lastRageShieldHitAtMsByPlayerAndZombie.keys()]) {
-    if (hitKey.includes(`:${roomId}_`)) {
+    if (isPlayerZombieTrackingKeyForRoom(hitKey, roomId)) {
       lastRageShieldHitAtMsByPlayerAndZombie.delete(hitKey)
     }
   }

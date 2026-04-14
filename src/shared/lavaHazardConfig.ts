@@ -1,5 +1,5 @@
 import { Vector3 } from '@dcl/sdk/math'
-import { RoomId, getArenaRoomConfig } from './roomConfig'
+import { ROOM_IDS, RoomId, getArenaRoomConfig } from './roomConfig'
 
 export const LAVA_MODEL_SRCS = [
   'assets/asset-packs/lava/lava.glb',
@@ -9,8 +9,50 @@ export const LAVA_MODEL_SRCS = [
 
 export const LAVA_FIRST_WAVE = 1
 export const LAVA_ZONE_WORLD_SIZE = 4
-export const LAVA_WORLD_SIZE_X = getArenaRoomConfig('room_1').floorSizeX
-export const LAVA_WORLD_SIZE_Z = getArenaRoomConfig('room_1').floorSizeZ
+type LavaGridDimensions = {
+  worldSizeX: number
+  worldSizeZ: number
+  gridSizeX: number
+  gridSizeZ: number
+}
+
+function getLavaGridDimensions(roomId: RoomId): LavaGridDimensions {
+  const roomConfig = getArenaRoomConfig(roomId)
+  return {
+    worldSizeX: roomConfig.floorSizeX,
+    worldSizeZ: roomConfig.floorSizeZ,
+    gridSizeX: Math.floor(roomConfig.floorSizeX / LAVA_ZONE_WORLD_SIZE),
+    gridSizeZ: Math.floor(roomConfig.floorSizeZ / LAVA_ZONE_WORLD_SIZE)
+  }
+}
+
+function getSharedLavaGridDimensions(): LavaGridDimensions {
+  const sharedDimensions = getLavaGridDimensions(ROOM_IDS[0])
+  for (const roomId of ROOM_IDS.slice(1)) {
+    const dimensions = getLavaGridDimensions(roomId)
+    if (
+      dimensions.worldSizeX !== sharedDimensions.worldSizeX ||
+      dimensions.worldSizeZ !== sharedDimensions.worldSizeZ ||
+      dimensions.gridSizeX !== sharedDimensions.gridSizeX ||
+      dimensions.gridSizeZ !== sharedDimensions.gridSizeZ
+    ) {
+      throw new Error(
+        `[LavaHazardConfig] Lava patterns currently require uniform arena floor dimensions. ${ROOM_IDS[0]}=` +
+          `${sharedDimensions.worldSizeX}x${sharedDimensions.worldSizeZ}, ${roomId}=` +
+          `${dimensions.worldSizeX}x${dimensions.worldSizeZ}`
+      )
+    }
+  }
+  return sharedDimensions
+}
+
+// Lava pattern generation still operates on a shared grid, so enforce that
+// every active arena exposes the same floor dimensions instead of silently
+// borrowing room_1 values for every other room.
+const SHARED_LAVA_GRID_DIMENSIONS = getSharedLavaGridDimensions()
+
+export const LAVA_WORLD_SIZE_X = SHARED_LAVA_GRID_DIMENSIONS.worldSizeX
+export const LAVA_WORLD_SIZE_Z = SHARED_LAVA_GRID_DIMENSIONS.worldSizeZ
 export const LAVA_GRID_SIZE_X = Math.floor(LAVA_WORLD_SIZE_X / LAVA_ZONE_WORLD_SIZE)
 export const LAVA_GRID_SIZE_Z = Math.floor(LAVA_WORLD_SIZE_Z / LAVA_ZONE_WORLD_SIZE)
 export const LAVA_GRID_SIZE = Math.min(LAVA_GRID_SIZE_X, LAVA_GRID_SIZE_Z)
