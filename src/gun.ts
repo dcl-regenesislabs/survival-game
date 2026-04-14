@@ -246,7 +246,6 @@ export function spawnProjectileEntity(
 }
 
 function getProjectileVisualScaleFactor(traveled: number): number {
-  if (isIsoViewEnabled()) return 1
   if (traveled <= PROJECTILE_VISUAL_SHRINK_START_DISTANCE) return 1
   const shrinkT = Math.min(
     1,
