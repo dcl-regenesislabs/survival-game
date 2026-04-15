@@ -23,6 +23,7 @@ const CollectibleComponent = engine.defineComponent('CollectibleComponent', {
 })
 
 const localCollectibleById = new Map<string, Entity>()
+const predictedPickupIds = new Set<string>()
 let isInitialized = false
 
 function isLocalPlayerInCurrentMatch(): boolean {
@@ -68,9 +69,12 @@ function removeCollectibleById(collectibleId: string): void {
   if (!entity) return
   if (CollectibleComponent.has(entity)) engine.removeEntity(entity)
   localCollectibleById.delete(collectibleId)
+  predictedPickupIds.delete(collectibleId)
 }
 
 function clearAllCollectibles(): void {
+  for (const id of predictedPickupIds) addZombieCoins(-COINS_PER_KILL)
+  predictedPickupIds.clear()
   for (const id of [...localCollectibleById.keys()]) removeCollectibleById(id)
 }
 
@@ -92,14 +96,21 @@ export function initCollectibleClient(): void {
     const localAddress = getLocalAddress()
     if (entity && CollectibleComponent.has(entity) && localAddress && data.claimerAddress.toLowerCase() === localAddress) {
       const col = CollectibleComponent.get(entity)
-      const pos = { x: col.baseX, y: COLLECTIBLE_FLOAT_HEIGHT, z: col.baseZ }
-      addZombieCoins(COINS_PER_KILL)
-      spawnZcRewardTextAtPosition(Vector3.create(pos.x, pos.y, pos.z), COINS_PER_KILL)
+      if (!predictedPickupIds.has(data.collectibleId)) {
+        const pos = { x: col.baseX, y: COLLECTIBLE_FLOAT_HEIGHT, z: col.baseZ }
+        addZombieCoins(COINS_PER_KILL)
+        spawnZcRewardTextAtPosition(Vector3.create(pos.x, pos.y, pos.z), COINS_PER_KILL)
+      }
+    } else if (predictedPickupIds.has(data.collectibleId)) {
+      addZombieCoins(-COINS_PER_KILL)
     }
     removeCollectibleById(data.collectibleId)
   })
 
   room.onMessage('collectibleExpired', (data) => {
+    if (predictedPickupIds.has(data.collectibleId)) {
+      addZombieCoins(-COINS_PER_KILL)
+    }
     removeCollectibleById(data.collectibleId)
   })
 
@@ -110,7 +121,13 @@ export function initCollectibleClient(): void {
   room.onMessage('collectibleClaimRejected', (data: { collectibleId: string }) => {
     const entity = localCollectibleById.get(data.collectibleId)
     if (!entity || !CollectibleComponent.has(entity)) return
+    if (predictedPickupIds.delete(data.collectibleId)) {
+      addZombieCoins(-COINS_PER_KILL)
+    }
     CollectibleComponent.getMutable(entity).claimPending = false
+    if (Transform.has(entity)) {
+      Transform.getMutable(entity).scale = Vector3.One()
+    }
   })
 }
 
@@ -148,8 +165,17 @@ export function collectibleSystem(dt: number): void {
     if (dist > COLLECTIBLE_PICKUP_RADIUS) continue
 
     CollectibleComponent.getMutable(entity).claimPending = true
+    predictedPickupIds.add(col.collectibleId)
+    addZombieCoins(COINS_PER_KILL)
+    spawnZcRewardTextAtPosition(Vector3.create(col.baseX, COLLECTIBLE_FLOAT_HEIGHT, col.baseZ), COINS_PER_KILL)
+    t.scale = Vector3.Zero()
     void room.send('collectiblePickupRequest', { collectibleId: col.collectibleId })
   }
 
-  for (const id of toRemove) removeCollectibleById(id)
+  for (const id of toRemove) {
+    if (predictedPickupIds.has(id)) {
+      addZombieCoins(-COINS_PER_KILL)
+    }
+    removeCollectibleById(id)
+  }
 }

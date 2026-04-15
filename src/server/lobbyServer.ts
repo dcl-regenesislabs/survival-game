@@ -98,9 +98,9 @@ const ZOMBIE_MAX_HP_BY_TYPE: Record<ZombieType, number> = {
   exploder: 15
 }
 const GUN_UPGRADE_FIRE_RATE_MS: Record<number, number> = {
-  1: 400,
-  2: 350,
-  3: 300
+  1: 440,
+  2: 380,
+  3: 330
 }
 const SPAWN_EDGE_BAND_WIDTH = 4.75
 const SPAWN_CENTER_SAFE_RADIUS = 8.5

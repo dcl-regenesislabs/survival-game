@@ -16,6 +16,8 @@ let diedAtMs = 0
 let damageOverlayTriggeredAtMs = 0
 let damageOverlayPeakAlpha = 0
 let hasReceivedAuthoritativeHealthState = false
+let predictedDamageFeedbackAmount = 0
+let predictedDamageFeedbackAtMs = 0
 
 /** Respawn position in scene (center of play area) */
 const RESPAWN_POSITION = Vector3.create(ARENA_CENTER.x, 0, ARENA_CENTER.z)
@@ -26,6 +28,7 @@ const DAMAGE_OVERLAY_FADE_OUT_MS = 560
 const DAMAGE_OVERLAY_BASE_ALPHA = 0.12
 const DAMAGE_OVERLAY_ALPHA_PER_HP = 0.05
 const DAMAGE_OVERLAY_MAX_ALPHA = 0.26
+const PREDICTED_DAMAGE_FEEDBACK_SUPPRESS_MS = 2500
 
 export function getPlayerHp(): number {
   return currentHp
@@ -77,6 +80,8 @@ export function resetPlayerHealthState(): void {
   damageOverlayTriggeredAtMs = 0
   damageOverlayPeakAlpha = 0
   hasReceivedAuthoritativeHealthState = false
+  predictedDamageFeedbackAmount = 0
+  predictedDamageFeedbackAtMs = 0
 }
 
 /** Full reset including lives — call when returning to lobby between runs. */
@@ -112,6 +117,16 @@ function triggerDamageOverlay(damageTaken: number, nowMs: number): void {
   )
 }
 
+export function triggerPredictedDamageFeedback(damageTaken: number): void {
+  if (isDead) return
+
+  const nowMs = getServerTime()
+  const normalizedDamage = Math.max(1, Math.floor(damageTaken))
+  predictedDamageFeedbackAmount += normalizedDamage
+  predictedDamageFeedbackAtMs = nowMs
+  triggerDamageOverlay(normalizedDamage, nowMs)
+}
+
 /** Respawn player: move to spawn, restore HP, clear death state. */
 export function respawnPlayer(): void {
   movePlayerTo({
@@ -129,7 +144,17 @@ export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRes
   const nextHp = Math.max(0, Math.min(MAX_HP, Math.floor(hp)))
 
   if (hasReceivedAuthoritativeHealthState && nextHp < previousHp) {
-    triggerDamageOverlay(previousHp - nextHp, nowMs)
+    const damageTaken = previousHp - nextHp
+    const shouldSuppressDuplicateFeedback =
+      predictedDamageFeedbackAmount > 0 &&
+      nowMs - predictedDamageFeedbackAtMs <= PREDICTED_DAMAGE_FEEDBACK_SUPPRESS_MS
+
+    if (shouldSuppressDuplicateFeedback) {
+      predictedDamageFeedbackAmount = Math.max(0, predictedDamageFeedbackAmount - damageTaken)
+      if (predictedDamageFeedbackAmount === 0) predictedDamageFeedbackAtMs = 0
+    } else {
+      triggerDamageOverlay(damageTaken, nowMs)
+    }
   }
 
   currentHp = nextHp
