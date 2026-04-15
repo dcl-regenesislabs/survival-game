@@ -66,6 +66,12 @@ const PLAYER_HP_FILL_SOURCE_H = 76
 const PLAYER_HP_FILL_OFFSET_X = 177
 const PLAYER_HP_FILL_OFFSET_Y = 37
 const PLAYER_HP_FILL_UVS = [0.290462, 0.238462, 0.290462, 0.355385, 0.846821, 0.355385, 0.846821, 0.238462]
+const PLAYER_HEALTH_FEEDBACK_TOP_GAP = 6
+const PLAYER_HEALTH_FEEDBACK_HEIGHT = 28
+const PLAYER_LIVES_HEART_HEIGHT = 62
+const PLAYER_LIVES_HEART_WIDTH = 68
+const PLAYER_LIVES_HEART_GAP = 3
+const PLAYER_LIVES_TOP_MARGIN = 24
 const WAVE_ZOMBIES_PANEL_WIDTH = 992
 const WAVE_ZOMBIES_PANEL_HEIGHT = 152
 const WAVE_ZOMBIES_PANEL_UVS = [0.032514, 0.358462, 0.032514, 0.650769, 0.928468, 0.650769, 0.928468, 0.358462]
@@ -104,6 +110,7 @@ const BLOOD_DAMAGE_FRAME_TEXTURE_SRC = 'assets/images/blood_frame.png'
 const DEATH_DAMAGE_FRAME_ALPHA = 1
 const DEATH_BACKDROP_ALPHA = 0.42
 const GAME_OVER_BACKDROP_ALPHA = 0.58
+const DEBUG_SHOW_GAMEPLAY_HUD_IN_LOBBY = false
 const LOBBY_HUD_LEFT_MARGIN = 48
 const LOBBY_HUD_ITEM_MARGIN_BOTTOM = 28
 const LOBBY_HUD_TOP_MARGIN = 32
@@ -168,10 +175,12 @@ export const uiMenu = () => {
   const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const matchRuntime = getMatchRuntimeState()
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInArenaRoster
+  const isLobbyContext = !lobbyState || lobbyState.phase === LobbyPhase.LOBBY
+  const showGameplayHudDebug = DEBUG_SHOW_GAMEPLAY_HUD_IN_LOBBY && isLobbyContext
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
-  const showGameplayHud = inMatchContext && localReadyForMatch
-  const showLobbyHud = !lobbyState || lobbyState.phase === LobbyPhase.LOBBY
+  const showGameplayHud = (inMatchContext && localReadyForMatch) || showGameplayHudDebug
+  const showLobbyHud = isLobbyContext && !showGameplayHudDebug
   const showBackToLobbyButton = isInArenaRoster && localReadyForMatch
   const showPlayerHealthHud = showGameplayHud
   const timerNowMs = getServerTime()
@@ -189,13 +198,14 @@ export const uiMenu = () => {
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
   const showDeathOverlay = !shouldSuppressDeathOverlayForTeamWipe() && !showGameOverOverlay && shouldShowDeathOverlay(timerNowMs)
-  const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
+  const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext && !showGameplayHudDebug
   const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
   const sweepWarning = showGameplayHud ? getSweepWarning(timerNowMs) : { active: false, remainingMs: 0 }
   const isInZone = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
   const isStartGameButtonLocked = startCountdownSeconds > 0
   const startGameButtonLabel = isStartGameButtonLocked ? `STARTING IN ${startCountdownSeconds}` : 'START GAME'
-  const showStartGameButton = isInZone && !localReadyForMatch && arenaIntroSeconds <= 0 && !(matchRuntime?.isRunning)
+  const showStartGameButton =
+    isInZone && !localReadyForMatch && arenaIntroSeconds <= 0 && !(matchRuntime?.isRunning) && !showGameplayHudDebug
 
   const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
@@ -237,6 +247,16 @@ export const uiMenu = () => {
     activeEffectBarCount > 0
       ? activeEffectBarCount * effectBarHeight + Math.max(0, activeEffectBarCount - 1) * effectBarGap + 4
       : 0
+  const healthPickupFeedback = showGameplayHud ? getHealthPickupFeedback(currentGameTime) : ''
+  const healthFeedbackTop = PLAYER_HP_FRAME_HEIGHT + PLAYER_HEALTH_FEEDBACK_TOP_GAP
+  const healthFeedbackBottom = healthPickupFeedback
+    ? healthFeedbackTop + PLAYER_HEALTH_FEEDBACK_HEIGHT
+    : PLAYER_HP_FRAME_HEIGHT
+  const livesRowTop =
+    Math.max(PLAYER_HP_FRAME_HEIGHT + hpHudExtraHeight, healthFeedbackBottom) + PLAYER_LIVES_TOP_MARGIN
+  const livesRowLeft = 12
+  const livesRowWidth =
+    MAX_LIVES * PLAYER_LIVES_HEART_WIDTH + Math.max(0, MAX_LIVES - 1) * PLAYER_LIVES_HEART_GAP
   const weaponBarScale = isMobileRuntime ? MOBILE_WEAPON_BAR_SCALE : 1
   const weaponBarBottomOffset = scaleUiValue(24, weaponBarScale)
   const weaponBarSidePadding = scaleUiValue(24, weaponBarScale)
@@ -381,7 +401,9 @@ export const uiMenu = () => {
           uiTransform={{
             position: { left: 64, top: 206 },
             positionType: 'absolute',
-            flexDirection: 'row',
+            width: PLAYER_HP_FRAME_WIDTH,
+            height: livesRowTop + PLAYER_LIVES_HEART_HEIGHT,
+            flexDirection: 'column',
             alignItems: 'flex-start',
             justifyContent: 'flex-start'
           }}
@@ -481,19 +503,26 @@ export const uiMenu = () => {
           {/* Lives hearts */}
           <UiEntity
             uiTransform={{
+              width: livesRowWidth,
+              height: PLAYER_LIVES_HEART_HEIGHT,
+              positionType: 'absolute',
+              position: { left: livesRowLeft, top: livesRowTop },
               flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'flex-start',
-              margin: { top: 8 }
+              justifyContent: 'flex-start'
             }}
           >
             {Array.from({ length: MAX_LIVES }).map((_, i) => (
               <UiEntity
                 key={`heart_${i}`}
-                uiTransform={{ width: 36, height: 36, margin: { right: 6 } }}
+                uiTransform={{
+                  width: PLAYER_LIVES_HEART_WIDTH,
+                  height: PLAYER_LIVES_HEART_HEIGHT,
+                  margin: { right: i < MAX_LIVES - 1 ? PLAYER_LIVES_HEART_GAP : 0 }
+                }}
                 uiBackground={{
                   textureMode: 'stretch',
-                  texture: { src: 'assets/images/heart.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
+                  texture: { src: 'assets/images/heart2.png' },
                   color: i < getPlayerLives() ? Color4.White() : Color4.create(1, 1, 1, 0.25)
                 }}
               />
@@ -501,13 +530,13 @@ export const uiMenu = () => {
           </UiEntity>
         </UiEntity>
       )}
-      {showGameplayHud && (
+      {showGameplayHud && healthPickupFeedback !== '' && (
         <UiEntity
           uiTransform={{
-            position: { left: 64, top: 298 },
+            position: { left: 64, top: 206 + healthFeedbackTop },
             positionType: 'absolute',
             width: PLAYER_HP_FRAME_WIDTH,
-            height: 28,
+            height: PLAYER_HEALTH_FEEDBACK_HEIGHT,
             alignItems: 'center',
             justifyContent: 'center'
           }}
@@ -515,7 +544,7 @@ export const uiMenu = () => {
           <UiEntity
             uiTransform={{ width: '100%', height: '100%' }}
             uiText={{
-              value: getHealthPickupFeedback(getGameTime()),
+              value: healthPickupFeedback,
               fontSize: 24,
               color: Color4.create(0.3, 1, 0.42, 1),
               textAlign: 'middle-center'
@@ -1355,7 +1384,7 @@ export const uiMenu = () => {
           }}
         />
       )}
-      <LobbyStoreUi />
+      {!showGameplayHudDebug && <LobbyStoreUi />}
     </UiEntity>
   )
 }
