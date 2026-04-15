@@ -72,12 +72,17 @@ export function resetPlayerHealthState(): void {
   currentHp = MAX_HP
   isDead = false
   respawnAtMs = 0
-  currentLives = MAX_LIVES
   healGlowEndTime = 0
   diedAtMs = 0
   damageOverlayTriggeredAtMs = 0
   damageOverlayPeakAlpha = 0
   hasReceivedAuthoritativeHealthState = false
+}
+
+/** Full reset including lives — call when returning to lobby between runs. */
+export function resetPlayerHealthAndLives(): void {
+  currentLives = MAX_LIVES
+  resetPlayerHealthState()
 }
 
 /** Restore player health (e.g. health potion). Caps at MAX_HP. No-op if dead. */

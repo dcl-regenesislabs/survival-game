@@ -650,12 +650,45 @@ function getPlayerFireRateMultiplier(state: PlayerCombatState, now: number): num
   return state.speedEndAtMs > now ? SPEED_FIRE_RATE_MULTIPLIER : 1
 }
 
-function applyPlayerDeath(state: PlayerCombatState, now: number): void {
+function applyPlayerDeath(state: PlayerCombatState, now: number, address: string): void {
   state.lives = Math.max(0, state.lives - 1)
   state.isDead = true
   state.hp = 0
-  // Only schedule respawn if lives remain
-  state.respawnAtMs = state.lives > 0 ? now + PLAYER_RESPAWN_SECONDS * 1000 : 0
+  if (state.lives > 0) {
+    state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
+  } else {
+    state.respawnAtMs = 0
+    // Schedule elimination after a short delay so the death state is sent first
+    setTimeout(() => eliminatePlayerFromMatch(address), 3000)
+  }
+}
+
+function eliminatePlayerFromMatch(address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const lobbyState = getLobbyState()
+  if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+  const player = lobbyState.arenaPlayers.find((p) => p.address === normalizedAddress)
+  if (!player) return
+
+  logLobbyServerEvent(`PlayerEliminated ${normalizedAddress}`)
+
+  // Remove from arena roster
+  const nextArenaPlayers = lobbyState.arenaPlayers.filter((p) => p.address !== normalizedAddress)
+  setArenaPlayers(nextArenaPlayers)
+
+  // Teleport the eliminated player back to lobby
+  sendLobbyReturnTeleport([player])
+
+  void room.send('lobbyEvent', {
+    type: 'player_eliminated',
+    message: `${player.address} has been eliminated`
+  })
+
+  // If no arena players remain, end the match
+  if (nextArenaPlayers.length === 0) {
+    endMatchAndReturnToLobby('All players eliminated. Returning to lobby.')
+  }
 }
 
 function expirePotions(now: number): void {
@@ -822,7 +855,7 @@ function applyExplosionDamageToPlayer(address: string, zombieId: string, request
   const amount = Math.max(1, Math.min(PLAYER_MAX_HP, Math.floor(requestedAmount)))
   state.lastDamageRequestAtMs = now
   state.hp = Math.max(0, state.hp - amount)
-  if (state.hp <= 0) applyPlayerDeath(state, now)
+  if (state.hp <= 0) applyPlayerDeath(state, now, normalizedAddress)
   sendPlayerHealthState(normalizedAddress)
 }
 
@@ -1845,7 +1878,7 @@ export function setupLobbyServer(): void {
     const amount = Math.max(1, Math.min(3, requestedAmount))
     state.lastDamageRequestAtMs = now
     state.hp = Math.max(0, state.hp - amount)
-    if (state.hp <= 0) applyPlayerDeath(state, now)
+    if (state.hp <= 0) applyPlayerDeath(state, now, normalizedAddress)
     sendPlayerHealthState(normalizedAddress)
 
     if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
@@ -1877,7 +1910,7 @@ export function setupLobbyServer(): void {
 
     state.lastLavaDamageAtMs = now
     state.hp = Math.max(0, state.hp - 1)
-    if (state.hp <= 0) applyPlayerDeath(state, now)
+    if (state.hp <= 0) applyPlayerDeath(state, now, normalizedAddress)
     sendPlayerHealthState(normalizedAddress)
 
     if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {

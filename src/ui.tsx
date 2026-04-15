@@ -846,25 +846,27 @@ export const uiMenu = () => {
             outlineScale={4}
             outlineKeyPrefix='death-overlay-title'
           />
-          <OutlinedText
-            uiTransform={{
-              width: 744,
-              height: 48,
-              positionType: 'absolute',
-              position: { top: 580 },
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            uiText={{
-              value: `Respawning in ${respawnSecondsLeft > 0 ? respawnSecondsLeft : getRespawnDelay()} seconds...`,
-              fontSize: 34,
-              color: Color4.create(0.95, 0.88, 0.76, 1),
-              textAlign: 'middle-center'
-            }}
-            outlineColor={Color4.create(0.08, 0.03, 0.02, 0.95)}
-            outlineScale={2}
-            outlineKeyPrefix='death-overlay-subtitle'
-          />
+          {getPlayerLives() > 0 && (
+            <OutlinedText
+              uiTransform={{
+                width: 744,
+                height: 48,
+                positionType: 'absolute',
+                position: { top: 580 },
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              uiText={{
+                value: `Respawning in ${respawnSecondsLeft > 0 ? respawnSecondsLeft : getRespawnDelay()} seconds...`,
+                fontSize: 34,
+                color: Color4.create(0.95, 0.88, 0.76, 1),
+                textAlign: 'middle-center'
+              }}
+              outlineColor={Color4.create(0.08, 0.03, 0.02, 0.95)}
+              outlineScale={2}
+              outlineKeyPrefix='death-overlay-subtitle'
+            />
+          )}
         </UiEntity>
       )}
       {showGameOverOverlay && (
