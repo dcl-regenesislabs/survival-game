@@ -90,7 +90,7 @@ export function setupLobbyClient(): void {
     const localAddress = getLocalAddress()
     if (!localAddress || address !== localAddress) return
     setLocalAvatarHidden(data.isDead)
-    applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs)
+    applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs, data.lives)
   })
   room.onMessage('playerLoadoutState', (data) => {
     const localAddress = getLocalAddress()

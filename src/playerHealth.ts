@@ -5,10 +5,12 @@ import { ARENA_CENTER } from './shared/arenaConfig'
 import { getServerTime } from './shared/timeSync'
 
 export const MAX_HP = 5
+export const MAX_LIVES = 2
 
 let currentHp = MAX_HP
 let isDead = false
 let respawnAtMs = 0
+let currentLives = MAX_LIVES
 let healGlowEndTime = 0
 let diedAtMs = 0
 let damageOverlayTriggeredAtMs = 0
@@ -41,6 +43,14 @@ export function getRespawnAtMs(): number {
   return respawnAtMs
 }
 
+export function getPlayerLives(): number {
+  return currentLives
+}
+
+export function hasLivesRemaining(): boolean {
+  return currentLives > 0
+}
+
 export function shouldShowDeathOverlay(nowMs: number): boolean {
   if (!isDead) return false
   if (diedAtMs <= 0) return true
@@ -62,6 +72,7 @@ export function resetPlayerHealthState(): void {
   currentHp = MAX_HP
   isDead = false
   respawnAtMs = 0
+  currentLives = MAX_LIVES
   healGlowEndTime = 0
   diedAtMs = 0
   damageOverlayTriggeredAtMs = 0
@@ -106,7 +117,7 @@ export function respawnPlayer(): void {
 }
 
 /** Apply server-authoritative player health snapshot. */
-export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRespawnAtMs: number): void {
+export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRespawnAtMs: number, lives?: number): void {
   const nowMs = getServerTime()
   const wasDead = isDead
   const previousHp = currentHp
@@ -119,6 +130,7 @@ export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRes
   currentHp = nextHp
   isDead = dead
   respawnAtMs = nextRespawnAtMs
+  if (lives !== undefined) currentLives = Math.max(0, lives)
   hasReceivedAuthoritativeHealthState = true
 
   if (!wasDead && dead) {

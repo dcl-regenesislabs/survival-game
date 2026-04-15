@@ -6,8 +6,10 @@ import { getWaveUiState, getWaveCountdownLabel } from './waveManager'
 import {
   getPlayerDamageOverlayAlpha,
   getPlayerHp,
+  getPlayerLives,
   isPlayerDead,
   MAX_HP,
+  MAX_LIVES,
   getRespawnAtMs,
   getRespawnDelay,
   shouldShowDeathOverlay
@@ -473,6 +475,27 @@ export const uiMenu = () => {
                 />
               </UiEntity>
             )}
+          </UiEntity>
+          {/* Lives hearts */}
+          <UiEntity
+            uiTransform={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              margin: { top: 8 }
+            }}
+          >
+            {Array.from({ length: MAX_LIVES }).map((_, i) => (
+              <UiEntity
+                key={`heart_${i}`}
+                uiTransform={{ width: 36, height: 36, margin: { right: 6 } }}
+                uiBackground={{
+                  textureMode: 'stretch',
+                  texture: { src: 'assets/images/heart.png', filterMode: 'bi-linear', wrapMode: 'clamp' },
+                  color: i < getPlayerLives() ? Color4.White() : Color4.create(1, 1, 1, 0.25)
+                }}
+              />
+            ))}
           </UiEntity>
         </UiEntity>
       )}
