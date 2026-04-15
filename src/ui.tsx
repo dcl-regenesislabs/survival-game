@@ -804,7 +804,8 @@ export const uiMenu = () => {
             width: '100%',
             flexDirection: 'row',
             alignItems: 'flex-start',
-            justifyContent: 'center'
+            justifyContent: 'center',
+
           }}
         >
           <UiEntity
