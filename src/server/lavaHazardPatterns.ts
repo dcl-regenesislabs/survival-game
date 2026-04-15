@@ -590,14 +590,20 @@ function buildPatternTiles(
   return buildFissurePattern(waveNumber, waveStartAtMs, slot)
 }
 
+export type LavaWaveResult = {
+  hazards: LavaHazardTileState[]
+  sweepWarningAtMs: number | null  // earliest warningAtMs of sweep tiles, or null if no sweep
+}
+
 export function buildLavaHazardsForWave(
   waveNumber: number,
   waveStartAtMs: number,
   getNextLavaId: () => string
-): LavaHazardTileState[] {
+): LavaWaveResult {
   const slots = getWavePlan(waveNumber)
   const hazards: LavaHazardTileState[] = []
   let previousPatternInWave: LavaPatternKind | null = null
+  let sweepWarningAtMs: number | null = null
 
   slots.forEach((slot, index) => {
     const pattern = pickPatternKind(slot.patterns, previousPatternInWave, index === 0)
@@ -617,7 +623,19 @@ export function buildLavaHazardsForWave(
         expiresAtMs: tile.expiresAtMs
       })
     }
+
+    if (pattern === 'sweep') {
+      let earliest = Infinity
+      for (const tile of tiles.values()) {
+        if (tile.warningAtMs < earliest) earliest = tile.warningAtMs
+      }
+      if (earliest < Infinity) {
+        sweepWarningAtMs = sweepWarningAtMs === null
+          ? earliest
+          : Math.min(sweepWarningAtMs, earliest)
+      }
+    }
   })
 
-  return hazards
+  return { hazards, sweepWarningAtMs }
 }

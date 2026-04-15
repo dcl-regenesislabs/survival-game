@@ -15,6 +15,7 @@ import {
   shouldShowDeathOverlay
 } from './playerHealth'
 import { getZombieCoins } from './zombieCoins'
+import { getSweepWarning } from './lavaHazard'
 import { getGameTime } from './zombie'
 import { isSpeedActive, getSpeedTimeLeft, SPEED_DURATION_SEC } from './speedEffect'
 import { isRaging, getRageTimeLeft, RAGE_DURATION_SEC } from './rageEffect'
@@ -190,6 +191,7 @@ export const uiMenu = () => {
   const showDeathOverlay = !shouldSuppressDeathOverlayForTeamWipe() && !showGameOverOverlay && shouldShowDeathOverlay(timerNowMs)
   const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext
   const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
+  const sweepWarning = showGameplayHud ? getSweepWarning(timerNowMs) : { active: false, remainingMs: 0 }
   const isInZone = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
   const isStartGameButtonLocked = startCountdownSeconds > 0
   const startGameButtonLabel = isStartGameButtonLocked ? `STARTING IN ${startCountdownSeconds}` : 'START GAME'
@@ -663,6 +665,34 @@ export const uiMenu = () => {
               />
             )}
           </UiEntity>
+        </UiEntity>
+      )}
+      {sweepWarning.active && (
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            width: '100%',
+            height: '100%',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: 520,
+              height: 70,
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            uiBackground={{ color: Color4.create(0.55, 0.1, 0.0, 0.88) }}
+            uiText={{
+              value: '⚠ LAVA WAVE INCOMING ⚠',
+              fontSize: 30,
+              color: Color4.create(1, 0.75, 0.1, 1),
+              textAlign: 'middle-center'
+            }}
+          />
         </UiEntity>
       )}
       {showBackToLobbyButton && (

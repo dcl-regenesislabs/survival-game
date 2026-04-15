@@ -706,9 +706,16 @@ function getNextLavaHazardId(): string {
 
 function queueLavaHazardsForWave(waveNumber: number, now: number): void {
   if (!shouldSpawnLavaForWave(waveNumber)) return
-  const hazards = buildLavaHazardsForWave(waveNumber, now, getNextLavaHazardId)
+  const { hazards, sweepWarningAtMs } = buildLavaHazardsForWave(waveNumber, now, getNextLavaHazardId)
   for (const lava of hazards) {
     scheduledLavaHazardsById.set(lava.lavaId, lava)
+  }
+  if (sweepWarningAtMs !== null) {
+    const SWEEP_UI_ADVANCE_MS = 1500
+    void room.send('lavaPatternWarning', {
+      patternType: 'sweep',
+      startsAtMs: sweepWarningAtMs - SWEEP_UI_ADVANCE_MS
+    })
   }
 }
 
