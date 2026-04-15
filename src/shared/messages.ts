@@ -129,7 +129,8 @@ const LobbyMessages = {
     address: Schemas.String,
     hp: Schemas.Number,
     isDead: Schemas.Boolean,
-    respawnAtMs: Schemas.Int64
+    respawnAtMs: Schemas.Int64,
+    lives: Schemas.Number
   }),
   matchAutoTeleport: Schemas.Map({
     addresses: Schemas.Array(Schemas.String),

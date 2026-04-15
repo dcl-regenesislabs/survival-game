@@ -4,7 +4,7 @@ import { LobbyPhase, LobbyPlayer, LobbyStateComponent, LobbyStateSnapshot } from
 import { MatchRuntimeSnapshot, MatchRuntimeStateComponent, WaveCyclePhase } from '../shared/matchRuntimeSchemas'
 import { movePlayerTo } from '~system/RestrictedActions'
 import { Vector3 } from '@dcl/sdk/math'
-import { applyAuthoritativeHealthState, resetPlayerHealthState } from '../playerHealth'
+import { applyAuthoritativeHealthState, resetPlayerHealthAndLives } from '../playerHealth'
 import { resetDeathAnimationState, setLocalAvatarHidden } from '../deathAnimation'
 import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
@@ -47,7 +47,7 @@ function resetLocalMatchUiState(): void {
   setLocalAvatarHidden(false)
   resetToIdle()
   resetArenaWeaponProgress()
-  resetPlayerHealthState()
+  resetPlayerHealthAndLives()
   resetDeathAnimationState()
 }
 
@@ -90,7 +90,7 @@ export function setupLobbyClient(): void {
     const localAddress = getLocalAddress()
     if (!localAddress || address !== localAddress) return
     setLocalAvatarHidden(data.isDead)
-    applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs)
+    applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs, data.lives)
   })
   room.onMessage('playerLoadoutState', (data) => {
     const localAddress = getLocalAddress()
