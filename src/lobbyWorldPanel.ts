@@ -206,6 +206,7 @@ export class LobbyWorldPanel {
 
   private buildPlayersText(): string {
     const lobby = getLobbyState()
+    // Counter flow: live count while players join, frozen after arena teleport/start, then reset after that match ends.
     if (this.shouldFreezePlayersText()) {
       this.hasFrozenPlayersTextThisMatch = true
       if (this.frozenPlayersText === null) {
