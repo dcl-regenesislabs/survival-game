@@ -872,11 +872,11 @@ function sendPlayerHealthStatesForLobbyPlayers(players: LobbyPlayer[]): void {
   }
 }
 
-function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
+function areAllLobbyPlayersEliminated(players: LobbyPlayer[]): boolean {
   if (!players.length) return false
   for (const player of players) {
     const state = getOrCreatePlayerCombatState(player.address)
-    if (!state.isDead) return false
+    if (!state.isDead || state.lives > 0) return false
   }
   return true
 }
@@ -1888,7 +1888,7 @@ export function setupLobbyServer(): void {
     if (state.hp <= 0) applyPlayerDeath(state, now, normalizedAddress)
     sendPlayerHealthState(normalizedAddress)
 
-    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
+    if (areAllLobbyPlayersEliminated(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby('All players died. Returning to lobby.')
     }
   })
@@ -1920,7 +1920,7 @@ export function setupLobbyServer(): void {
     if (state.hp <= 0) applyPlayerDeath(state, now, normalizedAddress)
     sendPlayerHealthState(normalizedAddress)
 
-    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
+    if (areAllLobbyPlayersEliminated(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby('All players died. Returning to lobby.')
     }
   })
@@ -1940,7 +1940,7 @@ export function setupLobbyServer(): void {
     const now = getServerTime()
     applyExplosionDamageToPlayer(normalizedAddress, data.zombieId, data.amount, now)
 
-    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
+    if (areAllLobbyPlayersEliminated(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby('All players died. Returning to lobby.')
     }
   })
