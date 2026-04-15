@@ -178,6 +178,10 @@ const LobbyMessages = {
     lavaIds: Schemas.Array(Schemas.String)
   }),
   lavaHazardsCleared: Schemas.Map({}),
+  lavaPatternWarning: Schemas.Map({
+    patternType: Schemas.String,
+    startsAtMs: Schemas.Int64
+  }),
   lavaHazardDamageRequest: Schemas.Map({
     lavaId: Schemas.String
   }),

@@ -37,6 +37,17 @@ const localLavaTileKeyById = new Map<string, string>()
 let isLavaSyncInitialized = false
 let areLavaZonesInitialized = false
 let lastLavaDamageRequestAtMs = 0
+let sweepWarningStartAtMs = 0
+let sweepWarningEndAtMs = 0
+
+const SWEEP_UI_DURATION_MS = 1000
+
+export function getSweepWarning(nowMs: number): { active: boolean; remainingMs: number } {
+  if (nowMs < sweepWarningStartAtMs || nowMs >= sweepWarningEndAtMs) {
+    return { active: false, remainingMs: 0 }
+  }
+  return { active: true, remainingMs: sweepWarningEndAtMs - nowMs }
+}
 
 function getZoneModelVariant(gridX: number, gridZ: number): number {
   return Math.abs(gridX * 17 + gridZ * 31) % LAVA_MODEL_SRCS.length
@@ -203,6 +214,13 @@ export function initLavaHazardClient(): void {
 
   room.onMessage('lavaHazardsCleared', () => {
     clearAllLavaHazards()
+  })
+
+  room.onMessage('lavaPatternWarning', (data) => {
+    if (data.patternType === 'sweep') {
+      sweepWarningStartAtMs = data.startsAtMs
+      sweepWarningEndAtMs = data.startsAtMs + SWEEP_UI_DURATION_MS
+    }
   })
 }
 
