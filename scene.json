@@ -3,7 +3,7 @@
   "runtimeVersion": "7",
   "display": {
     "title": "Survival",
-    "description": "Empty Scene Template",
+    "description": "Multiplayer arena game focused on wave-based zombie combat, arena hazards, and short-session progression. Players enter an authoritative multiplayer match, survive escalating enemy waves, collect resources, buy stronger tools, and push as far as possible through a 100-wave survival ladder.",
     "favicon": "favicon_asset",
     "navmapThumbnail": ""
   },
