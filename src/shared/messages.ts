@@ -12,7 +12,6 @@ const LobbyMessages = {
     weaponId: Schemas.String
   }),
   createMatch: Schemas.Map({}),
-  createMatchAndJoin: Schemas.Map({}),
   startGameManual: Schemas.Map({}),
   waveSpawnPlan: Schemas.Map({
     waveNumber: Schemas.Number,

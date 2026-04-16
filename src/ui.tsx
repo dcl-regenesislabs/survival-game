@@ -45,6 +45,7 @@ import {
 import { getPlayerGold } from './loadoutState'
 import { OutlinedText } from './outlineComponent'
 import { LobbyStoreUi, openLobbyStore } from './lobbyStoreUi'
+import { isLocalPlayerInsideLobbyTrigger } from './lobbyWorldPanel'
 import {
   getLobbyState,
   getMatchRuntimeState,
@@ -175,7 +176,10 @@ export const uiMenu = () => {
   const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const matchRuntime = getMatchRuntimeState()
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInArenaRoster
-  const isLobbyContext = !lobbyState || lobbyState.phase === LobbyPhase.LOBBY
+  const isLobbyContext =
+    !lobbyState ||
+    lobbyState.phase === LobbyPhase.LOBBY ||
+    (!isInArenaRoster && !isLocalReadyForMatch())
   const showGameplayHudDebug = DEBUG_SHOW_GAMEPLAY_HUD_IN_LOBBY && isLobbyContext
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
@@ -198,14 +202,20 @@ export const uiMenu = () => {
   const isIdle = state.phase === 'idle'
   const playerDead = isPlayerDead()
   const showDeathOverlay = !shouldSuppressDeathOverlayForTeamWipe() && !showGameOverOverlay && shouldShowDeathOverlay(timerNowMs)
-  const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext && !showGameplayHudDebug
+  const showCenteredOverlay = (!isIdle || playerDead) && !inMatchContext && !isLobbyContext && !showGameplayHudDebug
   const showArenaIntroOverlay = inMatchContext && localReadyForMatch && !matchRuntime?.isRunning
   const sweepWarning = showGameplayHud ? getSweepWarning(timerNowMs) : { active: false, remainingMs: 0 }
   const isInZone = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
+  const isInsideLobbyTrigger = isLocalPlayerInsideLobbyTrigger()
   const isStartGameButtonLocked = startCountdownSeconds > 0
   const startGameButtonLabel = isStartGameButtonLocked ? `STARTING IN ${startCountdownSeconds}` : 'START GAME'
   const showStartGameButton =
-    isInZone && !localReadyForMatch && arenaIntroSeconds <= 0 && !(matchRuntime?.isRunning) && !showGameplayHudDebug
+    isInZone &&
+    isInsideLobbyTrigger &&
+    !localReadyForMatch &&
+    arenaIntroSeconds <= 0 &&
+    !(matchRuntime?.isRunning) &&
+    !showGameplayHudDebug
 
   const showZcCounter = showGameplayHud
   const brickTargetModeActive = isBrickTargetModeActive()
