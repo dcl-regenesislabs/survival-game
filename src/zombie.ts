@@ -505,7 +505,7 @@ const BLOOD_SPLAT_GLBS = [
   'assets/scene/Models/blood/Blood03.glb',
   'assets/scene/Models/blood/Blood04.glb'
 ]
-const BLOOD_SPLAT_LIFETIME = 15 // seconds before it disappears
+const BLOOD_SPLAT_LIFETIME = 3 // seconds before it disappears
 const BloodSplatComponent = engine.defineComponent('BloodSplatComponent', { removeAtTime: Schemas.Number })
 
 function spawnBloodSplat(pos: Vector3): void {
