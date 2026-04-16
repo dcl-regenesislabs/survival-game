@@ -55,6 +55,8 @@ const PROJECTILE_HIT_RADIUS_SQ = PROJECTILE_HIT_RADIUS * PROJECTILE_HIT_RADIUS
 const HIDDEN_POOL_POSITION = Vector3.create(0, -1000, 0)
 const PROJECTILE_POOL_PREWARM_COUNT = 24
 const WORLD_MUZZLE_FLASH_POOL_PREWARM_COUNT = 12
+const PROJECTILE_POOL_SOFT_CAP = 64
+const WORLD_MUZZLE_FLASH_POOL_SOFT_CAP = 32
 
 // Per-tier gun upgrade stats (matches UI display in lobbyStoreUi.tsx WEAPON_STATS)
 const GUN_UPGRADE_STATS: Record<number, { damage: number; fireRate: number }> = {
@@ -91,8 +93,12 @@ let currentGunUpgradeLevel = 1
 let projectilePoolInitialized = false
 let worldMuzzleFlashPoolInitialized = false
 const projectilePool: Entity[] = []
+const inactiveProjectilePool: Entity[] = []
 const worldMuzzleFlashPool: Entity[] = []
+const inactiveWorldMuzzleFlashPool: Entity[] = []
 const attachedMuzzleFlashByWeapon = new Map<Entity, Entity>()
+let projectilePoolSoftCapWarned = false
+let worldMuzzleFlashPoolSoftCapWarned = false
 
 function isLocalPlayerInArena(): boolean {
   if (isPlayerDead()) return false
@@ -214,15 +220,21 @@ function ensureProjectilePool(): void {
   if (projectilePoolInitialized) return
   projectilePoolInitialized = true
   for (let i = 0; i < PROJECTILE_POOL_PREWARM_COUNT; i += 1) {
-    createPooledProjectileEntity()
+    inactiveProjectilePool.push(createPooledProjectileEntity())
   }
 }
 
 function acquireProjectileEntity(): Entity {
   ensureProjectilePool()
-  for (const entity of projectilePool) {
-    if (!ProjectileComponent.has(entity)) continue
-    if (!ProjectileComponent.get(entity).active) return entity
+  const pooledProjectile = inactiveProjectilePool.pop()
+  if (pooledProjectile !== undefined) return pooledProjectile
+
+  if (!projectilePoolSoftCapWarned && projectilePool.length >= PROJECTILE_POOL_SOFT_CAP) {
+    projectilePoolSoftCapWarned = true
+    console.log(
+      `[ProjectilePool] Soft cap exceeded (${projectilePool.length}). ` +
+        'Pool grew because no inactive projectile was available.'
+    )
   }
   return createPooledProjectileEntity()
 }
@@ -231,6 +243,7 @@ function deactivateProjectileEntity(projectile: Entity): void {
   if (!ProjectileComponent.has(projectile) || !Transform.has(projectile)) return
 
   const projectileData = ProjectileComponent.get(projectile)
+  if (!projectileData.active) return
   const mutableProjectile = ProjectileComponent.getMutable(projectile)
   mutableProjectile.active = false
   mutableProjectile.canDamage = false
@@ -241,6 +254,7 @@ function deactivateProjectileEntity(projectile: Entity): void {
   transform.position = HIDDEN_POOL_POSITION
   transform.rotation = Quaternion.Identity()
   transform.scale = Vector3.Zero()
+  inactiveProjectilePool.push(projectile)
 
   if (!Transform.has(projectileData.visualEntity)) return
   const visualTransform = Transform.getMutable(projectileData.visualEntity)
@@ -277,15 +291,21 @@ function ensureWorldMuzzleFlashPool(): void {
   if (worldMuzzleFlashPoolInitialized) return
   worldMuzzleFlashPoolInitialized = true
   for (let i = 0; i < WORLD_MUZZLE_FLASH_POOL_PREWARM_COUNT; i += 1) {
-    createWorldMuzzleFlashEntity()
+    inactiveWorldMuzzleFlashPool.push(createWorldMuzzleFlashEntity())
   }
 }
 
 function acquireWorldMuzzleFlashEntity(): Entity {
   ensureWorldMuzzleFlashPool()
-  for (const entity of worldMuzzleFlashPool) {
-    if (!ProjectileMuzzleFlashComponent.has(entity)) continue
-    if (!ProjectileMuzzleFlashComponent.get(entity).active) return entity
+  const pooledFlash = inactiveWorldMuzzleFlashPool.pop()
+  if (pooledFlash !== undefined) return pooledFlash
+
+  if (!worldMuzzleFlashPoolSoftCapWarned && worldMuzzleFlashPool.length >= WORLD_MUZZLE_FLASH_POOL_SOFT_CAP) {
+    worldMuzzleFlashPoolSoftCapWarned = true
+    console.log(
+      `[MuzzleFlashPool] Soft cap exceeded (${worldMuzzleFlashPool.length}). ` +
+        'Pool grew because no inactive world muzzle flash was available.'
+    )
   }
   return createWorldMuzzleFlashEntity()
 }
@@ -316,6 +336,9 @@ function createAttachedMuzzleFlashEntity(weaponEntity: Entity): Entity {
 }
 
 function getOrCreateAttachedMuzzleFlashEntity(weaponEntity: Entity): Entity {
+  // Invariant: weapon destroy paths must call unregisterAttachedMuzzleFlash before removing
+  // the weapon entity. The .has() guards below protect current usage, but they are not meant
+  // to support arbitrary destroyed-then-recycled entity ids reappearing in the map.
   const existing = attachedMuzzleFlashByWeapon.get(weaponEntity)
   if (existing && Transform.has(existing) && ProjectileMuzzleFlashComponent.has(existing)) {
     return existing
@@ -539,6 +562,7 @@ function projectileMuzzleFlashSystem(): void {
     if (!muzzleFlash.attached) {
       transform.position = HIDDEN_POOL_POSITION
       transform.rotation = Quaternion.Identity()
+      inactiveWorldMuzzleFlashPool.push(entity)
     }
   }
 }
