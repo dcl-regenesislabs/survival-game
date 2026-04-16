@@ -4,8 +4,6 @@ import {
   Transform,
   GltfContainer,
   Animator,
-  MeshCollider,
-  ColliderLayer,
   Schemas
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
@@ -54,6 +52,11 @@ const PROJECTILE_VISUAL_SHRINK_DISTANCE = 6
 const GUN_SYSTEM_PRIORITY_LAST = -1000
 const PROJECTILE_HIT_RADIUS = 1.15
 const PROJECTILE_HIT_RADIUS_SQ = PROJECTILE_HIT_RADIUS * PROJECTILE_HIT_RADIUS
+const HIDDEN_POOL_POSITION = Vector3.create(0, -1000, 0)
+const PROJECTILE_POOL_PREWARM_COUNT = 24
+const WORLD_MUZZLE_FLASH_POOL_PREWARM_COUNT = 12
+const PROJECTILE_POOL_SOFT_CAP = 64
+const WORLD_MUZZLE_FLASH_POOL_SOFT_CAP = 32
 
 // Per-tier gun upgrade stats (matches UI display in lobbyStoreUi.tsx WEAPON_STATS)
 const GUN_UPGRADE_STATS: Record<number, { damage: number; fireRate: number }> = {
@@ -62,8 +65,9 @@ const GUN_UPGRADE_STATS: Record<number, { damage: number; fireRate: number }> = 
   3: { damage: 2, fireRate: 0.33 }
 }
 
-// Projectile: flies straight; hit detection is via TriggerArea on zombies (collider-based)
+// Projectile: flies straight; hit detection uses cheap distance checks in projectileSystem.
 const ProjectileComponentSchema = {
+  active: Schemas.Boolean,
   direction: Schemas.Vector3,
   startPosition: Schemas.Vector3,
   visualEntity: Schemas.Entity,
@@ -76,6 +80,8 @@ const ProjectileComponentSchema = {
 }
 export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
 const ProjectileMuzzleFlashComponent = engine.defineComponent('ProjectileMuzzleFlashComponent', {
+  active: Schemas.Boolean,
+  attached: Schemas.Boolean,
   endTime: Schemas.Number
 })
 
@@ -84,6 +90,15 @@ let gunModelEntity: Entity | null = null
 let shootTimer = 0
 let localShotSeq = 0
 let currentGunUpgradeLevel = 1
+let projectilePoolInitialized = false
+let worldMuzzleFlashPoolInitialized = false
+const projectilePool: Entity[] = []
+const inactiveProjectilePool: Entity[] = []
+const worldMuzzleFlashPool: Entity[] = []
+const inactiveWorldMuzzleFlashPool: Entity[] = []
+const attachedMuzzleFlashByWeapon = new Map<Entity, Entity>()
+let projectilePoolSoftCapWarned = false
+let worldMuzzleFlashPoolSoftCapWarned = false
 
 function isLocalPlayerInArena(): boolean {
   if (isPlayerDead()) return false
@@ -150,12 +165,110 @@ export function getProjectileSpawnData(gunWorldPos: Vector3, gunWorldRot: Rotati
   }
 }
 
-export function spawnMuzzleFlashVfx(spawnPos: Vector3, gunWorldRot: RotationLike): void {
+function restartSingleClipAnimation(entity: Entity): void {
+  if (!Animator.has(entity)) return
+  const animator = Animator.getMutable(entity)
+  const state = animator.states[0]
+  if (!state) return
+  for (const currentState of animator.states) {
+    currentState.playing = currentState === state
+    currentState.loop = false
+  }
+  state.playing = true
+  state.shouldReset = true
+}
+
+function createPooledProjectileEntity(): Entity {
+  const projectile = engine.addEntity()
+  Transform.create(projectile, {
+    position: HIDDEN_POOL_POSITION,
+    rotation: Quaternion.Identity(),
+    scale: Vector3.Zero()
+  })
+
+  const projectileVisual = engine.addEntity()
+  Transform.create(projectileVisual, {
+    parent: projectile,
+    position: Vector3.Zero(),
+    rotation: Quaternion.Identity(),
+    scale: Vector3.Zero()
+  })
+  GltfContainer.create(projectileVisual, {
+    src: BULLET_MODEL_SRC,
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+
+  ProjectileComponent.create(projectile, {
+    active: false,
+    direction: Vector3.Forward(),
+    startPosition: HIDDEN_POOL_POSITION,
+    visualEntity: projectileVisual,
+    canDamage: false,
+    weaponType: 'gun',
+    shotSeq: 0,
+    speed: PROJECTILE_SPEED,
+    maxDistance: BULLET_MAX_DISTANCE,
+    damage: 0
+  })
+
+  projectilePool.push(projectile)
+  return projectile
+}
+
+function ensureProjectilePool(): void {
+  if (projectilePoolInitialized) return
+  projectilePoolInitialized = true
+  for (let i = 0; i < PROJECTILE_POOL_PREWARM_COUNT; i += 1) {
+    inactiveProjectilePool.push(createPooledProjectileEntity())
+  }
+}
+
+function acquireProjectileEntity(): Entity {
+  ensureProjectilePool()
+  const pooledProjectile = inactiveProjectilePool.pop()
+  if (pooledProjectile !== undefined) return pooledProjectile
+
+  if (!projectilePoolSoftCapWarned && projectilePool.length >= PROJECTILE_POOL_SOFT_CAP) {
+    projectilePoolSoftCapWarned = true
+    console.log(
+      `[ProjectilePool] Soft cap exceeded (${projectilePool.length}). ` +
+        'Pool grew because no inactive projectile was available.'
+    )
+  }
+  return createPooledProjectileEntity()
+}
+
+function deactivateProjectileEntity(projectile: Entity): void {
+  if (!ProjectileComponent.has(projectile) || !Transform.has(projectile)) return
+
+  const projectileData = ProjectileComponent.get(projectile)
+  if (!projectileData.active) return
+  const mutableProjectile = ProjectileComponent.getMutable(projectile)
+  mutableProjectile.active = false
+  mutableProjectile.canDamage = false
+  mutableProjectile.damage = 0
+  mutableProjectile.shotSeq = 0
+
+  const transform = Transform.getMutable(projectile)
+  transform.position = HIDDEN_POOL_POSITION
+  transform.rotation = Quaternion.Identity()
+  transform.scale = Vector3.Zero()
+  inactiveProjectilePool.push(projectile)
+
+  if (!Transform.has(projectileData.visualEntity)) return
+  const visualTransform = Transform.getMutable(projectileData.visualEntity)
+  visualTransform.position = Vector3.Zero()
+  visualTransform.rotation = Quaternion.Identity()
+  visualTransform.scale = Vector3.Zero()
+}
+
+function createWorldMuzzleFlashEntity(): Entity {
   const muzzleFlash = engine.addEntity()
   Transform.create(muzzleFlash, {
-    position: Vector3.clone(spawnPos),
-    rotation: gunWorldRot,
-    scale: Vector3.One()
+    position: HIDDEN_POOL_POSITION,
+    rotation: Quaternion.Identity(),
+    scale: Vector3.Zero()
   })
   GltfContainer.create(muzzleFlash, {
     src: MUZZLE_FLASH_MODEL_SRC,
@@ -163,35 +276,104 @@ export function spawnMuzzleFlashVfx(spawnPos: Vector3, gunWorldRot: RotationLike
     invisibleMeshesCollisionMask: 0
   })
   Animator.create(muzzleFlash, {
-    states: [{ clip: MUZZLE_FLASH_CLIP, playing: true, loop: false, speed: 1 }]
+    states: [{ clip: MUZZLE_FLASH_CLIP, playing: false, loop: false, speed: 1 }]
   })
   ProjectileMuzzleFlashComponent.create(muzzleFlash, {
-    endTime: getGameTime() + MUZZLE_FLASH_DURATION
+    active: false,
+    attached: false,
+    endTime: 0
   })
+  worldMuzzleFlashPool.push(muzzleFlash)
+  return muzzleFlash
+}
+
+function ensureWorldMuzzleFlashPool(): void {
+  if (worldMuzzleFlashPoolInitialized) return
+  worldMuzzleFlashPoolInitialized = true
+  for (let i = 0; i < WORLD_MUZZLE_FLASH_POOL_PREWARM_COUNT; i += 1) {
+    inactiveWorldMuzzleFlashPool.push(createWorldMuzzleFlashEntity())
+  }
+}
+
+function acquireWorldMuzzleFlashEntity(): Entity {
+  ensureWorldMuzzleFlashPool()
+  const pooledFlash = inactiveWorldMuzzleFlashPool.pop()
+  if (pooledFlash !== undefined) return pooledFlash
+
+  if (!worldMuzzleFlashPoolSoftCapWarned && worldMuzzleFlashPool.length >= WORLD_MUZZLE_FLASH_POOL_SOFT_CAP) {
+    worldMuzzleFlashPoolSoftCapWarned = true
+    console.log(
+      `[MuzzleFlashPool] Soft cap exceeded (${worldMuzzleFlashPool.length}). ` +
+        'Pool grew because no inactive world muzzle flash was available.'
+    )
+  }
+  return createWorldMuzzleFlashEntity()
+}
+
+function createAttachedMuzzleFlashEntity(weaponEntity: Entity): Entity {
+  const muzzleFlash = engine.addEntity()
+  Transform.create(muzzleFlash, {
+    parent: weaponEntity,
+    position: MUZZLE_FLASH_OFFSET_MODEL_LOCAL,
+    rotation: Quaternion.Identity(),
+    scale: Vector3.Zero()
+  })
+  GltfContainer.create(muzzleFlash, {
+    src: MUZZLE_FLASH_MODEL_SRC,
+    visibleMeshesCollisionMask: 0,
+    invisibleMeshesCollisionMask: 0
+  })
+  Animator.create(muzzleFlash, {
+    states: [{ clip: MUZZLE_FLASH_CLIP, playing: false, loop: false, speed: 1 }]
+  })
+  ProjectileMuzzleFlashComponent.create(muzzleFlash, {
+    active: false,
+    attached: true,
+    endTime: 0
+  })
+  attachedMuzzleFlashByWeapon.set(weaponEntity, muzzleFlash)
+  return muzzleFlash
+}
+
+function getOrCreateAttachedMuzzleFlashEntity(weaponEntity: Entity): Entity {
+  // Invariant: weapon destroy paths must call unregisterAttachedMuzzleFlash before removing
+  // the weapon entity. The .has() guards below protect current usage, but they are not meant
+  // to support arbitrary destroyed-then-recycled entity ids reappearing in the map.
+  const existing = attachedMuzzleFlashByWeapon.get(weaponEntity)
+  if (existing && Transform.has(existing) && ProjectileMuzzleFlashComponent.has(existing)) {
+    return existing
+  }
+  return createAttachedMuzzleFlashEntity(weaponEntity)
+}
+
+function activateMuzzleFlash(entity: Entity, attached: boolean, endTime: number): void {
+  if (!ProjectileMuzzleFlashComponent.has(entity)) return
+  const mutableFlash = ProjectileMuzzleFlashComponent.getMutable(entity)
+  mutableFlash.active = true
+  mutableFlash.attached = attached
+  mutableFlash.endTime = endTime
+  restartSingleClipAnimation(entity)
+}
+
+export function spawnMuzzleFlashVfx(spawnPos: Vector3, gunWorldRot: RotationLike): void {
+  const muzzleFlash = acquireWorldMuzzleFlashEntity()
+  const transform = Transform.getMutable(muzzleFlash)
+  transform.position = Vector3.clone(spawnPos)
+  transform.rotation = gunWorldRot
+  transform.scale = Vector3.One()
+  activateMuzzleFlash(muzzleFlash, false, getGameTime() + MUZZLE_FLASH_DURATION)
 }
 
 export function spawnAttachedMuzzleFlashVfx(
   weaponEntity: Entity,
   localPosition: Vector3 = MUZZLE_FLASH_OFFSET_MODEL_LOCAL
 ): void {
-  const muzzleFlash = engine.addEntity()
-  Transform.create(muzzleFlash, {
-    parent: weaponEntity,
-    position: localPosition,
-    rotation: Quaternion.Identity(),
-    scale: Vector3.One()
-  })
-  GltfContainer.create(muzzleFlash, {
-    src: MUZZLE_FLASH_MODEL_SRC,
-    visibleMeshesCollisionMask: 0,
-    invisibleMeshesCollisionMask: 0
-  })
-  Animator.create(muzzleFlash, {
-    states: [{ clip: MUZZLE_FLASH_CLIP, playing: true, loop: false, speed: 1 }]
-  })
-  ProjectileMuzzleFlashComponent.create(muzzleFlash, {
-    endTime: getGameTime() + MUZZLE_FLASH_DURATION
-  })
+  const muzzleFlash = getOrCreateAttachedMuzzleFlashEntity(weaponEntity)
+  const transform = Transform.getMutable(muzzleFlash)
+  transform.position = localPosition
+  transform.rotation = Quaternion.Identity()
+  transform.scale = Vector3.One()
+  activateMuzzleFlash(muzzleFlash, true, getGameTime() + MUZZLE_FLASH_DURATION)
 }
 
 export function spawnProjectileEntity(
@@ -204,46 +386,34 @@ export function spawnProjectileEntity(
   speed: number = PROJECTILE_SPEED,
   maxDistance: number = BULLET_MAX_DISTANCE
 ): Entity {
-  const projectile = engine.addEntity()
-  Transform.create(projectile, {
-    position: Vector3.clone(spawnPos),
-    rotation: Quaternion.lookRotation(direction),
-    scale: PROJECTILE_COLLIDER_SCALE
-  })
+  const projectile = acquireProjectileEntity()
+  const projectileData = ProjectileComponent.get(projectile)
+  const transform = Transform.getMutable(projectile)
+  transform.position = Vector3.clone(spawnPos)
+  transform.rotation = Quaternion.lookRotation(direction)
+  transform.scale = PROJECTILE_COLLIDER_SCALE
 
-  const projectileVisual = engine.addEntity()
-  Transform.create(projectileVisual, {
-    parent: projectile,
-    position: Vector3.Zero(),
-    rotation: Quaternion.Identity(),
-    scale: Vector3.create(
+  const mutableProjectile = ProjectileComponent.getMutable(projectile)
+  mutableProjectile.active = true
+  mutableProjectile.direction = direction
+  mutableProjectile.startPosition = Vector3.clone(spawnPos)
+  mutableProjectile.canDamage = canDamage
+  mutableProjectile.weaponType = weaponType
+  mutableProjectile.shotSeq = shotSeq
+  mutableProjectile.speed = speed
+  mutableProjectile.maxDistance = maxDistance
+  mutableProjectile.damage = damage
+
+  if (Transform.has(projectileData.visualEntity)) {
+    const visualTransform = Transform.getMutable(projectileData.visualEntity)
+    visualTransform.position = Vector3.Zero()
+    visualTransform.rotation = Quaternion.Identity()
+    visualTransform.scale = Vector3.create(
       PROJECTILE_VISUAL_LOCAL_SCALE_VALUE,
       PROJECTILE_VISUAL_LOCAL_SCALE_VALUE,
       PROJECTILE_VISUAL_LOCAL_SCALE_VALUE
     )
-  })
-  GltfContainer.create(projectileVisual, {
-    src: BULLET_MODEL_SRC,
-    visibleMeshesCollisionMask: 0,
-    invisibleMeshesCollisionMask: 0
-  })
-
-  ProjectileComponent.create(projectile, {
-    direction,
-    startPosition: Vector3.clone(spawnPos),
-    visualEntity: projectileVisual,
-    canDamage,
-    weaponType,
-    shotSeq,
-    speed,
-    maxDistance,
-    damage
-  })
-
-  if (canDamage) {
-    MeshCollider.setSphere(projectile, ColliderLayer.CL_CUSTOM1)
   }
-
   return projectile
 }
 
@@ -315,6 +485,8 @@ export function createGun(upgradeLevel: number = 1): Entity {
 
 export function destroyGun(): void {
   if (gunEntity !== null) {
+    unregisterAttachedMuzzleFlash(gunEntity)
+    if (gunModelEntity !== null) unregisterAttachedMuzzleFlash(gunModelEntity)
     engine.removeEntityWithChildren(gunEntity)
     gunEntity = null
     gunModelEntity = null
@@ -322,16 +494,22 @@ export function destroyGun(): void {
   }
 }
 
+export function unregisterAttachedMuzzleFlash(weaponEntity: Entity): void {
+  attachedMuzzleFlashByWeapon.delete(weaponEntity)
+}
+
 function projectileSystem(dt: number) {
   for (const [projectile, projData, transform] of engine.getEntitiesWith(
     ProjectileComponent,
     Transform
   )) {
+    if (!projData.active) continue
+
     const currentPos = transform.position
     const dir = projData.direction
     const startPos = projData.startPosition
 
-    // Move bullet straight; hit detection is done by TriggerArea on zombies (collider-based)
+    // Move bullet straight; hit detection is resolved with squared-distance checks.
     const bulletSpeed = projData.speed > 0 ? projData.speed : PROJECTILE_SPEED
     const newPos = Vector3.add(currentPos, Vector3.scale(dir, bulletSpeed * dt))
 
@@ -339,7 +517,7 @@ function projectileSystem(dt: number) {
     const traveled = Vector3.distance(newPos, startPos)
     const maxDistance = projData.maxDistance > 0 ? projData.maxDistance : BULLET_MAX_DISTANCE
     if (traveled > maxDistance) {
-      engine.removeEntityWithChildren(projectile)
+      deactivateProjectileEntity(projectile)
       continue
     }
 
@@ -348,13 +526,9 @@ function projectileSystem(dt: number) {
 
     if (Transform.has(projData.visualEntity)) {
       const scaleFactor = getProjectileVisualScaleFactor(traveled, maxDistance)
-      if (scaleFactor <= 0) {
-        engine.removeEntity(projData.visualEntity)
-      } else {
-        const visualScale = PROJECTILE_VISUAL_LOCAL_SCALE_VALUE * scaleFactor
-        const visualTransform = Transform.getMutable(projData.visualEntity)
-        visualTransform.scale = Vector3.create(visualScale, visualScale, visualScale)
-      }
+      const visualScale = Math.max(0, PROJECTILE_VISUAL_LOCAL_SCALE_VALUE * scaleFactor)
+      const visualTransform = Transform.getMutable(projData.visualEntity)
+      visualTransform.scale = Vector3.create(visualScale, visualScale, visualScale)
     }
 
     if (!projData.canDamage) continue
@@ -368,7 +542,7 @@ function projectileSystem(dt: number) {
       if (distSq > PROJECTILE_HIT_RADIUS_SQ) continue
 
       damageZombie(zombie, projData.damage > 0 ? projData.damage : 1, { weaponType: projData.weaponType as 'gun' | 'shotgun' | 'minigun', shotSeq: Math.floor(projData.shotSeq) })
-      engine.removeEntityWithChildren(projectile)
+      deactivateProjectileEntity(projectile)
       break
     }
   }
@@ -376,12 +550,21 @@ function projectileSystem(dt: number) {
 
 function projectileMuzzleFlashSystem(): void {
   const now = getGameTime()
-  const toRemove: Entity[] = []
-  for (const [entity, muzzleFlash] of engine.getEntitiesWith(ProjectileMuzzleFlashComponent)) {
+  for (const [entity, muzzleFlash] of engine.getEntitiesWith(ProjectileMuzzleFlashComponent, Transform)) {
+    if (!muzzleFlash.active) continue
     if (now < muzzleFlash.endTime) continue
-    toRemove.push(entity)
+
+    const mutableFlash = ProjectileMuzzleFlashComponent.getMutable(entity)
+    mutableFlash.active = false
+
+    const transform = Transform.getMutable(entity)
+    transform.scale = Vector3.Zero()
+    if (!muzzleFlash.attached) {
+      transform.position = HIDDEN_POOL_POSITION
+      transform.rotation = Quaternion.Identity()
+      inactiveWorldMuzzleFlashPool.push(entity)
+    }
   }
-  for (const entity of toRemove) engine.removeEntityWithChildren(entity)
 }
 
 export function gunSystem(dt: number) {
@@ -461,6 +644,8 @@ export function spawnReplicatedGunShotVisual(origin: Vector3, direction: Vector3
 }
 
 export function initGunSystems() {
+  ensureProjectilePool()
+  ensureWorldMuzzleFlashPool()
   engine.addSystem(projectileSystem)
   engine.addSystem(projectileMuzzleFlashSystem)
   engine.addSystem(gunSystem, GUN_SYSTEM_PRIORITY_LAST, 'gunSystem')
