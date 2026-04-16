@@ -63,7 +63,6 @@ export class LobbyWorldPanel {
   private lastRenderedGameTextMode: GameTextMode | null = null
   private frozenPlayersText: string | null = null
   private hasFrozenPlayersTextThisMatch = false
-  private isLocalPlayerInsideTrigger = false
   private lastJoinRequestAtMs = 0
   private lastLeaveRequestAtMs = 0
 
@@ -126,13 +125,11 @@ export class LobbyWorldPanel {
     triggerAreaEventsSystem.onTriggerEnter(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
       console.log('[LobbyPanel] Player entered trigger area')
-      this.isLocalPlayerInsideTrigger = true
       localPlayerInsideLobbyTrigger = true
       this.requestLobbyJoinIfNeeded()
     })
     triggerAreaEventsSystem.onTriggerExit(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
-      this.isLocalPlayerInsideTrigger = false
       localPlayerInsideLobbyTrigger = false
       this.requestLobbyLeaveIfNeeded()
     })

@@ -1673,33 +1673,6 @@ export function setupLobbyServer(): void {
     }
   })
 
-  room.onMessage('createMatchAndJoin', async (_data, context) => {
-    if (!context) return
-    if (!isPlayerInLobby(context.from) && isMatchJoinLocked()) {
-      logLobbyServerEvent(`JoinRejectedMatchLocked ${context.from.toLowerCase()}`)
-      await ensurePlayerProfileLoaded(context.from)
-      addPlayerToLobby(context.from)
-      void room.send('lobbyEvent', {
-        type: 'match_locked',
-        message: `${getPlayerDisplayName(context.from.toLowerCase())} can join the next match`
-      })
-      return
-    }
-    await ensurePlayerLoadedAndInLobby(context.from)
-    const state = getLobbyState()
-    if (state.phase !== LobbyPhase.MATCH_CREATED) {
-      createMatch(context.from)
-    }
-    sendPlayerHealthState(context.from)
-    sendArenaWeaponStatesTo(context.from)
-    sendPowerupStatesTo(context.from)
-    if (isPlayerInArena(context.from)) {
-      sendActivePotionsTo(context.from)
-      sendActiveLavaHazardsTo(context.from)
-      sendActiveCollectiblesTo(context.from)
-    }
-  })
-
   room.onMessage('playerArenaWeaponChanged', (data, context) => {
     if (!context) return
     const normalizedAddress = context.from.toLowerCase()

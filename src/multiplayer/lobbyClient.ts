@@ -202,14 +202,6 @@ export function sendCreateMatch(): void {
   void room.send('createMatch', {})
 }
 
-export function sendCreateMatchAndJoin(): void {
-  if (ensureLocalAuthDebugActive('createMatchAndJoin')) {
-    debugCreateMatchAndJoin()
-    return
-  }
-  void room.send('createMatchAndJoin', {})
-}
-
 export function sendStartGameManual(): void {
   if (ensureLocalAuthDebugActive('startGameManual')) {
     debugStartGameManual()
@@ -367,7 +359,7 @@ function hasAuthoritativeMatchRuntimeState(): boolean {
 }
 
 function ensureLocalAuthDebugActive(
-  reason: 'autoJoinLobbySystem' | 'joinLobby' | 'leaveLobby' | 'createMatch' | 'createMatchAndJoin' | 'startGameManual'
+  reason: 'autoJoinLobbySystem' | 'joinLobby' | 'leaveLobby' | 'createMatch' | 'startGameManual'
 ): boolean {
   if (localAuthDebugActive) return true
   if (!ENABLE_LOCAL_AUTH_DEBUG_IN_PREVIEW) return false
@@ -382,7 +374,6 @@ function ensureLocalAuthDebugActive(
     reason === 'joinLobby' ||
     reason === 'leaveLobby' ||
     reason === 'createMatch' ||
-    reason === 'createMatchAndJoin' ||
     reason === 'startGameManual'
   if (!graceElapsed && !shouldForceForAction) return false
 
@@ -508,15 +499,11 @@ function debugCreateMatch(): void {
   console.log(`[LobbyClientDebug] match created by ${player.address}`)
 }
 
-function debugCreateMatchAndJoin(): void {
-  debugCreateMatch()
-}
-
 function debugStartGameManual(): void {
   const player = getDebugLobbyPlayer()
   if (!player) return
 
-  debugCreateMatchAndJoin()
+  debugCreateMatch()
   const lobby = ensureDebugLobbyState()
   const runtime = ensureDebugMatchRuntimeState()
   if (runtime.isRunning || lobby.countdownEndTimeMs > 0 || lobby.arenaIntroEndTimeMs > 0) return
