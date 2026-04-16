@@ -75,14 +75,14 @@ export function spawnBrickAt(position: Vector3): Entity | null {
   try {
     GltfContainer.create(entity, {
       src: BRICK_GLB,
-      visibleMeshesCollisionMask: 0,
-      invisibleMeshesCollisionMask: 0
+      visibleMeshesCollisionMask: ColliderLayer.CL_PHYSICS,
+      invisibleMeshesCollisionMask: ColliderLayer.CL_PHYSICS
     })
   } catch {
     MeshRenderer.setBox(entity)
     Material.setPbrMaterial(entity, BRICK_BOX_MATERIAL)
+    MeshCollider.setBox(entity, ColliderLayer.CL_PHYSICS)
   }
-  MeshCollider.setBox(entity, ColliderLayer.CL_PHYSICS)
   BrickComponent.create(entity, { health: BRICK_HP, position: pos })
   syncEntity(entity, BRICK_SYNC_COMPONENT_IDS)
   return entity

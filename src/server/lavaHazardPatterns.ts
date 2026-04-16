@@ -459,6 +459,7 @@ function addSweepPass(
 ): void {
   const laneStarts: number[] = []
   const maxStart = horizontal ? MAX_GRID_Z : MAX_GRID_X
+  const safeLaneIndexes = new Set(getSweepSafeLaneIndexes(horizontal))
 
   if (reversed) {
     for (let laneStart = maxStart - laneWidth + 1; laneStart >= 0; laneStart -= laneWidth) {
@@ -479,6 +480,7 @@ function addSweepPass(
 
     if (horizontal) {
       for (let gridX = 0; gridX < LAVA_GRID_SIZE_X; gridX += 1) {
+        if (safeLaneIndexes.has(gridX)) continue
         for (let widthOffset = 0; widthOffset < laneWidth; widthOffset += 1) {
           addTile(tiles, {
             gridX,
@@ -493,6 +495,7 @@ function addSweepPass(
     }
 
     for (let gridZ = 0; gridZ < LAVA_GRID_SIZE_Z; gridZ += 1) {
+      if (safeLaneIndexes.has(gridZ)) continue
       for (let widthOffset = 0; widthOffset < laneWidth; widthOffset += 1) {
         addTile(tiles, {
           gridX: laneStart + widthOffset,
@@ -504,6 +507,36 @@ function addSweepPass(
       }
     }
   })
+}
+
+function getSweepSafeLaneIndexes(horizontal: boolean): number[] {
+  const crossAxisSize = horizontal ? LAVA_GRID_SIZE_X : LAVA_GRID_SIZE_Z
+  const laneCount = crossAxisSize <= 4 ? 1 : Math.random() < 0.5 ? 1 : 2
+  const minLaneIndex = crossAxisSize <= 2 ? 0 : 1
+  const maxLaneIndex = crossAxisSize <= 2 ? crossAxisSize - 1 : crossAxisSize - 2
+
+  if (crossAxisSize <= 4) {
+    return [randomInt(minLaneIndex, maxLaneIndex)]
+  }
+
+  const selected = new Set<number>()
+  const minSpacing = crossAxisSize >= 7 ? 2 : 1
+  let attempts = 0
+
+  while (selected.size < laneCount && attempts < 20) {
+    const candidate = randomInt(minLaneIndex, maxLaneIndex)
+    const tooClose = Array.from(selected).some((existing) => Math.abs(existing - candidate) < minSpacing)
+    if (!tooClose) {
+      selected.add(candidate)
+    }
+    attempts += 1
+  }
+
+  while (selected.size < laneCount) {
+    selected.add(randomInt(minLaneIndex, maxLaneIndex))
+  }
+
+  return Array.from(selected).sort((a, b) => a - b)
 }
 
 function buildSweepPattern(waveNumber: number, waveStartAtMs: number, slot: EventSlot): TileCollection {

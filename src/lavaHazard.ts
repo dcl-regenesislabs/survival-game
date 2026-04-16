@@ -5,6 +5,7 @@ import { getLobbyState, getLocalAddress, isLocalReadyForMatch } from './multipla
 import { LobbyPhase } from './shared/lobbySchemas'
 import { getServerTime } from './shared/timeSync'
 import { triggerPredictedDamageFeedback } from './playerHealth'
+import { BRICK_RADIUS, getBricks } from './brick'
 import {
   LAVA_DAMAGE_INTERVAL_MS,
   LAVA_GRID_SIZE_X,
@@ -33,6 +34,7 @@ type LocalLavaZone = {
 
 const HIDDEN_POSITION_Y = -3
 const LAVA_JUMP_CLEARANCE_Y = 0.9
+const BRICK_SAFE_HEIGHT_Y = 0.35
 
 const localLavaZoneByKey = new Map<string, LocalLavaZone>()
 const localLavaTileKeyById = new Map<string, string>()
@@ -58,6 +60,17 @@ function getZoneModelVariant(gridX: number, gridZ: number): number {
 
 function getZoneRotationQuarterTurns(_gridX: number, _gridZ: number): number {
   return 0
+}
+
+function isPlayerStandingOnBrick(playerPosition: Vector3): boolean {
+  for (const { position } of getBricks()) {
+    const dx = playerPosition.x - position.x
+    const dz = playerPosition.z - position.z
+    if (dx * dx + dz * dz > BRICK_RADIUS * BRICK_RADIUS) continue
+    if (playerPosition.y < position.y + BRICK_SAFE_HEIGHT_Y) continue
+    return true
+  }
+  return false
 }
 
 function getZoneHiddenPosition(gridX: number, gridZ: number): Vector3 {
@@ -249,6 +262,7 @@ export function lavaHazardSystem(): void {
     lavaPlayerGroundY = playerPosition.y
   }
   if (lavaPlayerGroundY !== null && playerPosition.y - lavaPlayerGroundY > LAVA_JUMP_CLEARANCE_Y) return
+  if (isPlayerStandingOnBrick(playerPosition)) return
 
   const tileCoords = getLavaGridCoordsFromWorld(playerPosition.x, playerPosition.z)
   if (!tileCoords) return
