@@ -7,7 +7,13 @@ import {
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { ZombieComponent } from './zombie'
-import { getProjectileSpawnData, spawnAttachedMuzzleFlashVfx, spawnMuzzleFlashVfx, spawnProjectileEntity } from './gun'
+import {
+  getProjectileSpawnData,
+  spawnAttachedMuzzleFlashVfx,
+  spawnMuzzleFlashVfx,
+  spawnProjectileEntity,
+  unregisterAttachedMuzzleFlash
+} from './gun'
 import { getCurrentWeapon } from './weaponManager'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
 import { getFireRateMultiplier } from './speedEffect'
@@ -166,6 +172,8 @@ export function createMiniGun(upgradeLevel: number = 1): Entity {
 
 export function destroyMiniGun(): void {
   if (gunEntity !== null) {
+    unregisterAttachedMuzzleFlash(gunEntity)
+    if (gunModelEntity !== null) unregisterAttachedMuzzleFlash(gunModelEntity)
     engine.removeEntityWithChildren(gunEntity)
     gunEntity = null
     gunModelEntity = null
