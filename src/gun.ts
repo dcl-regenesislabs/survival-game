@@ -28,7 +28,7 @@ import { getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loado
 // Gun config - tweak these to your liking
 const ROUNDS_PER_SECOND = 2 // Manual fire rate: 1 shot every 0.5s
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
-const SHOOT_RANGE = 100
+const SHOOT_RANGE = 15
 const PROJECTILE_SPEED = 28 // Faster bullets make auto-aim feel more responsive
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 const BULLET_MODEL_SRC = 'assets/scene/Models/bullets/Bullet.glb'
@@ -41,7 +41,7 @@ const MUZZLE_FLASH_OFFSET_MODEL_LOCAL = Vector3.create(0, 0, -0.08)
 // How long to freeze gun rotation after shooting (so bullet spawn looks correct). Tweak to match your shoot clip length.
 const GUN_ROTATION_SMOOTH_SPEED = 20
 // Bullet flies straight; remove after this distance from spawn (out of scene)
-const BULLET_MAX_DISTANCE = 48
+const BULLET_MAX_DISTANCE = 15
 const PROJECTILE_COLLIDER_SCALE_VALUE = 0.18
 const PROJECTILE_COLLIDER_SCALE = Vector3.create(
   PROJECTILE_COLLIDER_SCALE_VALUE,
@@ -50,17 +50,16 @@ const PROJECTILE_COLLIDER_SCALE = Vector3.create(
 )
 // Keep the gameplay collider small while rendering the GLB at a readable size.
 const PROJECTILE_VISUAL_LOCAL_SCALE_VALUE = 1 / PROJECTILE_COLLIDER_SCALE_VALUE
-const PROJECTILE_VISUAL_SHRINK_START_DISTANCE = 2.5
-const PROJECTILE_VISUAL_SHRINK_END_DISTANCE = 10
+const PROJECTILE_VISUAL_SHRINK_DISTANCE = 6
 const GUN_SYSTEM_PRIORITY_LAST = -1000
 const PROJECTILE_HIT_RADIUS = 1.15
 const PROJECTILE_HIT_RADIUS_SQ = PROJECTILE_HIT_RADIUS * PROJECTILE_HIT_RADIUS
 
 // Per-tier gun upgrade stats (matches UI display in lobbyStoreUi.tsx WEAPON_STATS)
 const GUN_UPGRADE_STATS: Record<number, { damage: number; fireRate: number }> = {
-  1: { damage: 1, fireRate: 0.40 },
-  2: { damage: 1, fireRate: 0.35 },
-  3: { damage: 2, fireRate: 0.30 }
+  1: { damage: 1, fireRate: 0.44 },
+  2: { damage: 1, fireRate: 0.38 },
+  3: { damage: 2, fireRate: 0.33 }
 }
 
 // Projectile: flies straight; hit detection is via TriggerArea on zombies (collider-based)
@@ -72,6 +71,7 @@ const ProjectileComponentSchema = {
   weaponType: Schemas.String,
   shotSeq: Schemas.Number,
   speed: Schemas.Number,
+  maxDistance: Schemas.Number,
   damage: Schemas.Number
 }
 export const ProjectileComponent = engine.defineComponent('ProjectileComponent', ProjectileComponentSchema)
@@ -201,7 +201,8 @@ export function spawnProjectileEntity(
   weaponType: WeaponProjectileType,
   shotSeq: number,
   damage: number = 1,
-  speed: number = PROJECTILE_SPEED
+  speed: number = PROJECTILE_SPEED,
+  maxDistance: number = BULLET_MAX_DISTANCE
 ): Entity {
   const projectile = engine.addEntity()
   Transform.create(projectile, {
@@ -235,6 +236,7 @@ export function spawnProjectileEntity(
     weaponType,
     shotSeq,
     speed,
+    maxDistance,
     damage
   })
 
@@ -245,12 +247,13 @@ export function spawnProjectileEntity(
   return projectile
 }
 
-function getProjectileVisualScaleFactor(traveled: number): number {
-  if (traveled <= PROJECTILE_VISUAL_SHRINK_START_DISTANCE) return 1
+function getProjectileVisualScaleFactor(traveled: number, maxDistance: number): number {
+  const shrinkStartDistance = Math.max(2.5, maxDistance - PROJECTILE_VISUAL_SHRINK_DISTANCE)
+  if (traveled <= shrinkStartDistance) return 1
   const shrinkT = Math.min(
     1,
-    (traveled - PROJECTILE_VISUAL_SHRINK_START_DISTANCE) /
-      (PROJECTILE_VISUAL_SHRINK_END_DISTANCE - PROJECTILE_VISUAL_SHRINK_START_DISTANCE)
+    (traveled - shrinkStartDistance) /
+      Math.max(0.01, maxDistance - shrinkStartDistance)
   )
   return 1 - shrinkT
 }
@@ -273,7 +276,7 @@ function spawnProjectile(
   } else {
     spawnMuzzleFlashVfx(spawnPos, gunWorldRot)
   }
-  spawnProjectileEntity(spawnPos, direction, canDamage, weaponType, shotSeq, damage, PROJECTILE_SPEED)
+  spawnProjectileEntity(spawnPos, direction, canDamage, weaponType, shotSeq, damage, PROJECTILE_SPEED, BULLET_MAX_DISTANCE)
   return direction
 }
 
@@ -334,7 +337,8 @@ function projectileSystem(dt: number) {
 
     // Remove if bullet went out of range (out of scene)
     const traveled = Vector3.distance(newPos, startPos)
-    if (traveled > BULLET_MAX_DISTANCE) {
+    const maxDistance = projData.maxDistance > 0 ? projData.maxDistance : BULLET_MAX_DISTANCE
+    if (traveled > maxDistance) {
       engine.removeEntityWithChildren(projectile)
       continue
     }
@@ -343,7 +347,7 @@ function projectileSystem(dt: number) {
     mutableTransform.position = newPos
 
     if (Transform.has(projData.visualEntity)) {
-      const scaleFactor = getProjectileVisualScaleFactor(traveled)
+      const scaleFactor = getProjectileVisualScaleFactor(traveled, maxDistance)
       if (scaleFactor <= 0) {
         engine.removeEntity(projData.visualEntity)
       } else {
@@ -437,6 +441,7 @@ export function gunSystem(dt: number) {
 
   const isTriggerHeld = isGameplayFireHeld()
   if (!isTriggerHeld) return
+  if (!nearestZombie) return
 
   shootTimer = 0
   playGunAnimation()

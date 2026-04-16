@@ -31,7 +31,7 @@ import { getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loado
 // Gun config - tweak these to your liking
 const ROUNDS_PER_SECOND = 6 // Minigun should feel like sustained pressure
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots
-const SHOOT_RANGE = 100
+const SHOOT_RANGE = 15
 const PROJECTILE_SPEED = 32 // Fast tracers help the minigun read as high-pressure fire
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
@@ -39,7 +39,7 @@ const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
 // Shorter freeze so rotation can update between shots (minigun fires every 0.2s; 0.4s would block rotation entirely)
 const GUN_ROTATION_SMOOTH_SPEED = 20
 // Bullet flies straight; remove after this distance from spawn (out of scene)
-const BULLET_MAX_DISTANCE = 40
+const BULLET_MAX_DISTANCE = 15
 const GUN_SYSTEM_PRIORITY_LAST = -1000
 
 let gunEntity: Entity | null = null
@@ -128,7 +128,7 @@ function spawnProjectile(
   } else {
     spawnMuzzleFlashVfx(spawnPos, gunWorldRot)
   }
-  spawnProjectileEntity(spawnPos, direction, canDamage, weaponType, shotSeq, 1, PROJECTILE_SPEED)
+  spawnProjectileEntity(spawnPos, direction, canDamage, weaponType, shotSeq, 1, PROJECTILE_SPEED, BULLET_MAX_DISTANCE)
   return direction
 }
 
@@ -249,6 +249,7 @@ export function miniGunSystem(dt: number) {
   if (shootTimer < effectiveFireRate) return
 
   if (!isTriggerHeld) return
+  if (!nearestZombie) return
 
   shootTimer = 0
   playGunAnimation()

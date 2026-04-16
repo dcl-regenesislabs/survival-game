@@ -4,6 +4,7 @@ import { room } from './shared/messages'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
 import { getServerTime } from './shared/timeSync'
+import { triggerPredictedDamageFeedback } from './playerHealth'
 import {
   LAVA_DAMAGE_INTERVAL_MS,
   LAVA_GRID_SIZE_X,
@@ -31,12 +32,14 @@ type LocalLavaZone = {
 }
 
 const HIDDEN_POSITION_Y = -3
+const LAVA_JUMP_CLEARANCE_Y = 0.9
 
 const localLavaZoneByKey = new Map<string, LocalLavaZone>()
 const localLavaTileKeyById = new Map<string, string>()
 let isLavaSyncInitialized = false
 let areLavaZonesInitialized = false
 let lastLavaDamageRequestAtMs = 0
+let lavaPlayerGroundY: number | null = null
 let sweepWarningStartAtMs = 0
 let sweepWarningEndAtMs = 0
 
@@ -118,6 +121,7 @@ function clearZoneState(zone: LocalLavaZone): void {
 
 function clearAllLavaHazards(): void {
   lastLavaDamageRequestAtMs = 0
+  lavaPlayerGroundY = null
   for (const zone of localLavaZoneByKey.values()) {
     clearZoneState(zone)
   }
@@ -241,6 +245,11 @@ export function lavaHazardSystem(): void {
   if (now - lastLavaDamageRequestAtMs < LAVA_DAMAGE_INTERVAL_MS) return
 
   const playerPosition = Transform.get(engine.PlayerEntity).position
+  if (lavaPlayerGroundY === null || playerPosition.y < lavaPlayerGroundY || playerPosition.y - lavaPlayerGroundY < 0.2) {
+    lavaPlayerGroundY = playerPosition.y
+  }
+  if (lavaPlayerGroundY !== null && playerPosition.y - lavaPlayerGroundY > LAVA_JUMP_CLEARANCE_Y) return
+
   const tileCoords = getLavaGridCoordsFromWorld(playerPosition.x, playerPosition.z)
   if (!tileCoords) return
 
@@ -249,5 +258,6 @@ export function lavaHazardSystem(): void {
   if (now < zone.activeAtMs || now >= zone.expiresAtMs) return
 
   lastLavaDamageRequestAtMs = now
+  triggerPredictedDamageFeedback(1)
   void room.send('lavaHazardDamageRequest', { lavaId: zone.lavaId })
 }

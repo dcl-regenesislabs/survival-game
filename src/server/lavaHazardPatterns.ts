@@ -295,9 +295,7 @@ function buildScatterPattern(waveNumber: number, waveStartAtMs: number, slot: Ev
 }
 
 function getStaticWarningDurationMs(waveNumber: number): number {
-  if (waveNumber >= 16) return 950
-  if (waveNumber >= 10) return 1100
-  return LAVA_WARNING_DURATION_MS
+  return 0
 }
 
 function getStaticActiveDurationMs(waveNumber: number): number {
@@ -424,10 +422,17 @@ function buildSafePocketPattern(waveNumber: number, waveStartAtMs: number, slot:
     getSafePocketActiveDurationMs(waveNumber),
     getStaticWarningDurationMs(waveNumber)
   )
-  const radiusX = waveNumber >= 18 ? randomFloat(2.4, 2.9) : waveNumber >= 16 ? randomFloat(2.8, 3.3) : randomFloat(3.2, 3.8)
-  const radiusZ = waveNumber >= 18 ? randomFloat(2.4, 2.9) : waveNumber >= 16 ? randomFloat(2.8, 3.3) : randomFloat(3.2, 3.8)
-  const marginX = Math.ceil(radiusX) + 1
-  const marginZ = Math.ceil(radiusZ) + 1
+  const maxRadius = Math.max(1.8, Math.min(LAVA_GRID_SIZE_X, LAVA_GRID_SIZE_Z) * 0.34)
+  const radiusX = Math.min(
+    waveNumber >= 18 ? randomFloat(2.4, 2.9) : waveNumber >= 16 ? randomFloat(2.8, 3.3) : randomFloat(3.2, 3.8),
+    maxRadius
+  )
+  const radiusZ = Math.min(
+    waveNumber >= 18 ? randomFloat(2.4, 2.9) : waveNumber >= 16 ? randomFloat(2.8, 3.3) : randomFloat(3.2, 3.8),
+    maxRadius
+  )
+  const marginX = Math.min(Math.ceil(radiusX) + 1, Math.floor(MAX_GRID_X / 2))
+  const marginZ = Math.min(Math.ceil(radiusZ) + 1, Math.floor(MAX_GRID_Z / 2))
 
   addInvertedSafeBlob(
     tiles,
