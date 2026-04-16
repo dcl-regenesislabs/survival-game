@@ -18,7 +18,7 @@ import {
   getLocalAddress,
   getMatchRuntimeState,
   isLocalReadyForMatch,
-  sendCreateMatchAndJoin,
+  sendJoinLobby,
   sendLeaveLobby
 } from './multiplayer/lobbyClient'
 import { getServerTime } from './shared/timeSync'
@@ -43,6 +43,7 @@ const HIDDEN_GAME_TEXT_ENTITY_NAMES = [
   EntityNames.NewGameText_glb_3,
   EntityNames.NewGameText_glb_4
 ]
+let localPlayerInsideLobbyTrigger = false
 
 type Entity = ReturnType<typeof engine.addEntity>
 type GameTextMode = 'new_game' | 'in_progress'
@@ -126,11 +127,13 @@ export class LobbyWorldPanel {
       if (result.trigger?.entity !== engine.PlayerEntity) return
       console.log('[LobbyPanel] Player entered trigger area')
       this.isLocalPlayerInsideTrigger = true
+      localPlayerInsideLobbyTrigger = true
       this.requestLobbyJoinIfNeeded()
     })
     triggerAreaEventsSystem.onTriggerExit(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
       this.isLocalPlayerInsideTrigger = false
+      localPlayerInsideLobbyTrigger = false
       this.requestLobbyLeaveIfNeeded()
     })
   }
@@ -178,7 +181,7 @@ export class LobbyWorldPanel {
     const nowMs = Date.now()
     if (nowMs - this.lastJoinRequestAtMs < LOBBY_REQUEST_COOLDOWN_MS) return
     this.lastJoinRequestAtMs = nowMs
-    sendCreateMatchAndJoin()
+    sendJoinLobby()
   }
 
   private requestLobbyLeaveIfNeeded(): void {
@@ -303,5 +306,10 @@ export class LobbyWorldPanel {
 }
 
 export function initLobbyWorldPanel(): LobbyWorldPanel {
+  localPlayerInsideLobbyTrigger = false
   return new LobbyWorldPanel()
+}
+
+export function isLocalPlayerInsideLobbyTrigger(): boolean {
+  return localPlayerInsideLobbyTrigger
 }
