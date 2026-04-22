@@ -6,6 +6,8 @@ import { LobbyPhase } from './shared/lobbySchemas'
 import { getServerTime } from './shared/timeSync'
 import { getCurrentRoomId } from './roomRuntime'
 import { ROOM_IDS, RoomId } from './shared/roomConfig'
+import { triggerPredictedDamageFeedback } from './playerHealth'
+import { BRICK_RADIUS, getBricks } from './brick'
 import {
   LAVA_DAMAGE_INTERVAL_MS,
   LAVA_GRID_SIZE_X,
@@ -34,6 +36,8 @@ type LocalLavaZone = {
 }
 
 const HIDDEN_POSITION_Y = -3
+const LAVA_JUMP_CLEARANCE_Y = 0.9
+const BRICK_SAFE_HEIGHT_Y = 0.35
 
 const localLavaZoneByRoomTileKey = new Map<string, LocalLavaZone>()
 const localLavaTileKeyById = new Map<string, string>()
@@ -41,6 +45,18 @@ let isLavaSyncInitialized = false
 let areLavaZonesInitialized = false
 let lastLavaDamageRequestAtMs = 0
 let lastVisualRoomId: RoomId | null = null
+let lavaPlayerGroundY: number | null = null
+let sweepWarningStartAtMs = 0
+let sweepWarningEndAtMs = 0
+
+const SWEEP_UI_DURATION_MS = 1000
+
+export function getSweepWarning(nowMs: number): { active: boolean; remainingMs: number } {
+  if (nowMs < sweepWarningStartAtMs || nowMs >= sweepWarningEndAtMs) {
+    return { active: false, remainingMs: 0 }
+  }
+  return { active: true, remainingMs: sweepWarningEndAtMs - nowMs }
+}
 
 function getZoneModelVariant(gridX: number, gridZ: number): number {
   return Math.abs(gridX * 17 + gridZ * 31) % LAVA_MODEL_SRCS.length
@@ -48,6 +64,17 @@ function getZoneModelVariant(gridX: number, gridZ: number): number {
 
 function getZoneRotationQuarterTurns(_gridX: number, _gridZ: number): number {
   return 0
+}
+
+function isPlayerStandingOnBrick(playerPosition: Vector3): boolean {
+  for (const { position } of getBricks()) {
+    const dx = playerPosition.x - position.x
+    const dz = playerPosition.z - position.z
+    if (dx * dx + dz * dz > BRICK_RADIUS * BRICK_RADIUS) continue
+    if (playerPosition.y < position.y + BRICK_SAFE_HEIGHT_Y) continue
+    return true
+  }
+  return false
 }
 
 function getZoneHiddenPosition(roomId: RoomId, gridX: number, gridZ: number): Vector3 {
@@ -118,6 +145,7 @@ function clearZoneState(zone: LocalLavaZone): void {
 
 function clearAllLavaHazards(roomId?: RoomId): void {
   lastLavaDamageRequestAtMs = 0
+  lavaPlayerGroundY = null
   if (!roomId) {
     for (const zone of localLavaZoneByRoomTileKey.values()) {
       clearZoneState(zone)
@@ -227,6 +255,13 @@ export function initLavaHazardClient(): void {
   room.onMessage('lavaHazardsCleared', () => {
     clearAllLavaHazards(getCurrentRoomId())
   })
+
+  room.onMessage('lavaPatternWarning', (data) => {
+    if (data.patternType === 'sweep') {
+      sweepWarningStartAtMs = data.startsAtMs
+      sweepWarningEndAtMs = data.startsAtMs + SWEEP_UI_DURATION_MS
+    }
+  })
 }
 
 export function lavaHazardSystem(): void {
@@ -253,6 +288,12 @@ export function lavaHazardSystem(): void {
   if (now - lastLavaDamageRequestAtMs < LAVA_DAMAGE_INTERVAL_MS) return
 
   const playerPosition = Transform.get(engine.PlayerEntity).position
+  if (lavaPlayerGroundY === null || playerPosition.y < lavaPlayerGroundY || playerPosition.y - lavaPlayerGroundY < 0.2) {
+    lavaPlayerGroundY = playerPosition.y
+  }
+  if (lavaPlayerGroundY !== null && playerPosition.y - lavaPlayerGroundY > LAVA_JUMP_CLEARANCE_Y) return
+  if (isPlayerStandingOnBrick(playerPosition)) return
+
   const tileCoords = getLavaGridCoordsFromWorld(roomId, playerPosition.x, playerPosition.z)
   if (!tileCoords) return
 
@@ -261,5 +302,6 @@ export function lavaHazardSystem(): void {
   if (now < zone.activeAtMs || now >= zone.expiresAtMs) return
 
   lastLavaDamageRequestAtMs = now
+  triggerPredictedDamageFeedback(1)
   void room.send('lavaHazardDamageRequest', { lavaId: zone.lavaId })
 }

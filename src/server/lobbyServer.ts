@@ -60,6 +60,7 @@ const VALID_WEAPON_IDS = new Set(LOADOUT_WEAPON_DEFINITIONS.map((w) => w.id))
 const PLAYER_PROGRESS_AUTOSAVE_SECONDS = 20
 const PLAYER_MAX_HP = 5
 const PLAYER_RESPAWN_SECONDS = 5
+const PLAYER_MAX_LIVES = 2
 const PLAYER_DAMAGE_REQUEST_COOLDOWN_MS = 250
 const PLAYER_HEAL_REQUEST_COOLDOWN_MS = 250
 const HEALTH_POTION_HEAL_AMOUNT = PLAYER_MAX_HP
@@ -97,9 +98,9 @@ const ZOMBIE_MAX_HP_BY_TYPE: Record<ZombieType, number> = {
   exploder: 15
 }
 const GUN_UPGRADE_FIRE_RATE_MS: Record<number, number> = {
-  1: 400,
-  2: 350,
-  3: 300
+  1: 440,
+  2: 380,
+  3: 330
 }
 const SPAWN_EDGE_BAND_WIDTH = 4.75
 const SPAWN_CENTER_SAFE_RADIUS = 8.5
@@ -137,6 +138,7 @@ type PlayerCombatState = {
   hp: number
   isDead: boolean
   respawnAtMs: number
+  lives: number
   lastDamageRequestAtMs: number
   lastHealRequestAtMs: number
   lastLavaDamageAtMs: number
@@ -502,6 +504,7 @@ function getOrCreatePlayerCombatState(address: string): PlayerCombatState {
     hp: PLAYER_MAX_HP,
     isDead: false,
     respawnAtMs: 0,
+    lives: PLAYER_MAX_LIVES,
     lastDamageRequestAtMs: 0,
     lastHealRequestAtMs: 0,
     lastLavaDamageAtMs: 0,
@@ -519,6 +522,7 @@ function resetPlayerCombatState(address: string): void {
   state.hp = PLAYER_MAX_HP
   state.isDead = false
   state.respawnAtMs = 0
+  state.lives = PLAYER_MAX_LIVES
   state.lastDamageRequestAtMs = 0
   state.lastHealRequestAtMs = 0
   state.lastLavaDamageAtMs = 0
@@ -559,7 +563,8 @@ function sendPlayerHealthState(address: string, roomId?: RoomId, targets?: strin
     address: normalizedAddress,
     hp: state.hp,
     isDead: state.isDead,
-    respawnAtMs: state.respawnAtMs
+    respawnAtMs: state.respawnAtMs,
+    lives: state.lives
   }, targets ?? (targetRoomId ? getRoomPlayerAddresses(targetRoomId) : [normalizedAddress]))
 }
 
@@ -730,6 +735,43 @@ function getPlayerFireRateMultiplier(state: PlayerCombatState, now: number): num
   return state.speedEndAtMs > now ? SPEED_FIRE_RATE_MULTIPLIER : 1
 }
 
+function applyPlayerDeath(state: PlayerCombatState, now: number, address: string, roomId: RoomId): void {
+  state.lives = Math.max(0, state.lives - 1)
+  state.isDead = true
+  state.hp = 0
+  if (state.lives > 0) {
+    state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
+  } else {
+    state.respawnAtMs = 0
+    setTimeout(() => eliminatePlayerFromMatch(address, roomId), 3000)
+  }
+}
+
+function eliminatePlayerFromMatch(address: string, roomId: RoomId): void {
+  const normalizedAddress = address.toLowerCase()
+  const lobbyState = getLobbyStateMutable(roomId)
+  if (lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+
+  const player = lobbyState.arenaPlayers.find((p) => p.address === normalizedAddress)
+  if (!player) return
+
+  logLobbyServerEvent(roomId, `PlayerEliminated ${normalizedAddress}`)
+
+  const nextArenaPlayers = lobbyState.arenaPlayers.filter((p) => p.address !== normalizedAddress)
+  setArenaPlayers(roomId, nextArenaPlayers)
+
+  sendLobbyReturnTeleport(roomId, [player])
+
+  sendToArena(roomId, 'lobbyEvent', {
+    type: 'player_eliminated',
+    message: `${player.address} has been eliminated`
+  })
+
+  if (nextArenaPlayers.length === 0) {
+    endMatchAndReturnToLobby(roomId, 'All players eliminated. Returning to lobby.')
+  }
+}
+
 function expirePotions(roomId: RoomId, now: number): void {
   const roomState = getRoomServerState(roomId)
   for (const [potionId, potion] of roomState.activePotionsById) {
@@ -748,9 +790,16 @@ function getNextLavaHazardId(roomId: RoomId): string {
 function queueLavaHazardsForWave(roomId: RoomId, waveNumber: number, now: number): void {
   const roomState = getRoomServerState(roomId)
   if (!shouldSpawnLavaForWave(waveNumber)) return
-  const hazards = buildLavaHazardsForWave(waveNumber, now, () => getNextLavaHazardId(roomId))
+  const { hazards, sweepWarningAtMs } = buildLavaHazardsForWave(waveNumber, now, () => getNextLavaHazardId(roomId))
   for (const lava of hazards) {
     roomState.scheduledLavaHazardsById.set(lava.lavaId, lava)
+  }
+  if (sweepWarningAtMs !== null) {
+    const SWEEP_UI_ADVANCE_MS = 1500
+    void room.send('lavaPatternWarning', {
+      patternType: 'sweep',
+      startsAtMs: sweepWarningAtMs - SWEEP_UI_ADVANCE_MS
+    })
   }
 }
 
@@ -907,10 +956,7 @@ function applyExplosionDamageToPlayer(address: string, zombieId: string, request
   const amount = Math.max(1, Math.min(PLAYER_MAX_HP, Math.floor(requestedAmount)))
   state.lastDamageRequestAtMs = now
   state.hp = Math.max(0, state.hp - amount)
-  if (state.hp <= 0) {
-    state.isDead = true
-    state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
-  }
+  if (state.hp <= 0) applyPlayerDeath(state, now, normalizedAddress, roomId)
   sendPlayerHealthState(normalizedAddress, roomId)
 }
 
@@ -920,11 +966,11 @@ function sendPlayerHealthStatesForLobbyPlayers(roomId: RoomId, players: LobbyPla
   }
 }
 
-function areAllLobbyPlayersDead(players: LobbyPlayer[]): boolean {
+function areAllLobbyPlayersEliminated(players: LobbyPlayer[]): boolean {
   if (!players.length) return false
   for (const player of players) {
     const state = getOrCreatePlayerCombatState(player.address)
-    if (!state.isDead) return false
+    if (!state.isDead || state.lives > 0) return false
   }
   return true
 }
@@ -1800,6 +1846,7 @@ export function setupLobbyServer(): void {
     }
   })
 
+
   room.onMessage('playerArenaWeaponChanged', (data, context) => {
     if (!context) return
     const normalizedAddress = context.from.toLowerCase()
@@ -1994,13 +2041,10 @@ export function setupLobbyServer(): void {
     const amount = Math.max(1, Math.min(3, requestedAmount))
     state.lastDamageRequestAtMs = now
     state.hp = Math.max(0, state.hp - amount)
-    if (state.hp <= 0) {
-      state.isDead = true
-      state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
-    }
+    if (state.hp <= 0) applyPlayerDeath(state, now, normalizedAddress, roomId)
     sendPlayerHealthState(normalizedAddress, roomId)
 
-    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
+    if (areAllLobbyPlayersEliminated(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby(roomId, 'All players died. Returning to lobby.')
     }
   })
@@ -2030,13 +2074,10 @@ export function setupLobbyServer(): void {
 
     state.lastLavaDamageAtMs = now
     state.hp = Math.max(0, state.hp - 1)
-    if (state.hp <= 0) {
-      state.isDead = true
-      state.respawnAtMs = now + PLAYER_RESPAWN_SECONDS * 1000
-    }
+    if (state.hp <= 0) applyPlayerDeath(state, now, normalizedAddress, roomId)
     sendPlayerHealthState(normalizedAddress, roomId)
 
-    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
+    if (areAllLobbyPlayersEliminated(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby(roomId, 'All players died. Returning to lobby.')
     }
   })
@@ -2057,7 +2098,7 @@ export function setupLobbyServer(): void {
     const now = getServerTime()
     applyExplosionDamageToPlayer(normalizedAddress, data.zombieId, data.amount, now)
 
-    if (areAllLobbyPlayersDead(lobbyState.arenaPlayers)) {
+    if (areAllLobbyPlayersEliminated(lobbyState.arenaPlayers)) {
       endMatchAndReturnToLobby(roomId, 'All players died. Returning to lobby.')
     }
   })

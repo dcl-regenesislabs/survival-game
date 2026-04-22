@@ -171,6 +171,7 @@ let reportPlayerDamageToServer: ((amount: number) => void) | null = null
 const lastRageShieldHitAtByZombieKey = new Map<string, number>()
 const explodedZombieIds = new Set<string>()
 const exploderWarningRingByZombie = new Map<Entity, Entity>()
+const predictedHitFeedbackAtByZombieId = new Map<string, number>()
 
 export function setZombieHitReporter(
   reporter: ((zombieId: string, damage: number, weaponType: ZombieHitWeaponType, shotSeq: number, posX: number, posY: number, posZ: number) => void) | null
@@ -505,8 +506,13 @@ const BLOOD_SPLAT_GLBS = [
   'assets/scene/Models/blood/Blood03.glb',
   'assets/scene/Models/blood/Blood04.glb'
 ]
-const BLOOD_SPLAT_LIFETIME = 15 // seconds before it disappears
-const BloodSplatComponent = engine.defineComponent('BloodSplatComponent', { removeAtTime: Schemas.Number })
+const BLOOD_SPLAT_MIN_LIFETIME = 3
+const BLOOD_SPLAT_MAX_LIFETIME = 5
+const BLOOD_SPLAT_FADE_OUT_SECONDS = 1.5
+const BloodSplatComponent = engine.defineComponent('BloodSplatComponent', {
+  spawnTime: Schemas.Number,
+  removeAtTime: Schemas.Number
+})
 
 function spawnBloodSplat(pos: Vector3): void {
   const src = BLOOD_SPLAT_GLBS[Math.floor(Math.random() * BLOOD_SPLAT_GLBS.length)]
@@ -522,7 +528,12 @@ function spawnBloodSplat(pos: Vector3): void {
     visibleMeshesCollisionMask: 0,
     invisibleMeshesCollisionMask: 0
   })
-  BloodSplatComponent.create(entity, { removeAtTime: getGameTime() + BLOOD_SPLAT_LIFETIME })
+  const lifetime = BLOOD_SPLAT_MIN_LIFETIME + Math.random() * (BLOOD_SPLAT_MAX_LIFETIME - BLOOD_SPLAT_MIN_LIFETIME)
+  const spawnTime = getGameTime()
+  BloodSplatComponent.create(entity, {
+    spawnTime,
+    removeAtTime: spawnTime + lifetime
+  })
 }
 
 /** Tick: remove expired blood splats */
@@ -530,7 +541,20 @@ export function bloodSplatSystem(): void {
   const now = getGameTime()
   const toRemove: Entity[] = []
   for (const [entity, splat] of engine.getEntitiesWith(BloodSplatComponent)) {
-    if (now >= splat.removeAtTime) toRemove.push(entity)
+    if (now >= splat.removeAtTime) {
+      toRemove.push(entity)
+      continue
+    }
+
+    if (!Transform.has(entity)) continue
+    const fadeStart = Math.max(splat.spawnTime, splat.removeAtTime - BLOOD_SPLAT_FADE_OUT_SECONDS)
+    if (now < fadeStart) continue
+
+    const fadeProgress = Math.max(0, Math.min(1, (now - fadeStart) / Math.max(0.01, splat.removeAtTime - fadeStart)))
+    const scale = Math.max(0.05, 1 - fadeProgress)
+    const transform = Transform.getMutable(entity)
+    transform.scale = Vector3.create(scale, scale, scale)
+    transform.position.y = 0.03 - fadeProgress * 0.03
   }
   for (const e of toRemove) engine.removeEntity(e)
 }
@@ -724,9 +748,15 @@ export function applyZombieHealthUpdateByNetworkId(zombieId: string, hp: number)
     const previousHp = mutableZombie.health
     mutableZombie.health = nextHp
     if (nextHp < previousHp) {
-      const pos = Transform.get(entity).position
-      const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
-      spawnBloodBurst(burstCenter, HIT_BURST_COUNT, HIT_BURST_SPEED, BLOOD_BURST_DURATION, HIT_BURST_SCALE)
+      const predictedFeedbackAt = predictedHitFeedbackAtByZombieId.get(zombieId) ?? 0
+      const shouldSuppressDuplicateFeedback = predictedFeedbackAt > 0 && getGameTime() - predictedFeedbackAt <= 0.75
+      if (shouldSuppressDuplicateFeedback) {
+        predictedHitFeedbackAtByZombieId.delete(zombieId)
+      } else {
+        const pos = Transform.get(entity).position
+        const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
+        spawnBloodBurst(burstCenter, HIT_BURST_COUNT, HIT_BURST_SPEED, BLOOD_BURST_DURATION, HIT_BURST_SCALE)
+      }
     }
     return true
   }
@@ -742,6 +772,13 @@ export function damageZombie(
   if (!ZombieComponent.has(entity)) return false
   const zombie = ZombieComponent.get(entity)
   if (zombie.networkId) {
+    if (Transform.has(entity)) {
+      const pos = Transform.get(entity).position
+      const burstCenter = Vector3.create(pos.x, pos.y + 0.9, pos.z)
+      spawnBloodBurst(burstCenter, HIT_BURST_COUNT, HIT_BURST_SPEED, BLOOD_BURST_DURATION, HIT_BURST_SCALE)
+      predictedHitFeedbackAtByZombieId.set(zombie.networkId, getGameTime())
+    }
+
     if (hitSource) {
       const pos = Transform.has(entity) ? Transform.get(entity).position : { x: 0, y: 0, z: 0 }
       reportServerZombieHit?.(zombie.networkId, amount, hitSource.weaponType, hitSource.shotSeq, pos.x, pos.y, pos.z)

@@ -8,7 +8,7 @@ export function getZombieCoins(): number {
 }
 
 export function addZombieCoins(amount: number): void {
-  zombieCoins += amount
+  zombieCoins = Math.max(0, zombieCoins + amount)
 }
 
 /** Spend coins if player has enough. Returns true if spent, false if not enough. */

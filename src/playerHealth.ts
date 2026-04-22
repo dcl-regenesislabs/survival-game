@@ -5,15 +5,19 @@ import { getCurrentRoomConfig } from './roomRuntime'
 import { getServerTime } from './shared/timeSync'
 
 export const MAX_HP = 5
+export const MAX_LIVES = 2
 
 let currentHp = MAX_HP
 let isDead = false
 let respawnAtMs = 0
+let currentLives = MAX_LIVES
 let healGlowEndTime = 0
 let diedAtMs = 0
 let damageOverlayTriggeredAtMs = 0
 let damageOverlayPeakAlpha = 0
 let hasReceivedAuthoritativeHealthState = false
+let predictedDamageFeedbackAmount = 0
+let predictedDamageFeedbackAtMs = 0
 
 const RESPAWN_DELAY = 5 // seconds to show "You Died" before respawning
 const DEATH_OVERLAY_DELAY_MS = 0
@@ -22,6 +26,7 @@ const DAMAGE_OVERLAY_FADE_OUT_MS = 560
 const DAMAGE_OVERLAY_BASE_ALPHA = 0.12
 const DAMAGE_OVERLAY_ALPHA_PER_HP = 0.05
 const DAMAGE_OVERLAY_MAX_ALPHA = 0.26
+const PREDICTED_DAMAGE_FEEDBACK_SUPPRESS_MS = 2500
 
 export function getPlayerHp(): number {
   return currentHp
@@ -37,6 +42,14 @@ export function getRespawnDelay(): number {
 
 export function getRespawnAtMs(): number {
   return respawnAtMs
+}
+
+export function getPlayerLives(): number {
+  return currentLives
+}
+
+export function hasLivesRemaining(): boolean {
+  return currentLives > 0
 }
 
 export function shouldShowDeathOverlay(nowMs: number): boolean {
@@ -65,6 +78,14 @@ export function resetPlayerHealthState(): void {
   damageOverlayTriggeredAtMs = 0
   damageOverlayPeakAlpha = 0
   hasReceivedAuthoritativeHealthState = false
+  predictedDamageFeedbackAmount = 0
+  predictedDamageFeedbackAtMs = 0
+}
+
+/** Full reset including lives — call when returning to lobby between runs. */
+export function resetPlayerHealthAndLives(): void {
+  currentLives = MAX_LIVES
+  resetPlayerHealthState()
 }
 
 /** Restore player health (e.g. health potion). Caps at MAX_HP. No-op if dead. */
@@ -94,6 +115,16 @@ function triggerDamageOverlay(damageTaken: number, nowMs: number): void {
   )
 }
 
+export function triggerPredictedDamageFeedback(damageTaken: number): void {
+  if (isDead) return
+
+  const nowMs = getServerTime()
+  const normalizedDamage = Math.max(1, Math.floor(damageTaken))
+  predictedDamageFeedbackAmount += normalizedDamage
+  predictedDamageFeedbackAtMs = nowMs
+  triggerDamageOverlay(normalizedDamage, nowMs)
+}
+
 /** Respawn player: move to spawn, restore HP, clear death state. */
 export function respawnPlayer(): void {
   const roomConfig = getCurrentRoomConfig()
@@ -107,19 +138,30 @@ export function respawnPlayer(): void {
 }
 
 /** Apply server-authoritative player health snapshot. */
-export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRespawnAtMs: number): void {
+export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRespawnAtMs: number, lives?: number): void {
   const nowMs = getServerTime()
   const wasDead = isDead
   const previousHp = currentHp
   const nextHp = Math.max(0, Math.min(MAX_HP, Math.floor(hp)))
 
   if (hasReceivedAuthoritativeHealthState && nextHp < previousHp) {
-    triggerDamageOverlay(previousHp - nextHp, nowMs)
+    const damageTaken = previousHp - nextHp
+    const shouldSuppressDuplicateFeedback =
+      predictedDamageFeedbackAmount > 0 &&
+      nowMs - predictedDamageFeedbackAtMs <= PREDICTED_DAMAGE_FEEDBACK_SUPPRESS_MS
+
+    if (shouldSuppressDuplicateFeedback) {
+      predictedDamageFeedbackAmount = Math.max(0, predictedDamageFeedbackAmount - damageTaken)
+      if (predictedDamageFeedbackAmount === 0) predictedDamageFeedbackAtMs = 0
+    } else {
+      triggerDamageOverlay(damageTaken, nowMs)
+    }
   }
 
   currentHp = nextHp
   isDead = dead
   respawnAtMs = nextRespawnAtMs
+  if (lives !== undefined) currentLives = Math.max(0, lives)
   hasReceivedAuthoritativeHealthState = true
 
   if (!wasDead && dead) {

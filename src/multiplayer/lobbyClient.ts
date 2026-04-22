@@ -4,7 +4,7 @@ import { LobbyPhase, LobbyPlayer, LobbyStateComponent, LobbyStateSnapshot } from
 import { MatchRuntimeSnapshot, MatchRuntimeStateComponent, WaveCyclePhase } from '../shared/matchRuntimeSchemas'
 import { movePlayerTo } from '~system/RestrictedActions'
 import { Vector3 } from '@dcl/sdk/math'
-import { applyAuthoritativeHealthState, resetPlayerHealthState } from '../playerHealth'
+import { applyAuthoritativeHealthState, resetPlayerHealthAndLives } from '../playerHealth'
 import { resetDeathAnimationState, setLocalAvatarHidden } from '../deathAnimation'
 import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
@@ -49,7 +49,7 @@ function resetLocalMatchUiState(): void {
   setLocalAvatarHidden(false)
   resetToIdle()
   resetArenaWeaponProgress()
-  resetPlayerHealthState()
+  resetPlayerHealthAndLives()
   resetDeathAnimationState()
 }
 
@@ -161,7 +161,7 @@ export function setupLobbyClient(): void {
     const localAddress = getLocalAddress()
     if (!localAddress || address !== localAddress) return
     setLocalAvatarHidden(data.isDead)
-    applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs)
+    applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs, data.lives)
   })
   room.onMessage('playerLoadoutState', (data) => {
     const localAddress = getLocalAddress()
@@ -280,8 +280,8 @@ export function sendCreateMatch(roomId?: RoomId): void {
 }
 
 export function sendCreateMatchAndJoin(roomId?: RoomId): void {
-  if (ensureLocalAuthDebugActive('createMatchAndJoin')) {
-    debugCreateMatchAndJoin()
+  if (ensureLocalAuthDebugActive('createMatch')) {
+    debugCreateMatch()
     return
   }
   const targetRoomId = getRequestedRoomId(roomId)
@@ -448,7 +448,7 @@ function hasAuthoritativeMatchRuntimeState(): boolean {
 }
 
 function ensureLocalAuthDebugActive(
-  reason: 'autoJoinLobbySystem' | 'joinLobby' | 'leaveLobby' | 'createMatch' | 'createMatchAndJoin' | 'startGameManual'
+  reason: 'autoJoinLobbySystem' | 'joinLobby' | 'leaveLobby' | 'createMatch' | 'startGameManual'
 ): boolean {
   if (localAuthDebugActive) return true
   if (!ENABLE_LOCAL_AUTH_DEBUG_IN_PREVIEW) return false
@@ -463,7 +463,6 @@ function ensureLocalAuthDebugActive(
     reason === 'joinLobby' ||
     reason === 'leaveLobby' ||
     reason === 'createMatch' ||
-    reason === 'createMatchAndJoin' ||
     reason === 'startGameManual'
   if (!graceElapsed && !shouldForceForAction) return false
 
@@ -593,15 +592,11 @@ function debugCreateMatch(): void {
   console.log(`[LobbyClientDebug] match created by ${player.address}`)
 }
 
-function debugCreateMatchAndJoin(): void {
-  debugCreateMatch()
-}
-
 function debugStartGameManual(): void {
   const player = getDebugLobbyPlayer()
   if (!player) return
 
-  debugCreateMatchAndJoin()
+  debugCreateMatch()
   const lobby = ensureDebugLobbyState()
   const runtime = ensureDebugMatchRuntimeState()
   if (runtime.isRunning || lobby.countdownEndTimeMs > 0 || lobby.arenaIntroEndTimeMs > 0) return

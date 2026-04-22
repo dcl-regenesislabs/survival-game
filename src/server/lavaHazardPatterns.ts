@@ -295,9 +295,7 @@ function buildScatterPattern(waveNumber: number, waveStartAtMs: number, slot: Ev
 }
 
 function getStaticWarningDurationMs(waveNumber: number): number {
-  if (waveNumber >= 16) return 950
-  if (waveNumber >= 10) return 1100
-  return LAVA_WARNING_DURATION_MS
+  return 0
 }
 
 function getStaticActiveDurationMs(waveNumber: number): number {
@@ -424,10 +422,17 @@ function buildSafePocketPattern(waveNumber: number, waveStartAtMs: number, slot:
     getSafePocketActiveDurationMs(waveNumber),
     getStaticWarningDurationMs(waveNumber)
   )
-  const radiusX = waveNumber >= 18 ? randomFloat(2.4, 2.9) : waveNumber >= 16 ? randomFloat(2.8, 3.3) : randomFloat(3.2, 3.8)
-  const radiusZ = waveNumber >= 18 ? randomFloat(2.4, 2.9) : waveNumber >= 16 ? randomFloat(2.8, 3.3) : randomFloat(3.2, 3.8)
-  const marginX = Math.ceil(radiusX) + 1
-  const marginZ = Math.ceil(radiusZ) + 1
+  const maxRadius = Math.max(1.8, Math.min(LAVA_GRID_SIZE_X, LAVA_GRID_SIZE_Z) * 0.34)
+  const radiusX = Math.min(
+    waveNumber >= 18 ? randomFloat(2.4, 2.9) : waveNumber >= 16 ? randomFloat(2.8, 3.3) : randomFloat(3.2, 3.8),
+    maxRadius
+  )
+  const radiusZ = Math.min(
+    waveNumber >= 18 ? randomFloat(2.4, 2.9) : waveNumber >= 16 ? randomFloat(2.8, 3.3) : randomFloat(3.2, 3.8),
+    maxRadius
+  )
+  const marginX = Math.min(Math.ceil(radiusX) + 1, Math.floor(MAX_GRID_X / 2))
+  const marginZ = Math.min(Math.ceil(radiusZ) + 1, Math.floor(MAX_GRID_Z / 2))
 
   addInvertedSafeBlob(
     tiles,
@@ -454,6 +459,7 @@ function addSweepPass(
 ): void {
   const laneStarts: number[] = []
   const maxStart = horizontal ? MAX_GRID_Z : MAX_GRID_X
+  const safeLaneIndexes = new Set(getSweepSafeLaneIndexes(horizontal))
 
   if (reversed) {
     for (let laneStart = maxStart - laneWidth + 1; laneStart >= 0; laneStart -= laneWidth) {
@@ -474,6 +480,7 @@ function addSweepPass(
 
     if (horizontal) {
       for (let gridX = 0; gridX < LAVA_GRID_SIZE_X; gridX += 1) {
+        if (safeLaneIndexes.has(gridX)) continue
         for (let widthOffset = 0; widthOffset < laneWidth; widthOffset += 1) {
           addTile(tiles, {
             gridX,
@@ -488,6 +495,7 @@ function addSweepPass(
     }
 
     for (let gridZ = 0; gridZ < LAVA_GRID_SIZE_Z; gridZ += 1) {
+      if (safeLaneIndexes.has(gridZ)) continue
       for (let widthOffset = 0; widthOffset < laneWidth; widthOffset += 1) {
         addTile(tiles, {
           gridX: laneStart + widthOffset,
@@ -499,6 +507,36 @@ function addSweepPass(
       }
     }
   })
+}
+
+function getSweepSafeLaneIndexes(horizontal: boolean): number[] {
+  const crossAxisSize = horizontal ? LAVA_GRID_SIZE_X : LAVA_GRID_SIZE_Z
+  const laneCount = crossAxisSize <= 4 ? 1 : Math.random() < 0.5 ? 1 : 2
+  const minLaneIndex = crossAxisSize <= 2 ? 0 : 1
+  const maxLaneIndex = crossAxisSize <= 2 ? crossAxisSize - 1 : crossAxisSize - 2
+
+  if (crossAxisSize <= 4) {
+    return [randomInt(minLaneIndex, maxLaneIndex)]
+  }
+
+  const selected = new Set<number>()
+  const minSpacing = crossAxisSize >= 7 ? 2 : 1
+  let attempts = 0
+
+  while (selected.size < laneCount && attempts < 20) {
+    const candidate = randomInt(minLaneIndex, maxLaneIndex)
+    const tooClose = Array.from(selected).some((existing) => Math.abs(existing - candidate) < minSpacing)
+    if (!tooClose) {
+      selected.add(candidate)
+    }
+    attempts += 1
+  }
+
+  while (selected.size < laneCount) {
+    selected.add(randomInt(minLaneIndex, maxLaneIndex))
+  }
+
+  return Array.from(selected).sort((a, b) => a - b)
 }
 
 function buildSweepPattern(waveNumber: number, waveStartAtMs: number, slot: EventSlot): TileCollection {
@@ -590,14 +628,20 @@ function buildPatternTiles(
   return buildFissurePattern(waveNumber, waveStartAtMs, slot)
 }
 
+export type LavaWaveResult = {
+  hazards: LavaHazardTileState[]
+  sweepWarningAtMs: number | null  // earliest warningAtMs of sweep tiles, or null if no sweep
+}
+
 export function buildLavaHazardsForWave(
   waveNumber: number,
   waveStartAtMs: number,
   getNextLavaId: () => string
-): LavaHazardTileState[] {
+): LavaWaveResult {
   const slots = getWavePlan(waveNumber)
   const hazards: LavaHazardTileState[] = []
   let previousPatternInWave: LavaPatternKind | null = null
+  let sweepWarningAtMs: number | null = null
 
   slots.forEach((slot, index) => {
     const pattern = pickPatternKind(slot.patterns, previousPatternInWave, index === 0)
@@ -617,7 +661,19 @@ export function buildLavaHazardsForWave(
         expiresAtMs: tile.expiresAtMs
       })
     }
+
+    if (pattern === 'sweep') {
+      let earliest = Infinity
+      for (const tile of tiles.values()) {
+        if (tile.warningAtMs < earliest) earliest = tile.warningAtMs
+      }
+      if (earliest < Infinity) {
+        sweepWarningAtMs = sweepWarningAtMs === null
+          ? earliest
+          : Math.min(sweepWarningAtMs, earliest)
+      }
+    }
   })
 
-  return hazards
+  return { hazards, sweepWarningAtMs }
 }

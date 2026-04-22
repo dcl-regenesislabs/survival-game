@@ -7,7 +7,13 @@ import {
 } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { ZombieComponent } from './zombie'
-import { getProjectileSpawnData, spawnAttachedMuzzleFlashVfx, spawnMuzzleFlashVfx, spawnProjectileEntity } from './gun'
+import {
+  getProjectileSpawnData,
+  spawnAttachedMuzzleFlashVfx,
+  spawnMuzzleFlashVfx,
+  spawnProjectileEntity,
+  unregisterAttachedMuzzleFlash
+} from './gun'
 import { getCurrentWeapon } from './weaponManager'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch, sendPlayerShotRequest } from './multiplayer/lobbyClient'
 import { getFireRateMultiplier } from './speedEffect'
@@ -26,7 +32,7 @@ import { getArenaWeaponModelPath, getArenaWeaponShootClip } from './shared/loado
 // Gun config - tweak these to your liking
 const ROUNDS_PER_SECOND = 2.2 // Slightly quicker cadence keeps shotgun swaps snappy
 const FIRE_RATE = 1 / ROUNDS_PER_SECOND // Seconds between shots (derived)
-const SHOOT_RANGE = 100
+const SHOOT_RANGE = 15
 const PROJECTILE_SPEED = 26 // Slightly faster pellets reduce near-miss frustration
 const ZOMBIE_TARGET_HEIGHT = 0.9 // Meters above zombie feet to aim at (0.9 = chest level)
 // Muzzle position in gun local space (x=right, y=up, z=forward) – matches GLB mesh so bullets spawn at barrel
@@ -34,7 +40,7 @@ const MUZZLE_OFFSET_GUN_LOCAL = Vector3.create(0.45, 1.15, 0.58)
 // How long to freeze gun rotation after shooting (so bullet spawn looks correct). Tweak to match your shoot clip length.
 const GUN_ROTATION_SMOOTH_SPEED = 20
 // Bullet flies straight; remove after this distance from spawn (out of scene)
-const BULLET_MAX_DISTANCE = 40
+const BULLET_MAX_DISTANCE = 15
 const GUN_SYSTEM_PRIORITY_LAST = -1000
 
 let gunEntity: Entity | null = null
@@ -99,7 +105,7 @@ function spawnProjectile(
   ]
 
   for (const direction of directions) {
-    spawnProjectileEntity(spawnPos, direction, canDamage, weaponType, shotSeq, 1, PROJECTILE_SPEED)
+    spawnProjectileEntity(spawnPos, direction, canDamage, weaponType, shotSeq, 1, PROJECTILE_SPEED, BULLET_MAX_DISTANCE)
   }
   return baseDirection
 }
@@ -138,6 +144,8 @@ export function createShotGun(upgradeLevel: number = 1): Entity {
 
 export function destroyShotGun(): void {
   if (gunEntity !== null) {
+    unregisterAttachedMuzzleFlash(gunEntity)
+    if (gunModelEntity !== null) unregisterAttachedMuzzleFlash(gunModelEntity)
     engine.removeEntityWithChildren(gunEntity)
     gunEntity = null
     gunModelEntity = null
@@ -199,6 +207,7 @@ export function shotGunSystem(dt: number) {
 
   const isTriggerHeld = isGameplayFireHeld()
   if (!isTriggerHeld) return
+  if (!nearestZombie) return
 
   shootTimer = 0
   playGunAnimation()

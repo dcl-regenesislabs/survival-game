@@ -46,9 +46,6 @@ function getSharedLavaGridDimensions(): LavaGridDimensions {
   return sharedDimensions
 }
 
-// Lava pattern generation still operates on a shared grid, so enforce that
-// every active arena exposes the same floor dimensions instead of silently
-// borrowing room_1 values for every other room.
 const SHARED_LAVA_GRID_DIMENSIONS = getSharedLavaGridDimensions()
 
 export const LAVA_WORLD_SIZE_X = SHARED_LAVA_GRID_DIMENSIONS.worldSizeX
@@ -60,13 +57,13 @@ export const LAVA_TILE_SCALE_XZ = LAVA_ZONE_WORLD_SIZE
 export const LAVA_TILE_WARNING_SCALE_Y = 0.04
 export const LAVA_TILE_ACTIVE_SCALE_Y = 0.1
 export const LAVA_TILE_HIDDEN_SCALE_Y = 0.001
-export const LAVA_WARNING_DURATION_MS = 1400
+export const LAVA_WARNING_DURATION_MS = 0
 export const LAVA_DAMAGE_INTERVAL_MS = 2400
-export const LAVA_STATIC_ACTIVE_MS = 6500
-export const LAVA_SAFE_ZONE_ACTIVE_MS = 7500
+export const LAVA_STATIC_ACTIVE_MS = 12000
+export const LAVA_SAFE_ZONE_ACTIVE_MS = 12500
 export const LAVA_SWEEP_WARNING_MS = 850
 export const LAVA_SWEEP_STEP_INTERVAL_MS = 260
-export const LAVA_SWEEP_ACTIVE_MS = 1250
+export const LAVA_SWEEP_ACTIVE_MS = 2200
 
 export type LavaHazardTileState = {
   lavaId: string

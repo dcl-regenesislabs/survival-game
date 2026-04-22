@@ -139,7 +139,8 @@ const LobbyMessages = {
     address: Schemas.String,
     hp: Schemas.Number,
     isDead: Schemas.Boolean,
-    respawnAtMs: Schemas.Int64
+    respawnAtMs: Schemas.Int64,
+    lives: Schemas.Number
   }),
   matchAutoTeleport: Schemas.Map({
     addresses: Schemas.Array(Schemas.String),
@@ -187,6 +188,10 @@ const LobbyMessages = {
     lavaIds: Schemas.Array(Schemas.String)
   }),
   lavaHazardsCleared: Schemas.Map({}),
+  lavaPatternWarning: Schemas.Map({
+    patternType: Schemas.String,
+    startsAtMs: Schemas.Int64
+  }),
   lavaHazardDamageRequest: Schemas.Map({
     lavaId: Schemas.String
   }),
