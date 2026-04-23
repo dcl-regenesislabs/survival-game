@@ -35,6 +35,8 @@ const LOCAL_AUTH_DEBUG_GRACE_MS = 2500
 const LOCAL_AUTH_DEBUG_AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const LOCAL_AUTH_DEBUG_ARENA_INTRO_SECONDS = 5
 const DEBUG_MATCH_ID_PREFIX = 'debug_local_match_'
+let debugMsgReceived = 0
+let debugMsgSkipped = 0
 
 function getDebugArenaPosition(): { x: number; y: number; z: number } {
   return getArenaRoomConfig(DEFAULT_ROOM_ID).arenaTeleportPosition
@@ -129,6 +131,7 @@ function resolvePreferredRoomIdFromLobbySnapshots(snapshots: Map<RoomId, LobbySt
 
 export function setupLobbyClient(): void {
   room.onMessage('lobbyEvent', (data) => {
+    debugMsgReceived++
     const localAddress = getLocalAddress()
     const lobbyState = getLobbyState()
     const localIsInArena =
@@ -149,12 +152,13 @@ export function setupLobbyClient(): void {
       resetArenaWeaponProgress()
     }
     if (data.type === 'waves_started') {
-      if (!localIsInArena || !localReadyForMatch) return
+      if (!localIsInArena || !localReadyForMatch) { debugMsgSkipped++; return }
       enableArenaWeapon()
     }
     console.log(`[Lobby] ${data.type}: ${data.message}`)
   })
   room.onMessage('playerHealthState', (data) => {
+    debugMsgReceived++
     const address = data.address.toLowerCase()
     playerCombatStateByAddress.set(address, {
       hp: data.hp,
@@ -164,29 +168,33 @@ export function setupLobbyClient(): void {
     })
 
     const localAddress = getLocalAddress()
-    if (!localAddress || address !== localAddress) return
+    if (!localAddress || address !== localAddress) { debugMsgSkipped++; return }
     setLocalAvatarHidden(data.isDead)
     applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs, data.lives)
   })
   room.onMessage('playerLoadoutState', (data) => {
+    debugMsgReceived++
     const localAddress = getLocalAddress()
-    if (!localAddress || data.address !== localAddress) return
+    if (!localAddress || data.address !== localAddress) { debugMsgSkipped++; return }
     applyPlayerLoadoutSnapshot(data)
   })
   room.onMessage('playerArenaWeaponState', (data) => {
-    if (data.weaponType !== 'gun' && data.weaponType !== 'shotgun' && data.weaponType !== 'minigun') return
+    debugMsgReceived++
+    if (data.weaponType !== 'gun' && data.weaponType !== 'shotgun' && data.weaponType !== 'minigun') { debugMsgSkipped++; return }
     const upgradeLevel = typeof data.upgradeLevel === 'number' && data.upgradeLevel >= 1 ? data.upgradeLevel : 1
     playerArenaWeaponByAddress.set(data.address.toLowerCase(), { weaponType: data.weaponType, upgradeLevel })
   })
   room.onMessage('playerPowerupState', (data) => {
+    debugMsgReceived++
     playerPowerupStateByAddress.set(data.address.toLowerCase(), {
       rageShieldEndAtMs: data.rageShieldEndAtMs,
       speedEndAtMs: data.speedEndAtMs
     })
   })
   room.onMessage('matchAutoTeleport', (data) => {
+    debugMsgReceived++
     const localAddress = getLocalAddress()
-    if (!localAddress || !data.addresses.includes(localAddress)) return
+    if (!localAddress || !data.addresses.includes(localAddress)) { debugMsgSkipped++; return }
     localReadyForMatch = true
     setIsoViewEnabled(true)
     setAutoFireEnabled(true)
@@ -204,8 +212,9 @@ export function setupLobbyClient(): void {
     })
   })
   room.onMessage('lobbyReturnTeleport', (data) => {
+    debugMsgReceived++
     const localAddress = getLocalAddress()
-    if (!localAddress || !data.addresses.includes(localAddress)) return
+    if (!localAddress || !data.addresses.includes(localAddress)) { debugMsgSkipped++; return }
     setIsoViewEnabled(false)
     setAutoFireEnabled(false)
     setLocalAvatarHidden(false)
@@ -730,4 +739,29 @@ export function getPlayerPowerupSnapshot(address: string): { rageShieldEndAtMs: 
       speedEndAtMs: 0
     }
   )
+}
+
+export function getDebugMessageStats(): { received: number; skipped: number } {
+  return { received: debugMsgReceived, skipped: debugMsgSkipped }
+}
+
+export function incrementDebugMsgReceived(): void { debugMsgReceived++ }
+export function incrementDebugMsgSkipped(): void { debugMsgSkipped++ }
+
+export function getAllLobbySnapshotsByRoomId(): Map<RoomId, ReturnType<typeof getLobbyState>> {
+  const out = new Map<RoomId, ReturnType<typeof getLobbyState>>()
+  const snapshots = getLobbySnapshotsByRoomId()
+  for (const roomId of ['room_1', 'room_2', 'room_3', 'room_4'] as RoomId[]) {
+    out.set(roomId, snapshots.get(roomId) ?? null)
+  }
+  return out
+}
+
+export function getAllMatchRuntimeSnapshotsByRoomId(): Map<RoomId, ReturnType<typeof getMatchRuntimeState>> {
+  const out = new Map<RoomId, ReturnType<typeof getMatchRuntimeState>>()
+  const snapshots = getMatchRuntimeSnapshotsByRoomId()
+  for (const roomId of ['room_1', 'room_2', 'room_3', 'room_4'] as RoomId[]) {
+    out.set(roomId, snapshots.get(roomId) ?? null)
+  }
+  return out
 }

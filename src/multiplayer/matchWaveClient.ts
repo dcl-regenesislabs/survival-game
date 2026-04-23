@@ -15,7 +15,7 @@ import {
   spawnZombie,
   spawnZcRewardTextAtPosition
 } from '../zombie'
-import { getLocalAddress, getLobbyState } from './lobbyClient'
+import { getLocalAddress, getLobbyState, incrementDebugMsgReceived, incrementDebugMsgSkipped } from './lobbyClient'
 import { getCurrentRoomId } from '../roomRuntime'
 import { addZombieCoins, COINS_PER_KILL } from '../zombieCoins'
 
@@ -172,18 +172,22 @@ export function initMatchWaveClientSystem(): void {
   setZombieHitReporter(requestZombieHitToServer)
 
   room.onMessage('waveSpawnPlan', (data) => {
+    incrementDebugMsgReceived()
+    if (data.roomId !== getCurrentRoomId()) { incrementDebugMsgSkipped(); return }
     queueWavePlan(data)
   })
 
   room.onMessage('zombieHealthChanged', (data) => {
-    if (data.roomId !== getCurrentRoomId()) return
+    incrementDebugMsgReceived()
+    if (data.roomId !== getCurrentRoomId()) { incrementDebugMsgSkipped(); return }
     if (!applyZombieHealthUpdateByNetworkId(data.zombieId, data.hp)) {
       pendingZombieHpById.set(data.zombieId, data.hp)
     }
   })
 
   room.onMessage('zombieDied', (data) => {
-    if (data.roomId !== getCurrentRoomId()) return
+    incrementDebugMsgReceived()
+    if (data.roomId !== getCurrentRoomId()) { incrementDebugMsgSkipped(); return }
     pendingSpawns = pendingSpawns.filter((spawn) => spawn.zombieId !== data.zombieId)
     spawnedZombieIds.delete(data.zombieId)
     pendingZombieHpById.delete(data.zombieId)
@@ -191,7 +195,8 @@ export function initMatchWaveClientSystem(): void {
   })
 
   room.onMessage('zombieExploded', (data) => {
-    if (data.roomId !== getCurrentRoomId()) return
+    incrementDebugMsgReceived()
+    if (data.roomId !== getCurrentRoomId()) { incrementDebugMsgSkipped(); return }
     pendingSpawns = pendingSpawns.filter((spawn) => spawn.zombieId !== data.zombieId)
     spawnedZombieIds.delete(data.zombieId)
     pendingZombieHpById.delete(data.zombieId)

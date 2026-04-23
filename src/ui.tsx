@@ -45,6 +45,7 @@ import {
 import { getPlayerGold } from './loadoutState'
 import { OutlinedText } from './outlineComponent'
 import { LobbyStoreUi, openLobbyStore } from './lobbyStoreUi'
+import { DebugConsoleUi } from './debugConsole'
 import { isLocalPlayerInsideLobbyTrigger } from './lobbyWorldPanel'
 import {
   getLobbyState,
@@ -1395,6 +1396,7 @@ export const uiMenu = () => {
         />
       )}
       {!showGameplayHudDebug && <LobbyStoreUi />}
+      <DebugConsoleUi />
     </UiEntity>
   )
 }
