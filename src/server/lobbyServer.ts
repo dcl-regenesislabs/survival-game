@@ -52,6 +52,7 @@ import {
   ArenaRoomConfig,
   RoomId,
   getArenaRoomConfig,
+  refreshArenaRoomConfigsFromScene,
   isRoomId
 } from '../shared/roomConfig'
 
@@ -1687,6 +1688,11 @@ function playerProgressAutosaveSystem(dt: number): void {
 }
 
 export function setupLobbyServer(): void {
+  refreshArenaRoomConfigsFromScene()
+  for (const roomId of ROOM_IDS) {
+    roomServerStateById[roomId].roomConfig = getArenaRoomConfig(roomId)
+  }
+
   for (const roomId of ROOM_IDS) {
     getLobbyStateMutable(roomId)
     getMatchRuntimeMutable(roomId)

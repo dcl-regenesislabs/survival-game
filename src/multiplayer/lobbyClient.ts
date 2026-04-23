@@ -35,9 +35,14 @@ const LOCAL_AUTH_DEBUG_GRACE_MS = 2500
 const LOCAL_AUTH_DEBUG_AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const LOCAL_AUTH_DEBUG_ARENA_INTRO_SECONDS = 5
 const DEBUG_MATCH_ID_PREFIX = 'debug_local_match_'
-const DEBUG_ROOM_CONFIG = getArenaRoomConfig(DEFAULT_ROOM_ID)
-const DEBUG_ARENA_POSITION = DEBUG_ROOM_CONFIG.arenaTeleportPosition
-const DEBUG_ARENA_LOOK_AT = DEBUG_ROOM_CONFIG.arenaTeleportLookAt
+
+function getDebugArenaPosition(): { x: number; y: number; z: number } {
+  return getArenaRoomConfig(DEFAULT_ROOM_ID).arenaTeleportPosition
+}
+
+function getDebugArenaLookAt(): { x: number; y: number; z: number } {
+  return getArenaRoomConfig(DEFAULT_ROOM_ID).arenaTeleportLookAt
+}
 
 function resetLocalMatchUiState(): void {
   localReadyForMatch = false
@@ -388,8 +393,8 @@ function localAuthDebugSystem(): void {
     lobby.arenaIntroEndTimeMs = nowMs + LOCAL_AUTH_DEBUG_ARENA_INTRO_SECONDS * 1000
     localReadyForMatch = true
     movePlayerTo({
-      newRelativePosition: DEBUG_ARENA_POSITION,
-      cameraTarget: DEBUG_ARENA_LOOK_AT
+      newRelativePosition: getDebugArenaPosition(),
+      cameraTarget: getDebugArenaLookAt()
     })
     console.log('[LobbyClientDebug] local arena teleport fired')
   }

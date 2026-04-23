@@ -64,6 +64,7 @@ import { initArenaRemotePowerups } from './arenaRemotePowerups'
 // import { initLoadoutWorldPanel } from './loadoutWorldPanel'
 import { initTimeSync } from './shared/timeSync'
 import { room } from './shared/messages'
+import { refreshArenaRoomConfigsFromScene } from './shared/roomConfig'
 
 // Cinematic (Diablo-like) camera: follows player position but keeps fixed world rotation (no parent)
 const CINEMATIC_CAMERA_HEIGHT = 12
@@ -287,6 +288,8 @@ function setupShotReplicationClient(): void {
 }
 
 export function main() {
+  refreshArenaRoomConfigsFromScene()
+
   if (isServer()) {
     initTimeSync({ isServer: true })
     setupLobbyServer()
