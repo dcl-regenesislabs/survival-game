@@ -573,16 +573,8 @@ export function gunSystem(dt: number) {
   const isInArena = isLocalPlayerInArena()
   const shouldTrackGun = !isPlayerDead() && isInArena && getCurrentWeapon() === 'gun'
 
-  if (!shouldTrackGun) {
-    if (gunEntity) destroyGun()
-    return
-  }
-
-  if (!gunEntity) {
-    createGun()
-  }
-
-  if (!gunEntity) return
+  // weaponManager owns gun spawn/despawn so the equipped upgrade level stays authoritative.
+  if (!shouldTrackGun || !gunEntity) return
 
   const playerTransform = Transform.get(engine.PlayerEntity)
   const gunWorldPos = Vector3.add(
