@@ -18,9 +18,9 @@ import {
   ARENA_SPAWN_MIN_Z
 } from './arenaConfig'
 
-export type RoomId = 'room_1' | 'room_2'
+export type RoomId = 'room_1' | 'room_2' | 'room_3' | 'room_4'
 
-export const ROOM_IDS: RoomId[] = ['room_1', 'room_2']
+export const ROOM_IDS: RoomId[] = ['room_1', 'room_2', 'room_3', 'room_4']
 export const DEFAULT_ROOM_ID: RoomId = 'room_1'
 type Entity = ReturnType<typeof engine.addEntity>
 type SceneArenaLayout = {
@@ -35,30 +35,41 @@ type SceneArenaLayout = {
 }
 
 const ROOM_2_WORLD_OFFSET_X = 103.5
+const ROOM_3_WORLD_OFFSET_Z = 53.5
 const ROOM_WORLD_OFFSET_BY_ID: Record<RoomId, { x: number; z: number }> = {
   room_1: { x: 0, z: 0 },
-  room_2: { x: ROOM_2_WORLD_OFFSET_X, z: 0 }
+  room_2: { x: ROOM_2_WORLD_OFFSET_X, z: 0 },
+  room_3: { x: 0, z: ROOM_3_WORLD_OFFSET_Z },
+  room_4: { x: ROOM_2_WORLD_OFFSET_X, z: ROOM_3_WORLD_OFFSET_Z }
 }
 
 const ROOM_TRIGGER_ENTITY_BY_ID: Record<RoomId, EntityNames> = {
   room_1: EntityNames.trigger_room_1,
-  room_2: EntityNames.trigger_room_2
+  room_2: EntityNames.trigger_room_2,
+  room_3: EntityNames.trigger_room_3,
+  room_4: EntityNames.trigger_room_4
 }
 
 const ROOM_JOIN_AREA_ENTITY_BY_ID: Record<RoomId, EntityNames> = {
   room_1: EntityNames.JoinArea01_glb,
-  room_2: EntityNames.JoinArea01_glb_2
+  room_2: EntityNames.JoinArea01_glb_2,
+  room_3: EntityNames.JoinArea01_glb_3,
+  room_4: EntityNames.JoinArea01_glb_4
 }
 
 const ROOM_ARENA_ROOT_ENTITY_BY_ID: Record<RoomId, EntityNames> = {
   room_1: EntityNames.arena_1,
-  room_2: EntityNames.arena_2
+  room_2: EntityNames.arena_2,
+  room_3: EntityNames.arena_3,
+  room_4: EntityNames.arena_4
 }
 const ARENA_FLOOR_NAME_PREFIX = 'Plane'
 
 const ROOM_NEW_GAME_TEXT_ENTITY_BY_ID: Record<RoomId, EntityNames> = {
   room_1: EntityNames.NewGameText_glb,
-  room_2: EntityNames.NewGameText_glb_2
+  room_2: EntityNames.NewGameText_glb_2,
+  room_3: EntityNames.NewGameText_glb_3,
+  room_4: EntityNames.NewGameText_glb_4
 }
 
 export type ArenaRoomConfig = {
@@ -139,7 +150,9 @@ function createArenaRoomConfig(roomId: RoomId, sceneLayout?: SceneArenaLayout): 
 
 const DEFAULT_ROOM_CONFIG_BY_ID: Record<RoomId, ArenaRoomConfig> = {
   room_1: createArenaRoomConfig('room_1'),
-  room_2: createArenaRoomConfig('room_2')
+  room_2: createArenaRoomConfig('room_2'),
+  room_3: createArenaRoomConfig('room_3'),
+  room_4: createArenaRoomConfig('room_4')
 }
 const sceneRoomConfigById: Partial<Record<RoomId, ArenaRoomConfig>> = {}
 
@@ -201,7 +214,7 @@ export function refreshArenaRoomConfigsFromScene(): void {
 }
 
 export function isRoomId(value: string): value is RoomId {
-  return value === 'room_1' || value === 'room_2'
+  return value === 'room_1' || value === 'room_2' || value === 'room_3' || value === 'room_4'
 }
 
 export function getArenaRoomConfig(roomId: RoomId): ArenaRoomConfig {
@@ -217,4 +230,4 @@ export function getArenaRoomConfig(roomId: RoomId): ArenaRoomConfig {
 }
 
 export const LOBBY_RETURN_POSITION = { x: 84.25, y: 0, z: 19.75 }
-export const LOBBY_RETURN_LOOK_AT = { x: 84.25, y: 1, z: 9.25 }
+export const LOBBY_RETURN_LOOK_AT = { x: 84.25, y: 1, z: 23.25 }

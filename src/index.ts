@@ -55,6 +55,7 @@ import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
 import { initLobbyStore } from './lobbyStore'
 import { initDeathAnimationSystem } from './deathAnimation'
+import { getCurrentRoomId } from './roomRuntime'
 import {
   initArenaRemoteDefaultWeapons,
   isArenaWeaponType,
@@ -261,6 +262,7 @@ function rememberRemoteShot(key: string): boolean {
 
 function setupShotReplicationClient(): void {
   room.onMessage('playerShotBroadcast', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     if (!isLocalPlayerInCurrentMatch()) return
     const shooterAddress = data.shooterAddress.toLowerCase()
     const localAddress = getLocalAddress()

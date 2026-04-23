@@ -239,24 +239,27 @@ export function initLavaHazardClient(): void {
   initializeLavaZones()
 
   room.onMessage('lavaHazardsSpawned', (data) => {
-    const roomId = getCurrentRoomId()
-    if (!isLocalPlayerInCurrentMatch(roomId)) return
+    if (data.roomId !== getCurrentRoomId()) return
+    if (!isLocalPlayerInCurrentMatch(data.roomId)) return
     for (const lava of data.hazards) {
-      upsertLocalLavaHazard(roomId, lava)
+      upsertLocalLavaHazard(data.roomId, lava)
     }
   })
 
   room.onMessage('lavaHazardsExpired', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     for (const lavaId of data.lavaIds) {
       removeLavaHazardById(lavaId)
     }
   })
 
-  room.onMessage('lavaHazardsCleared', () => {
-    clearAllLavaHazards(getCurrentRoomId())
+  room.onMessage('lavaHazardsCleared', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
+    clearAllLavaHazards(data.roomId)
   })
 
   room.onMessage('lavaPatternWarning', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     if (data.patternType === 'sweep') {
       sweepWarningStartAtMs = data.startsAtMs
       sweepWarningEndAtMs = data.startsAtMs + SWEEP_UI_DURATION_MS

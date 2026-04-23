@@ -1,6 +1,7 @@
 import { engine, Entity, GltfContainer, Schemas, Transform } from '@dcl/sdk/ecs'
 import { Vector3 } from '@dcl/sdk/math'
 import { room } from './shared/messages'
+import { getCurrentRoomId } from './roomRuntime'
 import { getServerTime } from './shared/timeSync'
 import { getGameTime, spawnZcRewardTextAtPosition } from './zombie'
 import { getLobbyState, getLocalAddress, isLocalReadyForMatch } from './multiplayer/lobbyClient'
@@ -25,6 +26,7 @@ const CollectibleComponent = engine.defineComponent('CollectibleComponent', {
 const localCollectibleById = new Map<string, Entity>()
 const predictedPickupIds = new Set<string>()
 let isInitialized = false
+let lastCollectibleRoomId = getCurrentRoomId()
 
 function isLocalPlayerInCurrentMatch(): boolean {
   const lobbyState = getLobbyState()
@@ -83,6 +85,7 @@ export function initCollectibleClient(): void {
   isInitialized = true
 
   room.onMessage('collectibleSpawned', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     if (!isLocalPlayerInCurrentMatch()) return
     createCollectibleEntity(
       data.collectibleId,
@@ -92,6 +95,7 @@ export function initCollectibleClient(): void {
   })
 
   room.onMessage('collectibleClaimed', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     const entity = localCollectibleById.get(data.collectibleId)
     const localAddress = getLocalAddress()
     if (entity && CollectibleComponent.has(entity) && localAddress && data.claimerAddress.toLowerCase() === localAddress) {
@@ -108,13 +112,15 @@ export function initCollectibleClient(): void {
   })
 
   room.onMessage('collectibleExpired', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     if (predictedPickupIds.has(data.collectibleId)) {
       addZombieCoins(-COINS_PER_KILL)
     }
     removeCollectibleById(data.collectibleId)
   })
 
-  room.onMessage('collectiblesCleared', () => {
+  room.onMessage('collectiblesCleared', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     clearAllCollectibles()
   })
 
@@ -132,6 +138,12 @@ export function initCollectibleClient(): void {
 }
 
 export function collectibleSystem(dt: number): void {
+  const currentRoomId = getCurrentRoomId()
+  if (lastCollectibleRoomId !== currentRoomId) {
+    clearAllCollectibles()
+    lastCollectibleRoomId = currentRoomId
+  }
+
   if (!isLocalPlayerInCurrentMatch()) {
     clearAllCollectibles()
     return

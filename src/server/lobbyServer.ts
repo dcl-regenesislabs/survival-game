@@ -212,10 +212,9 @@ function createRoomServerState(roomId: RoomId): RoomServerState {
   }
 }
 
-const roomServerStateById: Record<RoomId, RoomServerState> = {
-  room_1: createRoomServerState('room_1'),
-  room_2: createRoomServerState('room_2')
-}
+const roomServerStateById = Object.fromEntries(
+  ROOM_IDS.map((roomId) => [roomId, createRoomServerState(roomId)])
+) as Record<RoomId, RoomServerState>
 
 const loadedProfileAddresses = new Set<string>()
 const playerRoomByAddress = new Map<string, RoomId>()
@@ -590,6 +589,7 @@ function getPlayerPosition(address: string): { x: number; y: number; z: number }
 
 function sendPotionSpawn(roomId: RoomId, potion: ActivePotionState, to?: string[]): void {
   const payload = {
+    roomId,
     potionId: potion.potionId,
     potionType: potion.potionType,
     positionX: potion.positionX,
@@ -610,7 +610,7 @@ function sendActivePotionsTo(roomId: RoomId, address: string): void {
 function sendLavaHazardSpawnBatches(roomId: RoomId, hazards: LavaHazardTileState[], targets?: string[]): void {
   if (hazards.length === 0) return
   for (let index = 0; index < hazards.length; index += LAVA_BATCH_SIZE) {
-    const payload = { hazards: hazards.slice(index, index + LAVA_BATCH_SIZE) }
+    const payload = { roomId, hazards: hazards.slice(index, index + LAVA_BATCH_SIZE) }
     sendMessage('lavaHazardsSpawned', payload, targets ?? getRoomArenaPlayerAddresses(roomId))
   }
 }
@@ -619,6 +619,7 @@ function sendLavaHazardExpiredBatches(roomId: RoomId, lavaIds: string[]): void {
   if (lavaIds.length === 0) return
   for (let index = 0; index < lavaIds.length; index += LAVA_BATCH_SIZE) {
     sendMessage('lavaHazardsExpired', {
+      roomId,
       lavaIds: lavaIds.slice(index, index + LAVA_BATCH_SIZE)
     }, getRoomArenaPlayerAddresses(roomId))
   }
@@ -634,7 +635,7 @@ function clearActivePotions(roomId: RoomId, notifyClients: boolean): void {
   if (roomState.activePotionsById.size === 0) return
   roomState.activePotionsById.clear()
   if (notifyClients) {
-    sendToArena(roomId, 'potionsCleared', {})
+    sendToArena(roomId, 'potionsCleared', { roomId })
   }
 }
 
@@ -778,7 +779,7 @@ function expirePotions(roomId: RoomId, now: number): void {
   for (const [potionId, potion] of roomState.activePotionsById) {
     if (potion.expiresAtMs > now) continue
     roomState.activePotionsById.delete(potionId)
-    sendToArena(roomId, 'potionExpired', { potionId })
+    sendToArena(roomId, 'potionExpired', { roomId, potionId })
   }
 }
 
@@ -797,10 +798,11 @@ function queueLavaHazardsForWave(roomId: RoomId, waveNumber: number, now: number
   }
   if (sweepWarningAtMs !== null) {
     const SWEEP_UI_ADVANCE_MS = 1500
-    void room.send('lavaPatternWarning', {
+    sendMessage('lavaPatternWarning', {
+      roomId,
       patternType: 'sweep',
       startsAtMs: sweepWarningAtMs - SWEEP_UI_ADVANCE_MS
-    })
+    }, getRoomArenaPlayerAddresses(roomId))
   }
 }
 
@@ -832,7 +834,7 @@ function clearAllLavaHazards(roomId: RoomId): void {
   if (roomState.scheduledLavaHazardsById.size === 0 && roomState.activeLavaHazardsById.size === 0) return
   roomState.scheduledLavaHazardsById.clear()
   roomState.activeLavaHazardsById.clear()
-  sendToArena(roomId, 'lavaHazardsCleared', {})
+  sendToArena(roomId, 'lavaHazardsCleared', { roomId })
 }
 
 const COLLECTIBLE_LIFETIME_MS = 30_000
@@ -850,6 +852,7 @@ function spawnCollectibleDrop(roomId: RoomId, x: number, y: number, z: number, n
   }
   roomState.activeCollectiblesById.set(collectibleId, col)
   sendToArena(roomId, 'collectibleSpawned', {
+    roomId,
     collectibleId,
     positionX: x,
     positionY: y,
@@ -861,6 +864,7 @@ function spawnCollectibleDrop(roomId: RoomId, x: number, y: number, z: number, n
 function sendActiveCollectiblesTo(roomId: RoomId, address: string): void {
   for (const col of getRoomServerState(roomId).activeCollectiblesById.values()) {
     sendMessage('collectibleSpawned', {
+      roomId,
       collectibleId: col.collectibleId,
       positionX: col.positionX,
       positionY: col.positionY,
@@ -875,7 +879,7 @@ function tickCollectibleExpiry(roomId: RoomId, now: number): void {
   for (const [id, col] of roomState.activeCollectiblesById) {
     if (now >= col.expiresAtMs) {
       roomState.activeCollectiblesById.delete(id)
-      sendToArena(roomId, 'collectibleExpired', { collectibleId: id })
+      sendToArena(roomId, 'collectibleExpired', { roomId, collectibleId: id })
     }
   }
 }
@@ -884,7 +888,7 @@ function clearAllCollectibles(roomId: RoomId): void {
   const roomState = getRoomServerState(roomId)
   if (roomState.activeCollectiblesById.size === 0) return
   roomState.activeCollectiblesById.clear()
-  sendToArena(roomId, 'collectiblesCleared', {})
+  sendToArena(roomId, 'collectiblesCleared', { roomId })
 }
 
 function applyZombieDamage(
@@ -906,7 +910,7 @@ function applyZombieDamage(
   spawnState.hp = Math.max(0, spawnState.hp - amount)
 
   if (spawnState.hp > 0) {
-    sendToArena(roomId, 'zombieHealthChanged', { zombieId, hp: spawnState.hp })
+    sendToArena(roomId, 'zombieHealthChanged', { roomId, zombieId, hp: spawnState.hp })
     return true
   }
 
@@ -914,7 +918,7 @@ function applyZombieDamage(
   roomState.deadZombieIds.delete(zombieId)
   roomState.explodedZombieIds.delete(zombieId)
   recomputeZombiesAlive(roomId, runtime, now)
-  sendToArena(roomId, 'zombieDied', { zombieId, killerAddress: normalizedAddress })
+  sendToArena(roomId, 'zombieDied', { roomId, zombieId, killerAddress: normalizedAddress })
   const dropX = deathPos?.x ?? spawnState.spawnX
   const dropY = deathPos?.y ?? spawnState.spawnY
   const dropZ = deathPos?.z ?? spawnState.spawnZ
@@ -939,7 +943,7 @@ function explodeZombie(roomId: RoomId, zombieId: string, now: number): boolean {
   roomState.deadZombieIds.delete(zombieId)
   roomState.explodedZombieIds.add(zombieId)
   recomputeZombiesAlive(roomId, runtime, now)
-  sendToArena(roomId, 'zombieExploded', { zombieId })
+  sendToArena(roomId, 'zombieExploded', { roomId, zombieId })
   return true
 }
 
@@ -1524,7 +1528,7 @@ function sendWaveSpawnPlan(roomId: RoomId, waveNumber: number, startAtMs: number
   recomputeZombiesAlive(roomId, runtime, runtime.serverNowMs)
   runtime.zombiesPlanned = plan.spawns.length
 
-  sendToArena(roomId, 'waveSpawnPlan', plan)
+  sendToArena(roomId, 'waveSpawnPlan', { roomId, ...plan })
 }
 
 function grantWaveMilestoneGold(roomId: RoomId, waveNumber: number, players: LobbyPlayer[]): void {
@@ -1929,7 +1933,7 @@ export function setupLobbyServer(): void {
     const now = getServerTime()
     if (potion.expiresAtMs <= now) {
       roomState.activePotionsById.delete(data.potionId)
-      sendToArena(roomId, 'potionExpired', { potionId: data.potionId })
+      sendToArena(roomId, 'potionExpired', { roomId, potionId: data.potionId })
       return
     }
 
@@ -1951,6 +1955,7 @@ export function setupLobbyServer(): void {
     }
     sendPlayerPowerupState(roomId, normalizedAddress)
     sendToArena(roomId, 'potionClaimed', {
+      roomId,
       potionId: data.potionId,
       claimerAddress: normalizedAddress
     })
@@ -1973,7 +1978,7 @@ export function setupLobbyServer(): void {
     const now = getServerTime()
     if (col.expiresAtMs <= now) {
       roomState.activeCollectiblesById.delete(data.collectibleId)
-      sendToArena(roomId, 'collectibleExpired', { collectibleId: data.collectibleId })
+      sendToArena(roomId, 'collectibleExpired', { roomId, collectibleId: data.collectibleId })
       return
     }
 
@@ -1989,6 +1994,7 @@ export function setupLobbyServer(): void {
 
     roomState.activeCollectiblesById.delete(data.collectibleId)
     sendToArena(roomId, 'collectibleClaimed', {
+      roomId,
       collectibleId: data.collectibleId,
       claimerAddress: normalizedAddress
     })
@@ -2185,6 +2191,7 @@ export function setupLobbyServer(): void {
       ZOMBIE_HITS_ALLOWED_PER_SHOT[weaponType]
     )
     sendToArena(roomId, 'playerShotBroadcast', {
+      roomId,
       shooterAddress: normalizedAddress,
       seq: shotSeq,
       weaponType,

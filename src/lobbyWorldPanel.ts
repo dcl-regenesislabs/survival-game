@@ -30,19 +30,6 @@ const NEW_GAME_TEXT_SRC = 'assets/scene/Models/NewGameText.glb'
 const GAME_IN_PROGRESS_TEXT_SRC = 'assets/scene/Models/GameInProText.glb'
 const NEW_GAME_TEXT_ANIMATION_CLIP = 'Text.001Action'
 const GAME_IN_PROGRESS_TEXT_ANIMATION_CLIP = 'Text.008Action'
-const COMING_SOON_ARENAS = [
-  {
-    triggerEntityName: EntityNames.trigger_room_3,
-    newGameTextEntityName: EntityNames.NewGameText_glb_3,
-    label: 'Arena #3 Coming Soon'
-  },
-  {
-    triggerEntityName: EntityNames.trigger_room_4,
-    newGameTextEntityName: EntityNames.NewGameText_glb_4,
-    label: 'Arena #4 Coming Soon'
-  }
-] as const
-
 let localPlayerInsideLobbyTrigger = false
 
 type Entity = ReturnType<typeof engine.addEntity>
@@ -231,34 +218,8 @@ export class LobbyWorldPanel {
   }
 }
 
-class ComingSoonArenaPanel {
-  private readonly textEntity = engine.addEntity()
-
-  constructor(
-    private readonly triggerEntityName: EntityNames,
-    private readonly newGameTextEntityName: EntityNames,
-    private readonly label: string
-  ) {
-    this.createPanel()
-  }
-
-  private createPanel(): void {
-    const triggerEntity = requireSceneEntity(this.triggerEntityName)
-    const triggerTransform = Transform.getOrNull(triggerEntity)
-    const baseX = triggerTransform?.position.x ?? 0
-    const baseY = triggerTransform?.position.y ?? 0
-    const baseZ = triggerTransform?.position.z ?? 0
-
-    createLobbyTitleText(this.textEntity, this.label, baseX, baseY, baseZ)
-    Transform.getMutable(requireSceneEntity(this.newGameTextEntityName)).scale = Vector3.Zero()
-  }
-}
-
 export function initLobbyWorldPanel(): LobbyWorldPanel[] {
   localPlayerInsideLobbyTrigger = false
-  COMING_SOON_ARENAS.forEach((arena) => {
-    new ComingSoonArenaPanel(arena.triggerEntityName, arena.newGameTextEntityName, arena.label)
-  })
   return ROOM_IDS.map((roomId) => new LobbyWorldPanel(roomId))
 }
 

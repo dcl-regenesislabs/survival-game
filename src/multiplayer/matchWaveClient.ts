@@ -22,6 +22,7 @@ import { addZombieCoins, COINS_PER_KILL } from '../zombieCoins'
 type ZombieType = 'basic' | 'quick' | 'tank' | 'exploder'
 
 type PlannedSpawn = {
+  roomId: string
   zombieId: string
   zombieType: ZombieType
   spawnAtMs: number
@@ -47,6 +48,7 @@ function isLocalPlayerInCurrentMatch(): boolean {
 }
 
 function queueWavePlan(data: {
+  roomId: string
   waveNumber: number
   startAtMs: number
   intervalMs: number
@@ -59,6 +61,7 @@ function queueWavePlan(data: {
     spawnAtMs: number
   }>
 }): void {
+  if (data.roomId !== getCurrentRoomId()) return
   if (!isLocalPlayerInCurrentMatch()) return
 
   pendingSpawns = pendingSpawns.filter((spawn) => spawn.waveNumber !== data.waveNumber)
@@ -72,6 +75,7 @@ function queueWavePlan(data: {
       spawn.zombieType !== 'exploder'
     ) continue
     pendingSpawns.push({
+      roomId: data.roomId,
       zombieId: spawn.zombieId,
       zombieType: spawn.zombieType,
       spawnAtMs: spawn.spawnAtMs,
@@ -172,12 +176,14 @@ export function initMatchWaveClientSystem(): void {
   })
 
   room.onMessage('zombieHealthChanged', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     if (!applyZombieHealthUpdateByNetworkId(data.zombieId, data.hp)) {
       pendingZombieHpById.set(data.zombieId, data.hp)
     }
   })
 
   room.onMessage('zombieDied', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     pendingSpawns = pendingSpawns.filter((spawn) => spawn.zombieId !== data.zombieId)
     spawnedZombieIds.delete(data.zombieId)
     pendingZombieHpById.delete(data.zombieId)
@@ -185,6 +191,7 @@ export function initMatchWaveClientSystem(): void {
   })
 
   room.onMessage('zombieExploded', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     pendingSpawns = pendingSpawns.filter((spawn) => spawn.zombieId !== data.zombieId)
     spawnedZombieIds.delete(data.zombieId)
     pendingZombieHpById.delete(data.zombieId)
