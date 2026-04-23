@@ -49,6 +49,7 @@ import { isLocalPlayerInsideLobbyTrigger } from './lobbyWorldPanel'
 import {
   getLobbyState,
   getMatchRuntimeState,
+  getServerLoadingState,
   shouldSuppressDeathOverlayForTeamWipe,
   shouldShowGameOverOverlay,
   getLocalAddress,
@@ -150,6 +151,8 @@ function detectMobileUserAgent(): boolean {
 
 let isMobileRuntime = detectMobileUserAgent()
 let runtimePlatformLookupRequested = false
+let serverLoaderWasActive = false
+let serverLoaderCompletedUntil = 0
 
 async function resolveRuntimePlatform(): Promise<void> {
   try {
@@ -159,6 +162,118 @@ async function resolveRuntimePlatform(): Promise<void> {
   } catch {
     isMobileRuntime = detectMobileUserAgent()
   }
+}
+
+function ServerLoadingPanel(props: {
+  progress: number
+  completed: boolean
+  timeSeconds: number
+}) {
+  const compactLayout = isMobileRuntime
+  const pulse = 0.72 + ((Math.sin(props.timeSeconds * 4.8) + 1) * 0.5) * 0.18
+  const labelColor = props.completed
+    ? Color4.create(0.75, 0.98, 0.8, 1)
+    : Color4.create(0.95, 0.83, 0.35, 1)
+  const signalBars = [22, 36, 52, 70, 90, 112]
+  const activeBarIndex = Math.floor(props.timeSeconds * 5.2) % signalBars.length
+  const panelTopOffset = compactLayout ? -10 : -36
+  const panelWidth = compactLayout ? 260 : 300
+  const panelHeight = compactLayout ? 186 : 170
+  const signalWidth = compactLayout ? 114 : 126
+  const signalHeight = compactLayout ? 102 : 114
+  const signalBottomMargin = compactLayout ? 14 : 24
+  const labelHeight = compactLayout ? 34 : 24
+  const labelFontSize = compactLayout ? 20 : 17
+  const signalBarWidth = 17
+  const tallestSignalBar = signalBars[signalBars.length - 1]
+
+  return (
+    <UiEntity
+      uiTransform={{
+        width: '100%',
+        height: '100%',
+        positionType: 'absolute',
+        position: { left: 0, top: panelTopOffset },
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      <UiEntity
+        uiTransform={{
+          width: panelWidth,
+          height: panelHeight,
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: { top: 14, right: 14, bottom: 14, left: 14 },
+          borderRadius: 10
+        }}
+      >
+        <UiEntity
+          uiTransform={{
+            width: signalWidth,
+            height: signalHeight,
+            margin: { bottom: signalBottomMargin }
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: '100%',
+              height: '100%',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end'
+            }}
+          >
+            {signalBars.map((height, index) => {
+              const isActive = props.completed || index === activeBarIndex
+              const color = props.completed
+                ? Color4.create(0.33, 0.9, 0.46, 0.95)
+                : isActive
+                  ? Color4.create(0.79, 0.16, 0.12, pulse)
+                  : Color4.create(0.22, 0.08, 0.08, 0.38)
+
+              return (
+                <UiEntity
+                  key={`signal-bar-${index}`}
+                  uiTransform={{
+                    width: signalBarWidth,
+                    height: '100%',
+                    positionType: 'relative'
+                  }}
+                >
+                  <UiEntity
+                    uiTransform={{
+                      width: signalBarWidth,
+                      height,
+                      positionType: 'absolute',
+                      position: { left: 0, top: tallestSignalBar - height },
+                      borderRadius: 4
+                    }}
+                    uiBackground={{ color }}
+                  />
+                </UiEntity>
+              )
+            })}
+          </UiEntity>
+        </UiEntity>
+        <OutlinedText
+          uiTransform={{
+            width: '100%',
+            height: labelHeight,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          uiText={{
+            value: props.completed ? 'SERVER LINK STABLE' : 'LOADING SERVER',
+            fontSize: labelFontSize,
+            color: labelColor,
+            textAlign: 'middle-center'
+          }}
+        />
+      </UiEntity>
+    </UiEntity>
+  )
 }
 
 export function setupUi() {
@@ -176,6 +291,7 @@ export const uiMenu = () => {
   const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const matchRuntime = getMatchRuntimeState()
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInArenaRoster
+  const serverLoadingState = getServerLoadingState()
   const isLobbyContext =
     !lobbyState ||
     lobbyState.phase === LobbyPhase.LOBBY ||
@@ -238,6 +354,17 @@ export const uiMenu = () => {
   const playerHpFillVisibleHeight = Math.max(0, Math.min(playerHpFillHeight, PLAYER_HP_FRAME_HEIGHT - playerHpFillOffsetY))
   const playerHpFillCurrentWidth = Math.max(0, Math.round(playerHpFillVisibleWidth * playerHpRatio))
   const currentGameTime = getGameTime()
+  if (serverLoadingState.active) {
+    serverLoaderWasActive = true
+  } else if (serverLoaderWasActive) {
+    serverLoaderCompletedUntil = currentGameTime + 2
+    serverLoaderWasActive = false
+  }
+  const showServerLoader = serverLoadingState.active || currentGameTime < serverLoaderCompletedUntil
+  const serverLoaderCompleted = !serverLoadingState.active && currentGameTime < serverLoaderCompletedUntil
+  const serverLoaderProgress = serverLoaderCompleted
+    ? 1
+    : serverLoadingState.progress
   const speedActive = showPlayerHealthHud && isSpeedActive()
   const rageActive = showPlayerHealthHud && isRaging()
   const speedFillRatio = speedActive ? Math.max(0, Math.min(1, getSpeedTimeLeft(currentGameTime) / SPEED_DURATION_SEC)) : 0
@@ -1396,6 +1523,13 @@ export const uiMenu = () => {
         />
       )}
       {!showGameplayHudDebug && <LobbyStoreUi />}
+      {showServerLoader && (
+        <ServerLoadingPanel
+          progress={serverLoaderProgress}
+          completed={serverLoaderCompleted}
+          timeSeconds={currentGameTime}
+        />
+      )}
     </UiEntity>
   )
 }

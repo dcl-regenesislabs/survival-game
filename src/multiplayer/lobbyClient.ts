@@ -19,6 +19,7 @@ let latestLobbyEvent = ''
 let latestLobbyEventType = ''
 let latestLobbyEventAtMs = 0
 let hasProfileLoadSent = false
+let hasLocalLoadoutState = false
 let localReadyForMatch = false
 let lastTeamWipeAffectedLocalPlayer = false
 let sceneRoomConnectedAtMs = 0
@@ -95,6 +96,7 @@ export function setupLobbyClient(): void {
   room.onMessage('playerLoadoutState', (data) => {
     const localAddress = getLocalAddress()
     if (!localAddress || data.address !== localAddress) return
+    hasLocalLoadoutState = true
     applyPlayerLoadoutSnapshot(data)
   })
   room.onMessage('playerArenaWeaponState', (data) => {
@@ -258,6 +260,47 @@ export function getLocalAddress(): string {
   return identity?.address?.toLowerCase() || ''
 }
 
+export function getServerLoadingState(): {
+  active: boolean
+  title: string
+  detail: string
+  progress: number
+} {
+  const localAddress = getLocalAddress()
+  if (!localAddress || localAuthDebugActive) {
+    return { active: false, title: '', detail: '', progress: 1 }
+  }
+
+  if (!isSceneRoomConnected()) {
+    return {
+      active: true,
+      title: 'CONTACTING SCENE ROOM',
+      detail: 'Routing distress signal through quarantine uplink',
+      progress: 0.2
+    }
+  }
+
+  if (!hasProfileLoadSent) {
+    return {
+      active: true,
+      title: 'HANDSHAKING SERVER',
+      detail: 'Negotiating arena authority and comms channel',
+      progress: 0.45
+    }
+  }
+
+  if (!hasLocalLoadoutState) {
+    return {
+      active: true,
+      title: 'SYNCING SURVIVOR DATA',
+      detail: 'Loading profile, loadout and bunker records',
+      progress: 0.75
+    }
+  }
+
+  return { active: false, title: '', detail: '', progress: 1 }
+}
+
 function autoJoinLobbySystem(): void {
   const sceneRoomConnected = isSceneRoomConnected()
   if (sceneRoomConnected && sceneRoomConnectedAtMs <= 0) {
@@ -265,6 +308,8 @@ function autoJoinLobbySystem(): void {
   }
   if (!sceneRoomConnected) {
     sceneRoomConnectedAtMs = 0
+    hasProfileLoadSent = false
+    hasLocalLoadoutState = false
   }
 
   if (hasProfileLoadSent) return
