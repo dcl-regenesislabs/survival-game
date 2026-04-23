@@ -31,6 +31,7 @@ import {
   isRaging
 } from './rageEffect'
 import { isIsoViewEnabled } from './viewModes'
+import { getCurrentRoomId } from './roomRuntime'
 
 // Animation clip names from Zombie.glb
 const ANIM_ZOMBIE_UP = 'ZombieUP'
@@ -1010,12 +1011,13 @@ export function zombieSystem(dt: number) {
   const rageShieldRadius = getRageShieldRadius()
   const rageShieldHitIntervalSec = getRageShieldHitIntervalSec()
   const bricks = getBricks()
+  const currentRoomId = getCurrentRoomId()
   const zombieEntries = Array.from(engine.getEntitiesWith(
     ZombieComponent,
     Transform,
     GltfContainer,
     Animator
-  ))
+  )).filter(([, z]) => !z.networkId || z.networkId.startsWith(currentRoomId))
 
   for (const [zombie, zombieData, transform] of zombieEntries) {
     const mutableZombie = ZombieComponent.getMutable(zombie)
