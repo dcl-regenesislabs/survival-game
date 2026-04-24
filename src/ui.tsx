@@ -165,7 +165,6 @@ async function resolveRuntimePlatform(): Promise<void> {
 }
 
 function ServerLoadingPanel(props: {
-  progress: number
   completed: boolean
   timeSeconds: number
 }) {
@@ -362,9 +361,6 @@ export const uiMenu = () => {
   }
   const showServerLoader = serverLoadingState.active || currentGameTime < serverLoaderCompletedUntil
   const serverLoaderCompleted = !serverLoadingState.active && currentGameTime < serverLoaderCompletedUntil
-  const serverLoaderProgress = serverLoaderCompleted
-    ? 1
-    : serverLoadingState.progress
   const speedActive = showPlayerHealthHud && isSpeedActive()
   const rageActive = showPlayerHealthHud && isRaging()
   const speedFillRatio = speedActive ? Math.max(0, Math.min(1, getSpeedTimeLeft(currentGameTime) / SPEED_DURATION_SEC)) : 0
@@ -1525,7 +1521,6 @@ export const uiMenu = () => {
       {!showGameplayHudDebug && <LobbyStoreUi />}
       {showServerLoader && (
         <ServerLoadingPanel
-          progress={serverLoaderProgress}
           completed={serverLoaderCompleted}
           timeSeconds={currentGameTime}
         />

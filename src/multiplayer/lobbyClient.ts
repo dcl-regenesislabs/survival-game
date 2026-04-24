@@ -264,19 +264,17 @@ export function getServerLoadingState(): {
   active: boolean
   title: string
   detail: string
-  progress: number
 } {
   const localAddress = getLocalAddress()
   if (!localAddress || localAuthDebugActive) {
-    return { active: false, title: '', detail: '', progress: 1 }
+    return { active: false, title: '', detail: '' }
   }
 
   if (!isSceneRoomConnected()) {
     return {
       active: true,
       title: 'CONTACTING SCENE ROOM',
-      detail: 'Routing distress signal through quarantine uplink',
-      progress: 0.2
+      detail: 'Routing distress signal through quarantine uplink'
     }
   }
 
@@ -284,8 +282,7 @@ export function getServerLoadingState(): {
     return {
       active: true,
       title: 'HANDSHAKING SERVER',
-      detail: 'Negotiating arena authority and comms channel',
-      progress: 0.45
+      detail: 'Negotiating arena authority and comms channel'
     }
   }
 
@@ -293,12 +290,11 @@ export function getServerLoadingState(): {
     return {
       active: true,
       title: 'SYNCING SURVIVOR DATA',
-      detail: 'Loading profile, loadout and bunker records',
-      progress: 0.75
+      detail: 'Loading profile, loadout and bunker records'
     }
   }
 
-  return { active: false, title: '', detail: '', progress: 1 }
+  return { active: false, title: '', detail: '' }
 }
 
 function autoJoinLobbySystem(): void {
