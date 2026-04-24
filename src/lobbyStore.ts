@@ -13,6 +13,7 @@ type Entity = ReturnType<typeof engine.addEntity>
 type LobbyNpcConfig = {
   npcName: EntityNames
   clickName: EntityNames
+  hidden?: boolean
   hoverText?: string
   onClick?: () => void
 }
@@ -27,7 +28,8 @@ const LOBBY_NPC_CONFIGS: LobbyNpcConfig[] = [
   },
   {
     npcName: EntityNames.npcs02_glb,
-    clickName: EntityNames.npc_collider_2
+    clickName: EntityNames.npc_collider_2,
+    hidden: true
   }
 ]
 
@@ -65,6 +67,11 @@ function setupNpcClickHandler(config: LobbyNpcConfig, npcEntity: Entity, clickEn
   )
 }
 
+function hideNpc(npcEntity: Entity, clickEntity: Entity): void {
+  engine.removeEntityWithChildren(npcEntity)
+  engine.removeEntityWithChildren(clickEntity)
+}
+
 export function initLobbyStore(): void {
   const pending = new Set(LOBBY_NPC_CONFIGS.map((config) => config.npcName))
   const systemName = 'lobby-store-npc-init-system'
@@ -76,7 +83,11 @@ export function initLobbyStore(): void {
       const clickEntity = findSceneEntity(config.clickName)
       if (!npcEntity || !clickEntity) continue
 
-      setupNpcClickHandler(config, npcEntity, clickEntity)
+      if (config.hidden) {
+        hideNpc(npcEntity, clickEntity)
+      } else {
+        setupNpcClickHandler(config, npcEntity, clickEntity)
+      }
       pending.delete(config.npcName)
     }
 
