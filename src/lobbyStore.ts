@@ -67,7 +67,8 @@ function setupNpcClickHandler(config: LobbyNpcConfig, npcEntity: Entity, clickEn
   )
 }
 
-function hideNpc(clickEntity: Entity): void {
+function hideNpc(npcEntity: Entity, clickEntity: Entity): void {
+  engine.removeEntityWithChildren(npcEntity)
   engine.removeEntityWithChildren(clickEntity)
 }
 
@@ -83,7 +84,7 @@ export function initLobbyStore(): void {
       if (!npcEntity || !clickEntity) continue
 
       if (config.hidden) {
-        hideNpc(clickEntity)
+        hideNpc(npcEntity, clickEntity)
       } else {
         setupNpcClickHandler(config, npcEntity, clickEntity)
       }
