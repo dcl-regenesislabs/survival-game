@@ -23,7 +23,6 @@ import {
 } from './multiplayer/lobbyClient'
 import { getServerTime } from './shared/timeSync'
 import { RoomId, ROOM_IDS, getArenaRoomConfig } from './shared/roomConfig'
-import { LOBBY_RETURN_LOOK_AT, LOBBY_RETURN_POSITION } from './shared/roomConfig'
 
 const PANEL_UPDATE_INTERVAL_SECONDS = 0.2
 const LOBBY_REQUEST_COOLDOWN_MS = 1000
@@ -36,11 +35,12 @@ let localPlayerInsideLobbyTrigger = false
 type Entity = ReturnType<typeof engine.addEntity>
 type GameTextMode = 'new_game' | 'in_progress'
 
-function findSceneEntity(entityName: EntityNames): Entity | null {
+function requireSceneEntity(entityName: EntityNames): Entity {
   for (const [entity, name] of engine.getEntitiesWith(Name)) {
     if (name.value === entityName) return entity
   }
-  return null
+
+  throw new Error(`[LobbyPanel] Scene entity not found: ${entityName}`)
 }
 
 function createLobbyTitleText(entity: Entity, text: string, baseX: number, baseY: number, baseZ: number): void {
@@ -73,47 +73,26 @@ export class LobbyWorldPanel {
   private readonly roomId: RoomId
   private readonly textEntity = engine.addEntity()
   private readonly countdownTextEntity = engine.addEntity()
-  private triggerEntity: Entity | null = null
-  private newGameTextEntity: Entity | null = null
-  private newGameTextVisibleScale: Vector3 = Vector3.create(1, 1, 1)
-  private panelReady = false
+  private readonly triggerEntity: Entity
+  private readonly newGameTextEntity: Entity
   private updateAccumulator = 0
   private lastRenderedPlayersText = ''
   private lastRenderedCountdownText = ''
   private lastRenderedGameTextMode: GameTextMode | null = null
-  private isLocalPlayerInsideTrigger = false
   private lastJoinRequestAtMs = 0
   private lastLeaveRequestAtMs = 0
 
   constructor(roomId: RoomId) {
     this.roomId = roomId
+    const roomConfig = getArenaRoomConfig(roomId)
+    this.triggerEntity = requireSceneEntity(roomConfig.triggerEntityName)
+    this.newGameTextEntity = requireSceneEntity(roomConfig.newGameTextEntityName)
+    this.createPanel()
     engine.addSystem((dt) => this.updateSystem(dt), undefined, `lobby-world-panel-system-${roomId}`)
   }
 
-  // Deferred so entities are available on mobile (child entities not ready during main())
-  private trySetupPanel(): boolean {
-    if (this.panelReady) return true
-
-    const roomConfig = getArenaRoomConfig(this.roomId)
-    const triggerEntity = findSceneEntity(roomConfig.triggerEntityName)
-    const newGameTextEntity = findSceneEntity(roomConfig.newGameTextEntityName)
-    if (!triggerEntity || !newGameTextEntity) return false
-
-    this.triggerEntity = triggerEntity
-    this.newGameTextEntity = newGameTextEntity
-
-    const newGameTransform = Transform.getOrNull(this.newGameTextEntity)
-    this.newGameTextVisibleScale = newGameTransform
-      ? Vector3.create(newGameTransform.scale.x, newGameTransform.scale.y, newGameTransform.scale.z)
-      : Vector3.create(1, 1, 1)
-
-    this.createPanel()
-    this.panelReady = true
-    return true
-  }
-
   private createPanel(): void {
-    const triggerTransform = Transform.getOrNull(this.triggerEntity!)
+    const triggerTransform = Transform.getOrNull(this.triggerEntity)
     const baseX = triggerTransform?.position.x ?? 0
     const baseY = triggerTransform?.position.y ?? 0
     const baseZ = triggerTransform?.position.z ?? 0
@@ -139,15 +118,15 @@ export class LobbyWorldPanel {
       outlineColor: Color3.create(0, 0, 0)
     })
 
-    TriggerArea.setBox(this.triggerEntity!)
-    triggerAreaEventsSystem.onTriggerEnter(this.triggerEntity!, (result) => {
+    TriggerArea.setBox(this.triggerEntity)
+    triggerAreaEventsSystem.onTriggerEnter(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
-      this.isLocalPlayerInsideTrigger = true
+      localPlayerInsideLobbyTrigger = true
       this.requestLobbyJoinIfNeeded()
     })
-    triggerAreaEventsSystem.onTriggerExit(this.triggerEntity!, (result) => {
+    triggerAreaEventsSystem.onTriggerExit(this.triggerEntity, (result) => {
       if (result.trigger?.entity !== engine.PlayerEntity) return
-      this.isLocalPlayerInsideTrigger = false
+      localPlayerInsideLobbyTrigger = false
       this.requestLobbyLeaveIfNeeded()
     })
   }
@@ -202,14 +181,7 @@ export class LobbyWorldPanel {
     return ''
   }
 
-  private syncNewGameTextVisibility(): void {
-    if (!this.newGameTextEntity) return
-    const nextScale = this.isMatchInProgress() ? Vector3.Zero() : this.newGameTextVisibleScale
-    Transform.getMutable(this.newGameTextEntity).scale = nextScale
-  }
-
   private updateGameTextVisual(): void {
-    if (!this.newGameTextEntity) return
     const nextMode: GameTextMode = this.isMatchInProgress() ? 'in_progress' : 'new_game'
     if (nextMode === this.lastRenderedGameTextMode) return
 
@@ -226,13 +198,10 @@ export class LobbyWorldPanel {
   }
 
   private updateSystem(dt: number): void {
-    if (!this.trySetupPanel()) return
-
     this.updateAccumulator += dt
     if (this.updateAccumulator < PANEL_UPDATE_INTERVAL_SECONDS) return
     this.updateAccumulator = 0
 
-    this.syncNewGameTextVisibility()
     this.updateGameTextVisual()
 
     const nextPlayersText = this.buildPlayersText()
