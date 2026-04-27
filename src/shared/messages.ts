@@ -131,6 +131,10 @@ const LobbyMessages = {
     rageShieldEndAtMs: Schemas.Int64,
     speedEndAtMs: Schemas.Int64
   }),
+  playerZombieCoinsState: Schemas.Map({
+    address: Schemas.String,
+    zombieCoins: Schemas.Number
+  }),
   playerShotBroadcast: Schemas.Map({
     roomId: Schemas.String,
     shooterAddress: Schemas.String,

@@ -52,6 +52,11 @@ import {
   getServerLoadingState,
   shouldSuppressDeathOverlayForTeamWipe,
   shouldShowGameOverOverlay,
+  getPlayerArenaWeapon,
+  getPlayerCombatSnapshot,
+  getTrackedMatchParticipants,
+  getTrackedMatchPlayerKillCount,
+  getTrackedMatchPlayerZombieCoins,
   getLocalAddress,
   isLocalReadyForMatch,
   sendLeaveLobby,
@@ -126,6 +131,40 @@ const LOBBY_HUD_SHOP_WIDTH = Math.round(LOBBY_HUD_SHOP_SOURCE_WIDTH * 0.5)
 const LOBBY_HUD_SHOP_HEIGHT = Math.round(LOBBY_HUD_SHOP_SOURCE_HEIGHT * 0.5)
 const LOBBY_HUD_SHOP_UVS = createAtlasUvs(346, 80, LOBBY_HUD_SHOP_SOURCE_WIDTH, LOBBY_HUD_SHOP_SOURCE_HEIGHT)
 const LOBBY_HUD_GOLD_TOP = Math.round((1080 - (LOBBY_HUD_GOLD_HEIGHT + LOBBY_HUD_ITEM_MARGIN_BOTTOM + LOBBY_HUD_SHOP_HEIGHT)) * 0.5)
+const TEAM_PANEL_TOP = 428
+const TEAM_PANEL_LEFT = 64
+const TEAM_PANEL_HEADER_HEIGHT = 42
+const TEAM_PANEL_ROW_GAP = 8
+const TEAM_PANEL_MOBILE_WIDTH = 250
+const TEAM_PANEL_DESKTOP_WIDTH = 320
+const TEAM_ROW_MOBILE_HEIGHT = 66
+const TEAM_ROW_DESKTOP_HEIGHT = 72
+const TEAM_HP_BAR_MOBILE_WIDTH = 88
+const TEAM_HP_BAR_DESKTOP_WIDTH = 112
+const TEAM_PANEL_COLORS = [
+  Color4.create(0.9, 0.8, 0.1, 1),
+  Color4.create(0.1, 0.5, 0.9, 1),
+  Color4.create(0.1, 0.8, 0.2, 1),
+  Color4.create(0.9, 0.2, 0.2, 1)
+]
+const TEAM_CRITICAL_HP_RATIO = 0.35
+
+type TeamHudEntry = {
+  address: string
+  shortName: string
+  weaponLabel: string
+  accentColor: Color4
+  hpScaled: number | null
+  hpRatio: number
+  lives: number
+  kills: number
+  zombieCoins: number
+  isLocalPlayer: boolean
+  isDisconnected: boolean
+  isEliminated: boolean
+  statusLabel: string
+  respawnSeconds: number
+}
 
 type AtlasUvs = [number, number, number, number, number, number, number, number]
 
@@ -152,6 +191,8 @@ let isMobileRuntime = detectMobileUserAgent()
 let runtimePlatformLookupRequested = false
 let serverLoaderWasActive = false
 let serverLoaderCompletedUntil = 0
+let teammatesPanelCollapsed = detectMobileUserAgent()
+let teammatesPanelPreferenceLocked = false
 
 async function resolveRuntimePlatform(): Promise<void> {
   try {
@@ -161,6 +202,44 @@ async function resolveRuntimePlatform(): Promise<void> {
   } catch {
     isMobileRuntime = detectMobileUserAgent()
   }
+
+  if (!teammatesPanelPreferenceLocked) {
+    teammatesPanelCollapsed = isMobileRuntime
+  }
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value))
+}
+
+function getTeammateAccentColor(index: number): Color4 {
+  return TEAM_PANEL_COLORS[index % TEAM_PANEL_COLORS.length]
+}
+
+function getShortPlayerName(displayName: string): string {
+  const normalized = displayName.trim()
+  if (normalized.length === 0) return 'Player'
+  const primaryToken = normalized.split(/\s+/)[0]
+  if (primaryToken.length <= 10) return primaryToken
+  return `${primaryToken.slice(0, 9)}.`
+}
+
+function getWeaponShortLabel(address: string): string {
+  const weaponType = getPlayerArenaWeapon(address).weaponType
+  switch (weaponType) {
+    case 'shotgun':
+      return 'SG'
+    case 'minigun':
+      return 'MG'
+    case 'gun':
+    default:
+      return 'GN'
+  }
+}
+
+function toggleTeammatesPanel(): void {
+  teammatesPanelPreferenceLocked = true
+  teammatesPanelCollapsed = !teammatesPanelCollapsed
 }
 
 function ServerLoadingPanel(props: {
@@ -422,6 +501,67 @@ export const uiMenu = () => {
   const miniGunBarWidth = scaleUiValue(128, weaponBarScale)
   const miniGunBarHeight = scaleUiValue(8, weaponBarScale)
   const miniGunBarFillWidth = miniGunBarWidth * miniGunHeatRatio
+  const teammateEntries: TeamHudEntry[] =
+    showGameplayHud && localAddress
+      ? getTrackedMatchParticipants()
+          .map((player, index) => {
+            const combatSnapshot = getPlayerCombatSnapshot(player.address)
+            const lives = combatSnapshot?.lives ?? 0
+            const respawnSeconds =
+              combatSnapshot && combatSnapshot.respawnAtMs > timerNowMs
+                ? Math.max(0, Math.ceil((combatSnapshot.respawnAtMs - timerNowMs) / 1000))
+                : 0
+            const isInArenaRoster = !!lobbyState?.arenaPlayers.some((entry) => entry.address === player.address)
+            const isInLobbyRoster = !!lobbyState?.players.some((entry) => entry.address === player.address)
+            const isDisconnected = !isInLobbyRoster
+            const isEliminated = !isDisconnected && !isInArenaRoster && lives <= 0
+            const isRespawning = !!combatSnapshot?.isDead && lives > 0
+            const hpRatio = combatSnapshot ? clamp01(combatSnapshot.hp / MAX_HP) : 0
+            const hpScaled = combatSnapshot ? Math.round(hpRatio * 100) : null
+            const statusLabel = isDisconnected
+              ? 'LEFT'
+              : isEliminated
+                ? 'DEAD'
+                : isRespawning
+                  ? `RESPAWN ${respawnSeconds}s`
+                  : `HP ${hpScaled ?? 0}`
+
+            return {
+              address: player.address,
+              shortName: getShortPlayerName(player.displayName),
+              weaponLabel: getWeaponShortLabel(player.address),
+              accentColor: getTeammateAccentColor(index),
+              hpScaled,
+              hpRatio,
+              lives,
+              kills: getTrackedMatchPlayerKillCount(player.address),
+              zombieCoins: getTrackedMatchPlayerZombieCoins(player.address),
+              isLocalPlayer: player.address === localAddress,
+              isDisconnected,
+              isEliminated,
+              statusLabel,
+              respawnSeconds
+            }
+          })
+          .sort((a, b) => {
+            if (a.isLocalPlayer) return -1
+            if (b.isLocalPlayer) return 1
+            return 0
+          })
+      : []
+  const showTeammatesHud = teammateEntries.length > 0
+  const criticalTeammateCount = teammateEntries.filter(
+    (entry) => !entry.isDisconnected && (entry.isEliminated || entry.respawnSeconds > 0 || entry.hpRatio <= TEAM_CRITICAL_HP_RATIO)
+  ).length
+  const teammatePanelWidth = isMobileRuntime ? TEAM_PANEL_MOBILE_WIDTH : TEAM_PANEL_DESKTOP_WIDTH
+  const teammateRowHeight = isMobileRuntime ? TEAM_ROW_MOBILE_HEIGHT : TEAM_ROW_DESKTOP_HEIGHT
+  const teammateHpBarWidth = isMobileRuntime ? TEAM_HP_BAR_MOBILE_WIDTH : TEAM_HP_BAR_DESKTOP_WIDTH
+  const teammatePanelExpandedHeight =
+    TEAM_PANEL_HEADER_HEIGHT +
+    12 +
+    teammateEntries.length * teammateRowHeight +
+    Math.max(0, teammateEntries.length - 1) * TEAM_PANEL_ROW_GAP
+  const teammatePanelHeight = teammatesPanelCollapsed ? TEAM_PANEL_HEADER_HEIGHT : teammatePanelExpandedHeight
 
   return (
     <UiEntity
@@ -883,6 +1023,247 @@ export const uiMenu = () => {
             }}
             onMouseUp={endUiPointerCapture}
           />
+        </UiEntity>
+      )}
+      {showTeammatesHud && (
+        <UiEntity
+          uiTransform={{
+            position: { top: TEAM_PANEL_TOP, left: TEAM_PANEL_LEFT },
+            positionType: 'absolute',
+            width: teammatePanelWidth,
+            height: teammatePanelHeight
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: '100%',
+              height: '100%',
+              borderRadius: 12,
+              padding: teammatesPanelCollapsed
+                ? undefined
+                : { top: TEAM_PANEL_HEADER_HEIGHT + 12, right: 10, bottom: 10, left: 10 }
+            }}
+            uiBackground={{
+              color: Color4.create(0.04, 0.07, 0.1, teammatesPanelCollapsed ? 0.82 : 0.92)
+            }}
+          >
+            <UiEntity
+              uiTransform={{
+                width: '100%',
+                height: TEAM_PANEL_HEADER_HEIGHT,
+                positionType: 'absolute',
+                position: { left: 0, top: 0 },
+                borderRadius: 12,
+                padding: { left: 14, right: 14 }
+              }}
+              uiBackground={{
+                color:
+                  criticalTeammateCount > 0
+                    ? Color4.create(0.42, 0.12, 0.09, 0.95)
+                    : Color4.create(0.08, 0.18, 0.22, 0.95)
+              }}
+              onMouseDown={() => {
+                beginUiPointerCapture()
+                toggleTeammatesPanel()
+              }}
+              onMouseUp={endUiPointerCapture}
+            >
+              <UiEntity
+                uiTransform={{
+                  width: '100%',
+                  height: '100%',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <UiEntity
+                  uiTransform={{
+                    width: 138,
+                    height: '100%',
+                    alignItems: 'flex-start',
+                    justifyContent: 'center'
+                  }}
+                  uiText={{
+                    value: `SQUAD ${teammateEntries.length}`,
+                    fontSize: 20,
+                    color: Color4.create(0.96, 0.98, 1, 1),
+                    textAlign: 'middle-left'
+                  }}
+                />
+                <UiEntity
+                  uiTransform={{
+                    width: 74,
+                    height: '100%',
+                    alignItems: 'flex-end',
+                    justifyContent: 'center'
+                  }}
+                  uiText={{
+                    value:
+                      criticalTeammateCount > 0
+                        ? `HELP ${criticalTeammateCount}`
+                        : teammatesPanelCollapsed
+                          ? 'SHOW'
+                          : 'HIDE',
+                    fontSize: criticalTeammateCount > 0 ? 15 : 14,
+                    color:
+                      criticalTeammateCount > 0
+                        ? Color4.create(1, 0.86, 0.52, 1)
+                        : Color4.create(0.78, 0.92, 0.98, 1),
+                    textAlign: 'middle-right'
+                  }}
+                />
+              </UiEntity>
+            </UiEntity>
+            {!teammatesPanelCollapsed &&
+              teammateEntries.map((entry, index) => {
+                const hpBarFillWidth = Math.max(0, Math.round(teammateHpBarWidth * entry.hpRatio))
+                const hpLabelColor =
+                  entry.isDisconnected
+                    ? Color4.create(0.78, 0.82, 0.88, 1)
+                    : entry.isEliminated
+                      ? Color4.create(1, 0.68, 0.6, 1)
+                      : entry.respawnSeconds > 0
+                        ? Color4.create(1, 0.82, 0.58, 1)
+                        : entry.hpRatio <= TEAM_CRITICAL_HP_RATIO
+                          ? Color4.create(1, 0.82, 0.58, 1)
+                          : Color4.create(0.77, 0.95, 0.78, 1)
+                const hpBarColor =
+                  entry.isDisconnected
+                    ? Color4.create(0.45, 0.5, 0.56, 1)
+                    : entry.isEliminated
+                      ? Color4.create(0.76, 0.2, 0.18, 1)
+                      : entry.respawnSeconds > 0
+                        ? Color4.create(0.92, 0.58, 0.18, 1)
+                        : entry.hpRatio <= TEAM_CRITICAL_HP_RATIO
+                          ? Color4.create(0.95, 0.56, 0.22, 1)
+                          : Color4.create(0.28, 0.82, 0.38, 1)
+                const rowTop = TEAM_PANEL_HEADER_HEIGHT + 12 + index * (teammateRowHeight + TEAM_PANEL_ROW_GAP)
+                const rowLabel = entry.isLocalPlayer ? 'YOU' : entry.shortName
+
+                return (
+                  <UiEntity
+                    key={entry.address}
+                    uiTransform={{
+                      width: '100%',
+                      height: teammateRowHeight,
+                      positionType: 'absolute',
+                      position: { left: 0, top: rowTop },
+                      padding: { left: 12, right: 12 }
+                    }}
+                  >
+                    <UiEntity
+                      uiTransform={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: 10
+                      }}
+                      uiBackground={{
+                        color: entry.isLocalPlayer
+                          ? Color4.create(0.11, 0.17, 0.21, 0.98)
+                          : Color4.create(0.09, 0.13, 0.17, 0.96)
+                      }}
+                    >
+                      <UiEntity
+                        uiTransform={{
+                          width: 8,
+                          height: '100%',
+                          positionType: 'absolute',
+                          position: { left: 0, top: 0 },
+                          borderRadius: 10
+                        }}
+                        uiBackground={{ color: entry.accentColor }}
+                      />
+                      <UiEntity
+                        uiTransform={{
+                          width: teammatePanelWidth - 110,
+                          height: 20,
+                          positionType: 'absolute',
+                          position: { left: 18, top: 7 },
+                          alignItems: 'flex-start',
+                          justifyContent: 'center'
+                        }}
+                        uiText={{
+                          value: rowLabel,
+                          fontSize: isMobileRuntime ? 17 : 18,
+                          color: Color4.create(0.96, 0.98, 1, 1),
+                          textAlign: 'middle-left'
+                        }}
+                      />
+                      <UiEntity
+                        uiTransform={{
+                          width: 36,
+                          height: 18,
+                          positionType: 'absolute',
+                          position: { right: 12, top: 8 },
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 5
+                        }}
+                        uiBackground={{ color: Color4.create(0.16, 0.22, 0.28, 1) }}
+                        uiText={{
+                          value: entry.weaponLabel,
+                          fontSize: 12,
+                          color: Color4.create(0.87, 0.94, 0.98, 1),
+                          textAlign: 'middle-center'
+                        }}
+                      />
+                      <UiEntity
+                        uiTransform={{
+                          width: teammateHpBarWidth,
+                          height: 8,
+                          positionType: 'absolute',
+                          position: { left: 18, top: isMobileRuntime ? 31 : 34 },
+                          borderRadius: 4
+                        }}
+                        uiBackground={{ color: Color4.create(0.18, 0.23, 0.28, 1) }}
+                      >
+                        <UiEntity
+                          uiTransform={{
+                            width: hpBarFillWidth,
+                            height: 8,
+                            borderRadius: 4
+                          }}
+                          uiBackground={{ color: hpBarColor }}
+                        />
+                      </UiEntity>
+                      <UiEntity
+                        uiTransform={{
+                          width: teammatePanelWidth - teammateHpBarWidth - 54,
+                          height: 18,
+                          positionType: 'absolute',
+                          position: { right: 12, top: isMobileRuntime ? 24 : 27 },
+                          alignItems: 'flex-end',
+                          justifyContent: 'center'
+                        }}
+                        uiText={{
+                          value: entry.statusLabel,
+                          fontSize: isMobileRuntime ? 12 : 13,
+                          color: hpLabelColor,
+                          textAlign: 'middle-right'
+                        }}
+                      />
+                      <UiEntity
+                        uiTransform={{
+                          width: teammatePanelWidth - 34,
+                          height: 18,
+                          positionType: 'absolute',
+                          position: { left: 18, top: isMobileRuntime ? 44 : 48 },
+                          alignItems: 'flex-start',
+                          justifyContent: 'center'
+                        }}
+                        uiText={{
+                          value: `H ${entry.lives}   K ${entry.kills}   ZC ${entry.zombieCoins}`,
+                          fontSize: isMobileRuntime ? 11 : 12,
+                          color: Color4.create(0.8, 0.88, 0.94, 0.95),
+                          textAlign: 'middle-left'
+                        }}
+                      />
+                    </UiEntity>
+                  </UiEntity>
+                )
+              })}
+          </UiEntity>
         </UiEntity>
       )}
       {showStartGameButton && (

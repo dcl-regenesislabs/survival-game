@@ -186,6 +186,7 @@ type RoomServerState = {
   activeLavaHazardsById: Map<string, ActiveLavaHazardState>
   awardedWaveGoldMilestones: Set<number>
   arenaWeaponByAddress: Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>
+  zombieCoinsByAddress: Map<string, number>
   pendingTeamWipeReturn: PendingTeamWipeReturn | null
 }
 
@@ -208,6 +209,7 @@ function createRoomServerState(roomId: RoomId): RoomServerState {
     activeLavaHazardsById: new Map<string, ActiveLavaHazardState>(),
     awardedWaveGoldMilestones: new Set<number>(),
     arenaWeaponByAddress: new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>(),
+    zombieCoinsByAddress: new Map<string, number>(),
     pendingTeamWipeReturn: null
   }
 }
@@ -566,6 +568,15 @@ function sendPlayerHealthState(address: string, roomId?: RoomId, targets?: strin
     respawnAtMs: state.respawnAtMs,
     lives: state.lives
   }, targets ?? (targetRoomId ? getRoomPlayerAddresses(targetRoomId) : [normalizedAddress]))
+}
+
+function sendPlayerZombieCoinsState(address: string, roomId: RoomId, targets?: string[]): void {
+  const normalizedAddress = address.toLowerCase()
+  const zombieCoins = getRoomServerState(roomId).zombieCoinsByAddress.get(normalizedAddress) ?? 0
+  sendMessage('playerZombieCoinsState', {
+    address: normalizedAddress,
+    zombieCoins
+  }, targets ?? getRoomPlayerAddresses(roomId))
 }
 
 function distanceXZ(ax: number, az: number, bx: number, bz: number): number {
@@ -1578,10 +1589,12 @@ function startZombieWaves(roomId: RoomId, address: string, startReason: 'manual'
 
   for (const player of state.arenaPlayers) {
     resetPlayerCombatState(player.address)
+    getRoomServerState(roomId).zombieCoinsByAddress.set(player.address.toLowerCase(), 0)
   }
   sendPlayerHealthStatesForLobbyPlayers(roomId, state.arenaPlayers)
   for (const player of state.arenaPlayers) {
     sendPlayerArenaWeaponState(roomId, player.address)
+    sendPlayerZombieCoinsState(player.address, roomId)
   }
 
   for (const player of state.arenaPlayers) {
@@ -1870,6 +1883,17 @@ export function setupLobbyServer(): void {
         : 1
     getRoomServerState(roomId).arenaWeaponByAddress.set(normalizedAddress, { weaponType: data.weaponType, upgradeLevel })
     sendPlayerArenaWeaponState(roomId, normalizedAddress)
+  })
+
+  room.onMessage('playerZombieCoinsState', (data, context) => {
+    if (!context) return
+    const normalizedAddress = context.from.toLowerCase()
+    const roomId = getPlayerRoomId(normalizedAddress)
+    if (!roomId || !isPlayerInLobby(normalizedAddress, roomId)) return
+
+    const zombieCoins = Math.max(0, Math.floor(data.zombieCoins))
+    getRoomServerState(roomId).zombieCoinsByAddress.set(normalizedAddress, zombieCoins)
+    sendPlayerZombieCoinsState(normalizedAddress, roomId)
   })
 
   room.onMessage('zombieHitRequest', (data, context) => {

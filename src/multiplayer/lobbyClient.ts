@@ -15,6 +15,7 @@ import { getCurrentRoomId as getRuntimeRoomId, setCurrentRoomId } from '../roomR
 import { DEFAULT_ROOM_ID, RoomId, getArenaRoomConfig, isRoomId } from '../shared/roomConfig'
 import { getServerTime } from '../shared/timeSync'
 import { setIsoViewEnabled, setAutoFireEnabled } from '../gameplayInput'
+import { onZombieCoinsChanged } from '../zombieCoins'
 
 let latestLobbyEvent = ''
 let latestLobbyEventType = ''
@@ -28,9 +29,14 @@ let localAuthDebugActive = false
 let debugLobbyState: LobbyStateSnapshot | null = null
 let debugMatchRuntimeState: MatchRuntimeSnapshot | null = null
 const GAME_OVER_OVERLAY_DELAY_MS = 0
-const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
+const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; lives: number; updatedAtMs: number }>()
 const playerArenaWeaponByAddress = new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>()
 const playerPowerupStateByAddress = new Map<string, { rageShieldEndAtMs: number; speedEndAtMs: number }>()
+let trackedMatchId = ''
+let trackedMatchParticipants: LobbyPlayer[] = []
+const trackedZombieCoinsByAddress = new Map<string, number>()
+const trackedKillsByAddress = new Map<string, number>()
+let zombieCoinsSyncInitialized = false
 const ENABLE_LOCAL_AUTH_DEBUG_IN_PREVIEW = false
 const LOCAL_AUTH_DEBUG_GRACE_MS = 2500
 const LOCAL_AUTH_DEBUG_AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
@@ -49,6 +55,7 @@ function resetLocalMatchUiState(): void {
   localReadyForMatch = false
   lastTeamWipeAffectedLocalPlayer = false
   playerCombatStateByAddress.clear()
+  resetTrackedMatchState()
   latestLobbyEventType = ''
   setIsoViewEnabled(false)
   setAutoFireEnabled(false)
@@ -61,6 +68,56 @@ function resetLocalMatchUiState(): void {
 
 function getRequestedRoomId(roomId?: RoomId): RoomId {
   return roomId ?? getRuntimeRoomId()
+}
+
+function resetTrackedMatchState(): void {
+  trackedMatchId = ''
+  trackedMatchParticipants = []
+  trackedZombieCoinsByAddress.clear()
+  trackedKillsByAddress.clear()
+}
+
+function ensureTrackedParticipant(address: string, displayName?: string): void {
+  const normalizedAddress = address.toLowerCase()
+  if (!trackedMatchParticipants.some((player) => player.address === normalizedAddress)) {
+    trackedMatchParticipants = [
+      ...trackedMatchParticipants,
+      {
+        address: normalizedAddress,
+        displayName: displayName ?? `${normalizedAddress.slice(0, 6)}...${normalizedAddress.slice(-4)}`
+      }
+    ]
+  }
+  if (!trackedZombieCoinsByAddress.has(normalizedAddress)) trackedZombieCoinsByAddress.set(normalizedAddress, 0)
+  if (!trackedKillsByAddress.has(normalizedAddress)) trackedKillsByAddress.set(normalizedAddress, 0)
+}
+
+function syncTrackedParticipantsFromLobbyState(state: LobbyStateSnapshot | null): void {
+  if (!state || state.phase !== LobbyPhase.MATCH_CREATED || !state.matchId) {
+    resetTrackedMatchState()
+    return
+  }
+
+  if (trackedMatchId !== state.matchId) {
+    resetTrackedMatchState()
+    trackedMatchId = state.matchId
+  }
+
+  for (const player of state.arenaPlayers) {
+    ensureTrackedParticipant(player.address, player.displayName)
+  }
+}
+
+function sendLocalZombieCoinsState(zombieCoins: number): void {
+  const localAddress = getLocalAddress()
+  const lobbyState = getLobbyState()
+  if (!localAddress || !lobbyState || lobbyState.phase !== LobbyPhase.MATCH_CREATED) return
+  ensureTrackedParticipant(localAddress)
+  trackedZombieCoinsByAddress.set(localAddress, Math.max(0, Math.floor(zombieCoins)))
+  void room.send('playerZombieCoinsState', {
+    address: localAddress,
+    zombieCoins: Math.max(0, Math.floor(zombieCoins))
+  })
 }
 
 function getLobbySnapshotsByRoomId(): Map<RoomId, LobbyStateSnapshot> {
@@ -129,6 +186,13 @@ function resolvePreferredRoomIdFromLobbySnapshots(snapshots: Map<RoomId, LobbySt
 }
 
 export function setupLobbyClient(): void {
+  if (!zombieCoinsSyncInitialized) {
+    zombieCoinsSyncInitialized = true
+    onZombieCoinsChanged((zombieCoins) => {
+      sendLocalZombieCoinsState(zombieCoins)
+    })
+  }
+
   room.onMessage('lobbyEvent', (data) => {
     const localAddress = getLocalAddress()
     const lobbyState = getLobbyState()
@@ -146,6 +210,7 @@ export function setupLobbyClient(): void {
     if (data.type === 'team_wipe' || data.type === 'lobby') {
       playerArenaWeaponByAddress.clear()
       playerPowerupStateByAddress.clear()
+      resetTrackedMatchState()
       resetToIdle()
       resetArenaWeaponProgress()
     }
@@ -161,8 +226,10 @@ export function setupLobbyClient(): void {
       hp: data.hp,
       isDead: data.isDead,
       respawnAtMs: data.respawnAtMs,
+      lives: data.lives,
       updatedAtMs: Date.now()
     })
+    ensureTrackedParticipant(address)
 
     const localAddress = getLocalAddress()
     if (!localAddress || address !== localAddress) return
@@ -179,12 +246,24 @@ export function setupLobbyClient(): void {
     if (data.weaponType !== 'gun' && data.weaponType !== 'shotgun' && data.weaponType !== 'minigun') return
     const upgradeLevel = typeof data.upgradeLevel === 'number' && data.upgradeLevel >= 1 ? data.upgradeLevel : 1
     playerArenaWeaponByAddress.set(data.address.toLowerCase(), { weaponType: data.weaponType, upgradeLevel })
+    ensureTrackedParticipant(data.address)
   })
   room.onMessage('playerPowerupState', (data) => {
     playerPowerupStateByAddress.set(data.address.toLowerCase(), {
       rageShieldEndAtMs: data.rageShieldEndAtMs,
       speedEndAtMs: data.speedEndAtMs
     })
+  })
+  room.onMessage('playerZombieCoinsState', (data) => {
+    const address = data.address.toLowerCase()
+    ensureTrackedParticipant(address)
+    trackedZombieCoinsByAddress.set(address, Math.max(0, Math.floor(data.zombieCoins)))
+  })
+  room.onMessage('zombieDied', (data) => {
+    if (data.roomId !== getRuntimeRoomId()) return
+    const address = data.killerAddress.toLowerCase()
+    ensureTrackedParticipant(address)
+    trackedKillsByAddress.set(address, (trackedKillsByAddress.get(address) ?? 0) + 1)
   })
   room.onMessage('matchAutoTeleport', (data) => {
     const localAddress = getLocalAddress()
@@ -684,6 +763,7 @@ export function getLobbyState(roomId?: RoomId): LobbyStateSnapshot | null {
         localReadyForMatch = false
       }
     }
+    if (roomId === undefined) syncTrackedParticipantsFromLobbyState(state)
     return cloneLobbyState(state)
   }
 
@@ -701,6 +781,7 @@ export function getLobbyState(roomId?: RoomId): LobbyStateSnapshot | null {
     if (!state || state.phase !== LobbyPhase.MATCH_CREATED || !isInArenaRoster) {
       localReadyForMatch = false
     }
+    syncTrackedParticipantsFromLobbyState(state)
   }
   return state ? cloneLobbyState(state) : null
 }
@@ -750,14 +831,27 @@ export function isLocalReadyForMatch(): boolean {
   return localReadyForMatch
 }
 
-export function getPlayerCombatSnapshot(address: string): { hp: number; isDead: boolean; respawnAtMs: number } | null {
+export function getPlayerCombatSnapshot(address: string): { hp: number; isDead: boolean; respawnAtMs: number; lives: number } | null {
   const state = playerCombatStateByAddress.get(address.toLowerCase())
   if (!state) return null
   return {
     hp: state.hp,
     isDead: state.isDead,
-    respawnAtMs: state.respawnAtMs
+    respawnAtMs: state.respawnAtMs,
+    lives: state.lives
   }
+}
+
+export function getTrackedMatchParticipants(): LobbyPlayer[] {
+  return [...trackedMatchParticipants]
+}
+
+export function getTrackedMatchPlayerKillCount(address: string): number {
+  return trackedKillsByAddress.get(address.toLowerCase()) ?? 0
+}
+
+export function getTrackedMatchPlayerZombieCoins(address: string): number {
+  return trackedZombieCoinsByAddress.get(address.toLowerCase()) ?? 0
 }
 
 export function getPlayerArenaWeapon(address: string): { weaponType: ArenaWeaponType; upgradeLevel: number } {
