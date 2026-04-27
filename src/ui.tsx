@@ -58,6 +58,7 @@ import {
   sendStartGameManual
 } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
+import { LOBBY_RETURN_LOOK_AT, LOBBY_RETURN_POSITION } from './shared/roomConfig'
 import { getServerTime } from './shared/timeSync'
 
 const PLAYER_HP_FRAME_WIDTH = 581
@@ -95,8 +96,6 @@ const MINIGUN_BUTTON_UVS = [0.746094, 0.413086, 0.746094, 0.691406, 0.994792, 0.
 const BRICK_BUTTON_WIDTH = 184
 const BRICK_BUTTON_HEIGHT = 141
 const BRICK_BUTTON_UVS = [0.501302, 0.415039, 0.501302, 0.690429, 0.740234, 0.690429, 0.740234, 0.415039]
-const LOBBY_RETURN_POSITION = { x: 90, y: 3, z: 32 }
-const LOBBY_RETURN_LOOK_TARGET = { x: 106.75, y: 1, z: 32 }
 const BRICK_TARGET_RETICLE_WIDTH = 106
 const BRICK_TARGET_RETICLE_HEIGHT = 98
 const WEAPON_SELECTION_BAR_WIDTH = 92
@@ -879,7 +878,7 @@ export const uiMenu = () => {
               sendLeaveLobby()
               movePlayerTo({
                 newRelativePosition: LOBBY_RETURN_POSITION,
-                cameraTarget: LOBBY_RETURN_LOOK_TARGET
+                cameraTarget: LOBBY_RETURN_LOOK_AT
               })
             }}
             onMouseUp={endUiPointerCapture}

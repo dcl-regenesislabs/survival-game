@@ -3,17 +3,29 @@ import { registerMessages } from '@dcl/sdk/network'
 
 const LobbyMessages = {
   playerLoadProfile: Schemas.Map({}),
-  playerJoinLobby: Schemas.Map({}),
-  playerLeaveLobby: Schemas.Map({}),
+  playerJoinLobby: Schemas.Map({
+    roomId: Schemas.String
+  }),
+  playerLeaveLobby: Schemas.Map({
+    roomId: Schemas.String
+  }),
   buyLoadoutWeapon: Schemas.Map({
     weaponId: Schemas.String
   }),
   equipLoadoutWeapon: Schemas.Map({
     weaponId: Schemas.String
   }),
-  createMatch: Schemas.Map({}),
-  startGameManual: Schemas.Map({}),
+  createMatch: Schemas.Map({
+    roomId: Schemas.String
+  }),
+  createMatchAndJoin: Schemas.Map({
+    roomId: Schemas.String
+  }),
+  startGameManual: Schemas.Map({
+    roomId: Schemas.String
+  }),
   waveSpawnPlan: Schemas.Map({
+    roomId: Schemas.String,
     waveNumber: Schemas.Number,
     startAtMs: Schemas.Int64,
     intervalMs: Schemas.Int64,
@@ -44,17 +56,21 @@ const LobbyMessages = {
     zombieId: Schemas.String
   }),
   zombieHealthChanged: Schemas.Map({
+    roomId: Schemas.String,
     zombieId: Schemas.String,
     hp: Schemas.Number
   }),
   zombieDied: Schemas.Map({
+    roomId: Schemas.String,
     zombieId: Schemas.String,
     killerAddress: Schemas.String
   }),
   zombieExploded: Schemas.Map({
+    roomId: Schemas.String,
     zombieId: Schemas.String
   }),
   potionSpawned: Schemas.Map({
+    roomId: Schemas.String,
     potionId: Schemas.String,
     potionType: Schemas.String,
     positionX: Schemas.Number,
@@ -66,16 +82,20 @@ const LobbyMessages = {
     potionId: Schemas.String
   }),
   potionClaimed: Schemas.Map({
+    roomId: Schemas.String,
     potionId: Schemas.String,
     claimerAddress: Schemas.String
   }),
   potionExpired: Schemas.Map({
+    roomId: Schemas.String,
     potionId: Schemas.String
   }),
   potionClaimRejected: Schemas.Map({
     potionId: Schemas.String
   }),
-  potionsCleared: Schemas.Map({}),
+  potionsCleared: Schemas.Map({
+    roomId: Schemas.String
+  }),
   playerDamageRequest: Schemas.Map({
     amount: Schemas.Number
   }),
@@ -112,6 +132,7 @@ const LobbyMessages = {
     speedEndAtMs: Schemas.Int64
   }),
   playerShotBroadcast: Schemas.Map({
+    roomId: Schemas.String,
     shooterAddress: Schemas.String,
     seq: Schemas.Number,
     weaponType: Schemas.String,
@@ -160,6 +181,7 @@ const LobbyMessages = {
     message: Schemas.String
   }),
   lavaHazardsSpawned: Schemas.Map({
+    roomId: Schemas.String,
     hazards: Schemas.Array(
       Schemas.Map({
         lavaId: Schemas.String,
@@ -174,10 +196,14 @@ const LobbyMessages = {
     )
   }),
   lavaHazardsExpired: Schemas.Map({
+    roomId: Schemas.String,
     lavaIds: Schemas.Array(Schemas.String)
   }),
-  lavaHazardsCleared: Schemas.Map({}),
+  lavaHazardsCleared: Schemas.Map({
+    roomId: Schemas.String
+  }),
   lavaPatternWarning: Schemas.Map({
+    roomId: Schemas.String,
     patternType: Schemas.String,
     startsAtMs: Schemas.Int64
   }),
@@ -185,6 +211,7 @@ const LobbyMessages = {
     lavaId: Schemas.String
   }),
   collectibleSpawned: Schemas.Map({
+    roomId: Schemas.String,
     collectibleId: Schemas.String,
     positionX: Schemas.Number,
     positionY: Schemas.Number,
@@ -195,13 +222,17 @@ const LobbyMessages = {
     collectibleId: Schemas.String
   }),
   collectibleClaimed: Schemas.Map({
+    roomId: Schemas.String,
     collectibleId: Schemas.String,
     claimerAddress: Schemas.String
   }),
   collectibleExpired: Schemas.Map({
+    roomId: Schemas.String,
     collectibleId: Schemas.String
   }),
-  collectiblesCleared: Schemas.Map({}),
+  collectiblesCleared: Schemas.Map({
+    roomId: Schemas.String
+  }),
   collectibleClaimRejected: Schemas.Map({
     collectibleId: Schemas.String
   })

@@ -1,9 +1,5 @@
 import { Vector3 } from '@dcl/sdk/math'
-import {
-  ARENA_MIN_X,
-  ARENA_MIN_Z,
-  ARENA_SIZE
-} from './arenaConfig'
+import { ROOM_IDS, RoomId, getArenaRoomConfig } from './roomConfig'
 
 export const LAVA_MODEL_SRCS = [
   'assets/asset-packs/lava/lava.glb',
@@ -13,10 +9,47 @@ export const LAVA_MODEL_SRCS = [
 
 export const LAVA_FIRST_WAVE = 1
 export const LAVA_ZONE_WORLD_SIZE = 4
-export const LAVA_WORLD_MIN_X = ARENA_MIN_X
-export const LAVA_WORLD_MIN_Z = ARENA_MIN_Z
-export const LAVA_WORLD_SIZE_X = ARENA_SIZE
-export const LAVA_WORLD_SIZE_Z = ARENA_SIZE
+type LavaGridDimensions = {
+  worldSizeX: number
+  worldSizeZ: number
+  gridSizeX: number
+  gridSizeZ: number
+}
+
+function getLavaGridDimensions(roomId: RoomId): LavaGridDimensions {
+  const roomConfig = getArenaRoomConfig(roomId)
+  return {
+    worldSizeX: roomConfig.floorSizeX,
+    worldSizeZ: roomConfig.floorSizeZ,
+    gridSizeX: Math.floor(roomConfig.floorSizeX / LAVA_ZONE_WORLD_SIZE),
+    gridSizeZ: Math.floor(roomConfig.floorSizeZ / LAVA_ZONE_WORLD_SIZE)
+  }
+}
+
+function getSharedLavaGridDimensions(): LavaGridDimensions {
+  const sharedDimensions = getLavaGridDimensions(ROOM_IDS[0])
+  for (const roomId of ROOM_IDS.slice(1)) {
+    const dimensions = getLavaGridDimensions(roomId)
+    if (
+      dimensions.worldSizeX !== sharedDimensions.worldSizeX ||
+      dimensions.worldSizeZ !== sharedDimensions.worldSizeZ ||
+      dimensions.gridSizeX !== sharedDimensions.gridSizeX ||
+      dimensions.gridSizeZ !== sharedDimensions.gridSizeZ
+    ) {
+      throw new Error(
+        `[LavaHazardConfig] Lava patterns currently require uniform arena floor dimensions. ${ROOM_IDS[0]}=` +
+          `${sharedDimensions.worldSizeX}x${sharedDimensions.worldSizeZ}, ${roomId}=` +
+          `${dimensions.worldSizeX}x${dimensions.worldSizeZ}`
+      )
+    }
+  }
+  return sharedDimensions
+}
+
+const SHARED_LAVA_GRID_DIMENSIONS = getSharedLavaGridDimensions()
+
+export const LAVA_WORLD_SIZE_X = SHARED_LAVA_GRID_DIMENSIONS.worldSizeX
+export const LAVA_WORLD_SIZE_Z = SHARED_LAVA_GRID_DIMENSIONS.worldSizeZ
 export const LAVA_GRID_SIZE_X = Math.floor(LAVA_WORLD_SIZE_X / LAVA_ZONE_WORLD_SIZE)
 export const LAVA_GRID_SIZE_Z = Math.floor(LAVA_WORLD_SIZE_Z / LAVA_ZONE_WORLD_SIZE)
 export const LAVA_GRID_SIZE = Math.min(LAVA_GRID_SIZE_X, LAVA_GRID_SIZE_Z)
@@ -58,21 +91,36 @@ export function getLavaTileKey(gridX: number, gridZ: number): string {
   return `${gridX}:${gridZ}`
 }
 
+export function getRoomLavaTileKey(roomId: RoomId, gridX: number, gridZ: number): string {
+  return `${roomId}:${gridX}:${gridZ}`
+}
+
 export function isLavaGridInBounds(gridX: number, gridZ: number): boolean {
   return gridX >= 0 && gridZ >= 0 && gridX < LAVA_GRID_SIZE_X && gridZ < LAVA_GRID_SIZE_Z
 }
 
-export function getLavaWorldPosition(gridX: number, gridZ: number, scaleY: number = LAVA_TILE_ACTIVE_SCALE_Y): Vector3 {
+export function getLavaWorldPosition(
+  roomId: RoomId,
+  gridX: number,
+  gridZ: number,
+  scaleY: number = LAVA_TILE_ACTIVE_SCALE_Y
+): Vector3 {
+  const roomConfig = getArenaRoomConfig(roomId)
   return Vector3.create(
-    LAVA_WORLD_MIN_X + gridX * LAVA_ZONE_WORLD_SIZE + LAVA_ZONE_WORLD_SIZE * 0.5,
+    roomConfig.floorMinX + gridX * LAVA_ZONE_WORLD_SIZE + LAVA_ZONE_WORLD_SIZE * 0.5,
     scaleY * 0.5,
-    LAVA_WORLD_MIN_Z + gridZ * LAVA_ZONE_WORLD_SIZE + LAVA_ZONE_WORLD_SIZE * 0.5
+    roomConfig.floorMinZ + gridZ * LAVA_ZONE_WORLD_SIZE + LAVA_ZONE_WORLD_SIZE * 0.5
   )
 }
 
-export function getLavaGridCoordsFromWorld(positionX: number, positionZ: number): { gridX: number; gridZ: number } | null {
-  const gridX = Math.floor((positionX - LAVA_WORLD_MIN_X) / LAVA_ZONE_WORLD_SIZE)
-  const gridZ = Math.floor((positionZ - LAVA_WORLD_MIN_Z) / LAVA_ZONE_WORLD_SIZE)
+export function getLavaGridCoordsFromWorld(
+  roomId: RoomId,
+  positionX: number,
+  positionZ: number
+): { gridX: number; gridZ: number } | null {
+  const roomConfig = getArenaRoomConfig(roomId)
+  const gridX = Math.floor((positionX - roomConfig.floorMinX) / LAVA_ZONE_WORLD_SIZE)
+  const gridZ = Math.floor((positionZ - roomConfig.floorMinZ) / LAVA_ZONE_WORLD_SIZE)
   if (!isLavaGridInBounds(gridX, gridZ)) return null
   return { gridX, gridZ }
 }

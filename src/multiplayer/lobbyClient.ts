@@ -11,7 +11,8 @@ import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
 import { ArenaWeaponType } from '../shared/loadoutCatalog'
 import { WAVE_ACTIVE_SECONDS, WAVE_REST_SECONDS } from '../shared/matchConfig'
-import { ARENA_CENTER_X, ARENA_CENTER_Z } from '../shared/arenaConfig'
+import { getCurrentRoomId as getRuntimeRoomId, setCurrentRoomId } from '../roomRuntime'
+import { DEFAULT_ROOM_ID, RoomId, getArenaRoomConfig, isRoomId } from '../shared/roomConfig'
 import { getServerTime } from '../shared/timeSync'
 import { setIsoViewEnabled, setAutoFireEnabled } from '../gameplayInput'
 
@@ -35,8 +36,14 @@ const LOCAL_AUTH_DEBUG_GRACE_MS = 2500
 const LOCAL_AUTH_DEBUG_AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const LOCAL_AUTH_DEBUG_ARENA_INTRO_SECONDS = 5
 const DEBUG_MATCH_ID_PREFIX = 'debug_local_match_'
-const DEBUG_ARENA_POSITION = { x: ARENA_CENTER_X, y: 0, z: ARENA_CENTER_Z }
-const DEBUG_ARENA_LOOK_AT = { x: ARENA_CENTER_X, y: 1, z: ARENA_CENTER_Z + 1 }
+
+function getDebugArenaPosition(): { x: number; y: number; z: number } {
+  return getArenaRoomConfig(DEFAULT_ROOM_ID).arenaTeleportPosition
+}
+
+function getDebugArenaLookAt(): { x: number; y: number; z: number } {
+  return getArenaRoomConfig(DEFAULT_ROOM_ID).arenaTeleportLookAt
+}
 
 function resetLocalMatchUiState(): void {
   localReadyForMatch = false
@@ -50,6 +57,75 @@ function resetLocalMatchUiState(): void {
   resetArenaWeaponProgress()
   resetPlayerHealthAndLives()
   resetDeathAnimationState()
+}
+
+function getRequestedRoomId(roomId?: RoomId): RoomId {
+  return roomId ?? getRuntimeRoomId()
+}
+
+function getLobbySnapshotsByRoomId(): Map<RoomId, LobbyStateSnapshot> {
+  const snapshots = new Map<RoomId, LobbyStateSnapshot>()
+  for (const [entity] of engine.getEntitiesWith(LobbyStateComponent)) {
+    const state = LobbyStateComponent.get(entity)
+    if (!isRoomId(state.roomId)) continue
+    snapshots.set(state.roomId, {
+      roomId: state.roomId,
+      phase: state.phase,
+      matchId: state.matchId,
+      hostAddress: state.hostAddress,
+      players: [...state.players],
+      arenaPlayers: [...state.arenaPlayers],
+      countdownEndTimeMs: state.countdownEndTimeMs,
+      arenaIntroEndTimeMs: state.arenaIntroEndTimeMs
+    })
+  }
+  return snapshots
+}
+
+function getMatchRuntimeSnapshotsByRoomId(): Map<RoomId, MatchRuntimeSnapshot> {
+  const snapshots = new Map<RoomId, MatchRuntimeSnapshot>()
+  for (const [entity] of engine.getEntitiesWith(MatchRuntimeStateComponent)) {
+    const state = MatchRuntimeStateComponent.get(entity)
+    if (!isRoomId(state.roomId)) continue
+    snapshots.set(state.roomId, {
+      roomId: state.roomId,
+      isRunning: state.isRunning,
+      waveNumber: state.waveNumber,
+      cyclePhase: state.cyclePhase,
+      serverNowMs: state.serverNowMs,
+      phaseEndTimeMs: state.phaseEndTimeMs,
+      activeDurationSeconds: state.activeDurationSeconds,
+      restDurationSeconds: state.restDurationSeconds,
+      startedByAddress: state.startedByAddress,
+      zombiesAlive: state.zombiesAlive,
+      zombiesPlanned: state.zombiesPlanned
+    })
+  }
+  return snapshots
+}
+
+function resolvePreferredRoomIdFromLobbySnapshots(snapshots: Map<RoomId, LobbyStateSnapshot>): RoomId | null {
+  const localAddress = getLocalAddress()
+  if (localAddress) {
+    for (const [roomId, state] of snapshots) {
+      const isLocalInRoom =
+        state.players.some((player) => player.address === localAddress) ||
+        state.arenaPlayers.some((player) => player.address === localAddress)
+      if (isLocalInRoom) {
+        setCurrentRoomId(roomId)
+        return roomId
+      }
+    }
+  }
+
+  const currentRoomId = getRuntimeRoomId()
+  if (snapshots.has(currentRoomId)) return currentRoomId
+  const firstRoomId = snapshots.keys().next().value as RoomId | undefined
+  if (firstRoomId) {
+    setCurrentRoomId(firstRoomId)
+    return firstRoomId
+  }
+  return null
 }
 
 export function setupLobbyClient(): void {
@@ -176,16 +252,20 @@ export function sendJoinLobby(): void {
     debugJoinLobbyOnly()
     return
   }
-  void room.send('playerJoinLobby', {})
+  const roomId = getRequestedRoomId()
+  setCurrentRoomId(roomId)
+  void room.send('playerJoinLobby', { roomId })
 }
 
-export function sendLeaveLobby(): void {
+export function sendLeaveLobby(roomId?: RoomId): void {
   resetLocalMatchUiState()
   if (ensureLocalAuthDebugActive('leaveLobby')) {
     debugLeaveLobby()
     return
   }
-  void room.send('playerLeaveLobby', {})
+  const targetRoomId = getRequestedRoomId(roomId)
+  setCurrentRoomId(targetRoomId)
+  void room.send('playerLeaveLobby', { roomId: targetRoomId })
 }
 
 export function sendBuyLoadoutWeapon(weaponId: string): void {
@@ -196,20 +276,34 @@ export function sendEquipLoadoutWeapon(weaponId: string): void {
   void room.send('equipLoadoutWeapon', { weaponId })
 }
 
-export function sendCreateMatch(): void {
+export function sendCreateMatch(roomId?: RoomId): void {
   if (ensureLocalAuthDebugActive('createMatch')) {
     debugCreateMatch()
     return
   }
-  void room.send('createMatch', {})
+  const targetRoomId = getRequestedRoomId(roomId)
+  setCurrentRoomId(targetRoomId)
+  void room.send('createMatch', { roomId: targetRoomId })
 }
 
-export function sendStartGameManual(): void {
+export function sendCreateMatchAndJoin(roomId?: RoomId): void {
+  if (ensureLocalAuthDebugActive('createMatch')) {
+    debugCreateMatch()
+    return
+  }
+  const targetRoomId = getRequestedRoomId(roomId)
+  setCurrentRoomId(targetRoomId)
+  void room.send('createMatchAndJoin', { roomId: targetRoomId })
+}
+
+export function sendStartGameManual(roomId?: RoomId): void {
   if (ensureLocalAuthDebugActive('startGameManual')) {
     debugStartGameManual()
     return
   }
-  void room.send('startGameManual', {})
+  const targetRoomId = getRequestedRoomId(roomId)
+  setCurrentRoomId(targetRoomId)
+  void room.send('startGameManual', { roomId: targetRoomId })
 }
 
 export function sendPlayerDamageRequest(amount: number): void {
@@ -340,8 +434,8 @@ function localAuthDebugSystem(): void {
     lobby.arenaIntroEndTimeMs = nowMs + LOCAL_AUTH_DEBUG_ARENA_INTRO_SECONDS * 1000
     localReadyForMatch = true
     movePlayerTo({
-      newRelativePosition: DEBUG_ARENA_POSITION,
-      cameraTarget: DEBUG_ARENA_LOOK_AT
+      newRelativePosition: getDebugArenaPosition(),
+      cameraTarget: getDebugArenaLookAt()
     })
     console.log('[LobbyClientDebug] local arena teleport fired')
   }
@@ -426,6 +520,7 @@ function ensureLocalAuthDebugActive(
 function ensureDebugLobbyState(): LobbyStateSnapshot {
   if (debugLobbyState) return debugLobbyState
   debugLobbyState = {
+    roomId: DEFAULT_ROOM_ID,
     phase: LobbyPhase.LOBBY,
     matchId: '',
     hostAddress: '',
@@ -440,6 +535,7 @@ function ensureDebugLobbyState(): LobbyStateSnapshot {
 function ensureDebugMatchRuntimeState(): MatchRuntimeSnapshot {
   if (debugMatchRuntimeState) return debugMatchRuntimeState
   debugMatchRuntimeState = {
+    roomId: DEFAULT_ROOM_ID,
     isRunning: false,
     waveNumber: 0,
     cyclePhase: WaveCyclePhase.ACTIVE,
@@ -456,6 +552,7 @@ function ensureDebugMatchRuntimeState(): MatchRuntimeSnapshot {
 
 function cloneLobbyState(state: LobbyStateSnapshot): LobbyStateSnapshot {
   return {
+    roomId: state.roomId,
     phase: state.phase,
     matchId: state.matchId,
     hostAddress: state.hostAddress,
@@ -468,6 +565,7 @@ function cloneLobbyState(state: LobbyStateSnapshot): LobbyStateSnapshot {
 
 function cloneMatchRuntimeState(state: MatchRuntimeSnapshot): MatchRuntimeSnapshot {
   return {
+    roomId: state.roomId,
     isRunning: state.isRunning,
     waveNumber: state.waveNumber,
     cyclePhase: state.cyclePhase,
@@ -573,58 +671,63 @@ function debugLeaveLobby(): void {
   console.log('[LobbyClientDebug] left lobby without teleport')
 }
 
-export function getLobbyState(): LobbyStateSnapshot | null {
+export function getLobbyState(roomId?: RoomId): LobbyStateSnapshot | null {
   if (localAuthDebugActive) {
     const state = ensureDebugLobbyState()
+    const targetRoomId = roomId ?? DEFAULT_ROOM_ID
+    if (targetRoomId !== DEFAULT_ROOM_ID) return null
     const localAddress = getLocalAddress()
     const isInArenaRoster = !!localAddress && state.arenaPlayers.some((p) => p.address === localAddress)
-    if (state.phase !== LobbyPhase.MATCH_CREATED || !isInArenaRoster) {
-      localReadyForMatch = false
+    // Only update localReadyForMatch when querying the player's own room (no explicit roomId)
+    if (roomId === undefined) {
+      if (state.phase !== LobbyPhase.MATCH_CREATED || !isInArenaRoster) {
+        localReadyForMatch = false
+      }
     }
     return cloneLobbyState(state)
   }
 
-  for (const [entity] of engine.getEntitiesWith(LobbyStateComponent)) {
-    const state = LobbyStateComponent.get(entity)
-    const localAddress = getLocalAddress()
-    const isInArenaRoster = !!localAddress && state.arenaPlayers.some((p) => p.address === localAddress)
-    if (state.phase !== LobbyPhase.MATCH_CREATED || !isInArenaRoster) {
+  const snapshots = getLobbySnapshotsByRoomId()
+  const targetRoomId = roomId ?? resolvePreferredRoomIdFromLobbySnapshots(snapshots)
+  if (!targetRoomId) return null
+
+  const state = snapshots.get(targetRoomId) ?? null
+  const localAddress = getLocalAddress()
+  const isInArenaRoster = !!localAddress && !!state?.arenaPlayers.some((p) => p.address === localAddress)
+  // Only update localReadyForMatch when querying the player's own room (no explicit roomId).
+  // Querying a specific room (e.g. room_1 panel checking room_1 state while player is in room_2)
+  // must NOT reset localReadyForMatch, otherwise the wrong room's panel would cancel the player's match state.
+  if (roomId === undefined) {
+    if (!state || state.phase !== LobbyPhase.MATCH_CREATED || !isInArenaRoster) {
       localReadyForMatch = false
     }
-    return {
-      phase: state.phase,
-      matchId: state.matchId,
-      hostAddress: state.hostAddress,
-      players: [...state.players],
-      arenaPlayers: [...state.arenaPlayers],
-      countdownEndTimeMs: state.countdownEndTimeMs,
-      arenaIntroEndTimeMs: state.arenaIntroEndTimeMs
-    }
   }
-  return null
+  return state ? cloneLobbyState(state) : null
 }
 
-export function getMatchRuntimeState(): MatchRuntimeSnapshot | null {
+export function getMatchRuntimeState(roomId?: RoomId): MatchRuntimeSnapshot | null {
   if (localAuthDebugActive) {
+    const targetRoomId = roomId ?? DEFAULT_ROOM_ID
+    if (targetRoomId !== DEFAULT_ROOM_ID) return null
     return cloneMatchRuntimeState(ensureDebugMatchRuntimeState())
   }
 
-  for (const [entity] of engine.getEntitiesWith(MatchRuntimeStateComponent)) {
-    const state = MatchRuntimeStateComponent.get(entity)
-    return {
-      isRunning: state.isRunning,
-      waveNumber: state.waveNumber,
-      cyclePhase: state.cyclePhase,
-      serverNowMs: state.serverNowMs,
-      phaseEndTimeMs: state.phaseEndTimeMs,
-      activeDurationSeconds: state.activeDurationSeconds,
-      restDurationSeconds: state.restDurationSeconds,
-      startedByAddress: state.startedByAddress,
-      zombiesAlive: state.zombiesAlive,
-      zombiesPlanned: state.zombiesPlanned
-    }
+  const snapshots = getMatchRuntimeSnapshotsByRoomId()
+  const targetRoomId =
+    roomId ??
+    (snapshots.has(getRuntimeRoomId()) ? getRuntimeRoomId() : (snapshots.keys().next().value as RoomId | undefined))
+  if (!targetRoomId) return null
+  const state = snapshots.get(targetRoomId)
+  return state ? cloneMatchRuntimeState(state) : null
+}
+
+export function getCurrentRoomId(): RoomId {
+  const lobby = getLobbyState()
+  if (lobby?.roomId && isRoomId(lobby.roomId)) {
+    setCurrentRoomId(lobby.roomId)
+    return lobby.roomId
   }
-  return null
+  return getRuntimeRoomId()
 }
 
 export function getLatestLobbyEvent(): string {

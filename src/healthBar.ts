@@ -11,6 +11,7 @@ import { Vector3, Quaternion, Color4, Color3 } from '@dcl/sdk/math'
 import { ZombieComponent, getGameTime } from './zombie'
 import { getPlayerHp, MAX_HP, getHealGlowEndTime } from './playerHealth'
 import { getLocalAddress, getLobbyState, getPlayerCombatSnapshot, isLocalReadyForMatch } from './multiplayer/lobbyClient'
+import { getCurrentRoomId } from './roomRuntime'
 
 const HealthBarSchema = {
   parent: Schemas.Entity,
@@ -204,6 +205,8 @@ function healthBarSystem(dt: number) {
         toRemove.push(barEntity)
         continue
       }
+      const zombieNetworkId = ZombieComponent.get(parent).networkId
+      if (zombieNetworkId && !zombieNetworkId.startsWith(getCurrentRoomId())) continue
     }
 
     let currentHp = 0

@@ -1,6 +1,7 @@
 import { Animator, engine, Entity, GltfContainer, Schemas, Transform } from '@dcl/sdk/ecs'
 import { Vector3, Quaternion } from '@dcl/sdk/math'
 import { room } from './shared/messages'
+import { getCurrentRoomId } from './roomRuntime'
 import { getPlayerHp, healPlayer, MAX_HP, setHealGlowEndTime } from './playerHealth'
 import { applyRageEffect } from './rageEffect'
 import { applySpeedEffect } from './speedEffect'
@@ -35,6 +36,7 @@ let healthPickupFeedbackText = ''
 let healthPickupFeedbackEndTime = 0
 let isPotionSyncInitialized = false
 const localPotionEntityById = new Map<string, Entity>()
+let lastPotionRoomId = getCurrentRoomId()
 
 export function getHealthPickupFeedback(now: number): string {
   if (now > healthPickupFeedbackEndTime) return ''
@@ -146,6 +148,7 @@ export function initPotionSyncClient(): void {
   isPotionSyncInitialized = true
 
   room.onMessage('potionSpawned', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     if (!isLocalPlayerInCurrentMatch()) return
     if (data.potionType !== 'health' && data.potionType !== 'rage' && data.potionType !== 'speed') return
     createPotionEntity(
@@ -157,6 +160,7 @@ export function initPotionSyncClient(): void {
   })
 
   room.onMessage('potionClaimed', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     const entity = localPotionEntityById.get(data.potionId)
     const localAddress = getLocalAddress()
     const now = getGameTime()
@@ -175,6 +179,7 @@ export function initPotionSyncClient(): void {
   })
 
   room.onMessage('potionExpired', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     removePotionById(data.potionId)
   })
 
@@ -184,7 +189,8 @@ export function initPotionSyncClient(): void {
     PotionPickupComponent.getMutable(entity).claimPending = false
   })
 
-  room.onMessage('potionsCleared', () => {
+  room.onMessage('potionsCleared', (data) => {
+    if (data.roomId !== getCurrentRoomId()) return
     clearAllPotions()
   })
 }
@@ -200,6 +206,12 @@ function distanceXZ(a: Vector3, b: Vector3): number {
 }
 
 export function potionPickupSystem(): void {
+  const currentRoomId = getCurrentRoomId()
+  if (lastPotionRoomId !== currentRoomId) {
+    clearAllPotions()
+    lastPotionRoomId = currentRoomId
+  }
+
   if (!isLocalPlayerInCurrentMatch()) {
     clearAllPotions()
     return
