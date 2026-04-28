@@ -39,6 +39,11 @@ export const BRICK_COST_TIER_2_WAVE = 5
 export const BRICK_COST_TIER_3_WAVE = 10
 export const BRICK_COST_TIER_4_WAVE = 15
 
+// In-match ZC economy
+export const COINS_PER_KILL = 5
+export const SHOTGUN_UNLOCK_COST_ZC = 300
+export const MINIGUN_UNLOCK_COST_ZC = 900
+
 // Minigun overheat tuning
 export const MINIGUN_OVERHEAT_SECONDS = 6.5
 export const MINIGUN_OVERHEAT_LOCK_SECONDS = 3

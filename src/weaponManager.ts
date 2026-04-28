@@ -7,10 +7,10 @@ import { spendZombieCoins } from './zombieCoins'
 import { sendPlayerArenaWeaponChanged } from './multiplayer/lobbyClient'
 import { getPlayerLoadoutSnapshot } from './loadoutState'
 import { getLoadoutWeaponDefinition } from './shared/loadoutCatalog'
+import { SHOTGUN_UNLOCK_COST_ZC, MINIGUN_UNLOCK_COST_ZC } from './shared/matchConfig'
 
 export type WeaponType = 'gun' | 'shotgun' | 'minigun'
-export const SHOTGUN_UNLOCK_COST_ZC = 300
-export const MINIGUN_UNLOCK_COST_ZC = 900
+export { SHOTGUN_UNLOCK_COST_ZC, MINIGUN_UNLOCK_COST_ZC }
 
 let currentWeapon: WeaponType = 'gun'
 let arenaWeaponEnabled = false

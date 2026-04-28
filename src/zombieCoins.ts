@@ -1,5 +1,4 @@
-// Rebalanced economy: slower ZC gain so weapon tier unlocks feel meaningful.
-export const COINS_PER_KILL = 5
+export { COINS_PER_KILL } from './shared/matchConfig'
 
 let zombieCoins = 0
 

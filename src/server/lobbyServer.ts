@@ -27,7 +27,10 @@ import {
   TANK_ZOMBIE_CHANCE,
   TANK_ZOMBIE_UNLOCK_WAVE,
   WAVE_ACTIVE_SECONDS,
-  WAVE_REST_SECONDS
+  WAVE_REST_SECONDS,
+  COINS_PER_KILL,
+  SHOTGUN_UNLOCK_COST_ZC,
+  MINIGUN_UNLOCK_COST_ZC
 } from '../shared/matchConfig'
 import {
   ArenaWeaponType,
@@ -186,6 +189,8 @@ type RoomServerState = {
   activeLavaHazardsById: Map<string, ActiveLavaHazardState>
   awardedWaveGoldMilestones: Set<number>
   arenaWeaponByAddress: Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>
+  playerMatchZcByAddress: Map<string, number>
+  playerUnlockedArenaWeaponsInMatch: Map<string, Set<ArenaWeaponType>>
   pendingTeamWipeReturn: PendingTeamWipeReturn | null
 }
 
@@ -208,6 +213,8 @@ function createRoomServerState(roomId: RoomId): RoomServerState {
     activeLavaHazardsById: new Map<string, ActiveLavaHazardState>(),
     awardedWaveGoldMilestones: new Set<number>(),
     arenaWeaponByAddress: new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>(),
+    playerMatchZcByAddress: new Map<string, number>(),
+    playerUnlockedArenaWeaponsInMatch: new Map<string, Set<ArenaWeaponType>>(),
     pendingTeamWipeReturn: null
   }
 }
@@ -346,17 +353,46 @@ function getEquippedWeaponIds(address: string): LoadoutWeaponId[] {
   return equippedWeaponIds
 }
 
-function sendPlayerLoadoutState(address: string): void {
+function sendPlayerLoadoutState(address: string, to?: string[]): void {
   const normalizedAddress = address.toLowerCase()
   const progress = playerProgressStore.get(normalizedAddress)
   if (!progress) return
+  const roomId = getPlayerRoomId(normalizedAddress)
+  const arenaTargets = roomId ? getRoomArenaPlayerAddresses(roomId) : []
+  const targets = to ?? Array.from(new Set([...arenaTargets, normalizedAddress]))
 
   sendMessage('playerLoadoutState', {
     address: normalizedAddress,
     gold: progress.profile.gold,
     ownedWeaponIds: getOwnedWeaponIds(normalizedAddress),
     equippedWeaponIds: getEquippedWeaponIds(normalizedAddress)
-  }, [normalizedAddress])
+  }, targets)
+}
+
+function sendArenaLoadoutStatesTo(roomId: RoomId, address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const lobbyState = getLobbyState(roomId)
+  for (const player of lobbyState.arenaPlayers) {
+    sendPlayerLoadoutState(player.address, [normalizedAddress])
+  }
+}
+
+function sendPlayerZcState(roomId: RoomId, address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const roomState = getRoomServerState(roomId)
+  const zc = roomState.playerMatchZcByAddress.get(normalizedAddress) ?? 0
+  const arenaTargets = getRoomArenaPlayerAddresses(roomId)
+  sendMessage('playerZcState', { address: normalizedAddress, zc }, arenaTargets)
+}
+
+function sendArenaZcStatesTo(roomId: RoomId, address: string): void {
+  const normalizedAddress = address.toLowerCase()
+  const roomState = getRoomServerState(roomId)
+  const lobbyState = getLobbyState(roomId)
+  for (const player of lobbyState.arenaPlayers) {
+    const zc = roomState.playerMatchZcByAddress.get(player.address.toLowerCase()) ?? 0
+    sendMessage('playerZcState', { address: player.address.toLowerCase(), zc }, [normalizedAddress])
+  }
 }
 
 function getPlayerArenaWeaponState(roomId: RoomId, address: string): { weaponType: ArenaWeaponType; upgradeLevel: number } {
@@ -1054,6 +1090,8 @@ function resetMatchRuntime(roomId: RoomId) {
   runtime.startedByAddress = ''
   clearZombieTracking(roomId, runtime)
   roomState.arenaWeaponByAddress.clear()
+  roomState.playerMatchZcByAddress.clear()
+  roomState.playerUnlockedArenaWeaponsInMatch.clear()
 }
 
 function resetMatchToLobbyKeepingPlayers(roomId: RoomId): void {
@@ -1360,6 +1398,10 @@ function createMatch(roomId: RoomId, address: string): void {
     type: 'match_created',
     message: `Match created (${mutable.matchId})`
   })
+
+  for (const player of mutable.arenaPlayers) {
+    sendPlayerLoadoutState(player.address)
+  }
 
   if (mutable.arenaPlayers.length === MATCH_MAX_PLAYERS) {
     startArenaAutoTeleportCountdown(roomId, mutable.arenaPlayers)
@@ -1713,6 +1755,8 @@ export function setupLobbyServer(): void {
     await ensurePlayerLoadedAndInLobby(roomId, context.from)
     sendPlayerHealthState(context.from, roomId)
     sendArenaWeaponStatesTo(roomId, context.from)
+    sendArenaLoadoutStatesTo(roomId, context.from)
+    sendArenaZcStatesTo(roomId, context.from)
     sendPowerupStatesTo(roomId, context.from)
     if (isPlayerInArena(context.from, roomId)) {
       sendActivePotionsTo(roomId, context.from)
@@ -1848,6 +1892,8 @@ export function setupLobbyServer(): void {
     }
     sendPlayerHealthState(context.from, roomId)
     sendArenaWeaponStatesTo(roomId, context.from)
+    sendArenaLoadoutStatesTo(roomId, context.from)
+    sendArenaZcStatesTo(roomId, context.from)
     sendPowerupStatesTo(roomId, context.from)
     if (isPlayerInArena(context.from, roomId)) {
       sendActivePotionsTo(roomId, context.from)
@@ -1868,8 +1914,23 @@ export function setupLobbyServer(): void {
       Number.isInteger(data.upgradeLevel) && data.upgradeLevel >= 1 && data.upgradeLevel <= 3
         ? data.upgradeLevel
         : 1
-    getRoomServerState(roomId).arenaWeaponByAddress.set(normalizedAddress, { weaponType: data.weaponType, upgradeLevel })
+    const roomState = getRoomServerState(roomId)
+    roomState.arenaWeaponByAddress.set(normalizedAddress, { weaponType: data.weaponType, upgradeLevel })
     sendPlayerArenaWeaponState(roomId, normalizedAddress)
+
+    if (data.weaponType !== 'gun') {
+      const unlocked = roomState.playerUnlockedArenaWeaponsInMatch.get(normalizedAddress) ?? new Set<ArenaWeaponType>()
+      if (!unlocked.has(data.weaponType)) {
+        const cost = data.weaponType === 'shotgun' ? SHOTGUN_UNLOCK_COST_ZC : data.weaponType === 'minigun' ? MINIGUN_UNLOCK_COST_ZC : 0
+        if (cost > 0) {
+          const currentZc = roomState.playerMatchZcByAddress.get(normalizedAddress) ?? 0
+          roomState.playerMatchZcByAddress.set(normalizedAddress, Math.max(0, currentZc - cost))
+        }
+        unlocked.add(data.weaponType)
+        roomState.playerUnlockedArenaWeaponsInMatch.set(normalizedAddress, unlocked)
+        sendPlayerZcState(roomId, normalizedAddress)
+      }
+    }
   })
 
   room.onMessage('zombieHitRequest', (data, context) => {
@@ -1998,6 +2059,9 @@ export function setupLobbyServer(): void {
       collectibleId: data.collectibleId,
       claimerAddress: normalizedAddress
     })
+    const currentZc = roomState.playerMatchZcByAddress.get(normalizedAddress) ?? 0
+    roomState.playerMatchZcByAddress.set(normalizedAddress, currentZc + COINS_PER_KILL)
+    sendPlayerZcState(roomId, normalizedAddress)
   })
 
   room.onMessage('rageShieldHitRequest', (data, context) => {
