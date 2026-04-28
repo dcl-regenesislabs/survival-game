@@ -116,19 +116,6 @@
         "y": 1,
         "z": 9.25
       }
-    },
-    {
-      "name": "backtolobby",
-      "position": {
-        "x": 84.25,
-        "y": 0,
-        "z": 19.75
-      },
-      "cameraTarget": {
-        "x": 84.25,
-        "y": 1,
-        "z": 23.25
-      }
     }
   ],
   "requiredPermissions": [
@@ -137,13 +124,14 @@
   ],
   "featureToggles": {
     "voiceChat": "enabled",
-    "portableExperiences": "enabled"
+    "portableExperiences": "enabled",
+    "nearbyVoiceChat": "enabled"
   },
   "creator": "",
   "skyboxConfig": {},
   "source": {
     "origin": "creator-hub",
-    "projectId": "1b6dc118-3ee1-4b54-bb50-78b871572503"
+    "projectId": "ee11107b-db00-456a-b31d-76845766f2fb"
   },
   "worldConfiguration": {
     "name": "toastedllama.dcl.eth"
