@@ -31,6 +31,8 @@ const GAME_OVER_OVERLAY_DELAY_MS = 0
 const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean; respawnAtMs: number; updatedAtMs: number }>()
 const playerArenaWeaponByAddress = new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>()
 const playerPowerupStateByAddress = new Map<string, { rageShieldEndAtMs: number; speedEndAtMs: number }>()
+const playerMatchKillsByAddress = new Map<string, number>()
+const playerMatchZcByAddress = new Map<string, number>()
 const ENABLE_LOCAL_AUTH_DEBUG_IN_PREVIEW = false
 const LOCAL_AUTH_DEBUG_GRACE_MS = 2500
 const LOCAL_AUTH_DEBUG_AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
@@ -49,6 +51,8 @@ function resetLocalMatchUiState(): void {
   localReadyForMatch = false
   lastTeamWipeAffectedLocalPlayer = false
   playerCombatStateByAddress.clear()
+  playerMatchKillsByAddress.clear()
+  playerMatchZcByAddress.clear()
   latestLobbyEventType = ''
   setIsoViewEnabled(false)
   setAutoFireEnabled(false)
@@ -143,9 +147,11 @@ export function setupLobbyClient(): void {
     } else {
       lastTeamWipeAffectedLocalPlayer = false
     }
-    if (data.type === 'team_wipe' || data.type === 'lobby') {
+    if (data.type === 'team_wipe' || data.type === 'lobby' || data.type === 'match_created') {
       playerArenaWeaponByAddress.clear()
       playerPowerupStateByAddress.clear()
+      playerMatchKillsByAddress.clear()
+      playerMatchZcByAddress.clear()
       resetToIdle()
       resetArenaWeaponProgress()
     }
@@ -154,6 +160,10 @@ export function setupLobbyClient(): void {
       enableArenaWeapon()
     }
     console.log(`[Lobby] ${data.type}: ${data.message}`)
+  })
+  room.onMessage('zombieDied', (data) => {
+    const killerAddress = data.killerAddress.toLowerCase()
+    playerMatchKillsByAddress.set(killerAddress, (playerMatchKillsByAddress.get(killerAddress) ?? 0) + 1)
   })
   room.onMessage('playerHealthState', (data) => {
     const address = data.address.toLowerCase()
@@ -185,6 +195,9 @@ export function setupLobbyClient(): void {
       rageShieldEndAtMs: data.rageShieldEndAtMs,
       speedEndAtMs: data.speedEndAtMs
     })
+  })
+  room.onMessage('playerZcState', (data) => {
+    playerMatchZcByAddress.set(data.address.toLowerCase(), data.zc)
   })
   room.onMessage('matchAutoTeleport', (data) => {
     const localAddress = getLocalAddress()
@@ -771,4 +784,14 @@ export function getPlayerPowerupSnapshot(address: string): { rageShieldEndAtMs: 
       speedEndAtMs: 0
     }
   )
+}
+
+export function getPlayerMatchStatsSnapshot(address: string): { kills: number } {
+  return {
+    kills: playerMatchKillsByAddress.get(address.toLowerCase()) ?? 0
+  }
+}
+
+export function getPlayerZcSnapshot(address: string): number {
+  return playerMatchZcByAddress.get(address.toLowerCase()) ?? 0
 }

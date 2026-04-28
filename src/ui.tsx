@@ -50,6 +50,10 @@ import {
   getLobbyState,
   getMatchRuntimeState,
   getServerLoadingState,
+  getPlayerArenaWeapon,
+  getPlayerCombatSnapshot,
+  getPlayerZcSnapshot,
+  getPlayerMatchStatsSnapshot,
   shouldSuppressDeathOverlayForTeamWipe,
   shouldShowGameOverOverlay,
   getLocalAddress,
@@ -59,6 +63,7 @@ import {
 } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
 import { LOBBY_RETURN_LOOK_AT, LOBBY_RETURN_POSITION } from './shared/roomConfig'
+import { MATCH_MAX_PLAYERS } from './shared/matchConfig'
 import { getServerTime } from './shared/timeSync'
 
 const PLAYER_HP_FRAME_WIDTH = 581
@@ -75,6 +80,8 @@ const PLAYER_LIVES_HEART_HEIGHT = 62
 const PLAYER_LIVES_HEART_WIDTH = 68
 const PLAYER_LIVES_HEART_GAP = 3
 const PLAYER_LIVES_TOP_MARGIN = 24
+const PLAYER_HUD_LEFT = 64
+const PLAYER_HUD_TOP = 206
 const WAVE_ZOMBIES_PANEL_WIDTH = 992
 const WAVE_ZOMBIES_PANEL_HEIGHT = 152
 const WAVE_ZOMBIES_PANEL_UVS = [0.032514, 0.358462, 0.032514, 0.650769, 0.928468, 0.650769, 0.928468, 0.358462]
@@ -112,6 +119,60 @@ const DEATH_DAMAGE_FRAME_ALPHA = 1
 const DEATH_BACKDROP_ALPHA = 0.42
 const GAME_OVER_BACKDROP_ALPHA = 0.58
 const DEBUG_SHOW_GAMEPLAY_HUD_IN_LOBBY = false
+const DEBUG_LOBBY_MATCH_WAVE = 9
+const DEBUG_LOBBY_MATCH_ZOMBIES_LEFT = 23
+const DEBUG_LOBBY_MATCH_PHASE_SECONDS = 18
+const DEBUG_LOBBY_FAKE_TEAMMATES: Array<{
+  address: string
+  displayName: string
+  hp: number
+  isDead: boolean
+  respawnSeconds: number
+  weaponLabel: string
+  kills: number
+  gold: number
+}> = [
+  {
+    address: 'debug-teammate-1',
+    displayName: 'Mili',
+    hp: 6,
+    isDead: false,
+    respawnSeconds: 0,
+    weaponLabel: 'SG',
+    kills: 12,
+    gold: 18
+  },
+  {
+    address: 'debug-teammate-2',
+    displayName: 'Nico',
+    hp: 4,
+    isDead: false,
+    respawnSeconds: 0,
+    weaponLabel: 'MG',
+    kills: 19,
+    gold: 7
+  },
+  {
+    address: 'debug-teammate-3',
+    displayName: 'Tomi',
+    hp: 0,
+    isDead: true,
+    respawnSeconds: 5,
+    weaponLabel: 'AR',
+    kills: 8,
+    gold: 24
+  },
+  {
+    address: 'debug-teammate-4',
+    displayName: 'Lula',
+    hp: 7,
+    isDead: false,
+    respawnSeconds: 0,
+    weaponLabel: 'SG',
+    kills: 15,
+    gold: 13
+  }
+]
 const LOBBY_HUD_LEFT_MARGIN = 48
 const LOBBY_HUD_ITEM_MARGIN_BOTTOM = 28
 const LOBBY_HUD_TOP_MARGIN = 32
@@ -126,6 +187,22 @@ const LOBBY_HUD_SHOP_WIDTH = Math.round(LOBBY_HUD_SHOP_SOURCE_WIDTH * 0.5)
 const LOBBY_HUD_SHOP_HEIGHT = Math.round(LOBBY_HUD_SHOP_SOURCE_HEIGHT * 0.5)
 const LOBBY_HUD_SHOP_UVS = createAtlasUvs(346, 80, LOBBY_HUD_SHOP_SOURCE_WIDTH, LOBBY_HUD_SHOP_SOURCE_HEIGHT)
 const LOBBY_HUD_GOLD_TOP = Math.round((1080 - (LOBBY_HUD_GOLD_HEIGHT + LOBBY_HUD_ITEM_MARGIN_BOTTOM + LOBBY_HUD_SHOP_HEIGHT)) * 0.5)
+
+type TeamHudPlayerEntry = {
+  address: string
+  displayName: string
+  isLocal: boolean
+  hp: number
+  hpRatio: number
+  isDead: boolean
+  respawnAtMs: number
+  weaponLabel: string
+  weaponTierColor: Color4
+  kills: number
+  zc: number
+  slotIndex: number
+}
+
 
 type AtlasUvs = [number, number, number, number, number, number, number, number]
 
@@ -147,6 +224,114 @@ function detectMobileUserAgent(): boolean {
   const userAgent = navigatorLike?.userAgent ?? ''
   return /android|iphone|ipad|ipod|mobile/i.test(userAgent)
 }
+
+
+function truncateLabel(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, Math.max(1, maxLength - 3))}...`
+}
+
+function getWeaponShortLabel(weaponType: string, upgradeLevel: number = 1): string {
+  const base = weaponType === 'shotgun' ? 'SG' : weaponType === 'minigun' ? 'MG' : 'AR'
+  if (upgradeLevel >= 3) return `${base}★`
+  if (upgradeLevel >= 2) return `${base}+`
+  return base
+}
+
+function getWeaponTierColor(upgradeLevel: number): Color4 {
+  if (upgradeLevel >= 3) return Color4.create(1.0, 0.82, 0.2, 1)
+  if (upgradeLevel >= 2) return Color4.create(0.4, 0.8, 1.0, 1)
+  return Color4.create(0.85, 0.85, 0.85, 1)
+}
+
+function getHpBarColor(hpRatio: number, isDead: boolean): Color4 {
+  if (isDead) return Color4.create(0.72, 0.2, 0.2, 1)
+  if (hpRatio <= 0.33) return Color4.create(0.93, 0.36, 0.26, 1)
+  if (hpRatio <= 0.66) return Color4.create(0.95, 0.76, 0.24, 1)
+  return Color4.create(0.28, 0.88, 0.46, 1)
+}
+
+function buildTeamHudEntries(
+  rosterPlayers: Array<{ address: string; displayName: string }>,
+  currentArenaAddresses: Set<string>,
+  localAddress: string,
+  timerNowMs: number
+): TeamHudPlayerEntry[] {
+  return rosterPlayers.slice(0, MATCH_MAX_PLAYERS).map((player, slotIndex) => {
+    const isStillInArena = currentArenaAddresses.has(player.address)
+    const combat = getPlayerCombatSnapshot(player.address)
+    const weapon = getPlayerArenaWeapon(player.address)
+    const stats = getPlayerMatchStatsSnapshot(player.address)
+    const gold = player.address === localAddress ? getZombieCoins() : getPlayerZcSnapshot(player.address)
+    const hp = isStillInArena
+      ? (combat?.hp ?? (player.address === localAddress ? getPlayerHp() : MAX_HP))
+      : 0
+    const isDead = isStillInArena ? (combat?.isDead ?? false) : true
+    const respawnAtMs = combat?.respawnAtMs ?? 0
+    const hpRatio = isDead ? 0 : Math.max(0, Math.min(1, hp / MAX_HP))
+    const displayName = player.address === localAddress
+      ? 'YOU'
+      : player.displayName || player.address.slice(0, 6)
+
+    return {
+      address: player.address,
+      displayName,
+      isLocal: player.address === localAddress,
+      hp,
+      hpRatio,
+      isDead,
+      respawnAtMs: Math.max(timerNowMs, respawnAtMs),
+      weaponLabel: getWeaponShortLabel(weapon.weaponType, weapon.upgradeLevel),
+      weaponTierColor: getWeaponTierColor(weapon.upgradeLevel),
+      kills: stats.kills,
+      zc: gold,
+      slotIndex
+    }
+  })
+}
+
+function buildDebugTeamHudEntries(localAddress: string, timerNowMs: number): TeamHudPlayerEntry[] {
+  const resolvedLocalAddress = localAddress || 'debug-local-player'
+  const localHp = getPlayerHp()
+  const localDead = isPlayerDead()
+  const localRespawnAtMs = getRespawnAtMs()
+  const localWeapon = getCurrentWeapon()
+
+  const localEntry: TeamHudPlayerEntry = {
+    address: resolvedLocalAddress,
+    displayName: 'YOU',
+    isLocal: true,
+    hp: localHp,
+    hpRatio: localDead ? 0 : Math.max(0, Math.min(1, localHp / MAX_HP)),
+    isDead: localDead,
+    respawnAtMs: localRespawnAtMs > 0 ? localRespawnAtMs : timerNowMs,
+    weaponLabel: getWeaponShortLabel(localWeapon ?? 'gun', 1),
+    weaponTierColor: getWeaponTierColor(1),
+    kills: 11,
+    zc: getZombieCoins(),
+    slotIndex: 0
+  }
+
+  const fakeEntries = DEBUG_LOBBY_FAKE_TEAMMATES.map((player, index) => ({
+    address: player.address,
+    displayName: player.displayName,
+    isLocal: false,
+    hp: player.hp,
+    hpRatio: player.isDead ? 0 : Math.max(0, Math.min(1, player.hp / MAX_HP)),
+    isDead: player.isDead,
+    respawnAtMs: player.isDead ? timerNowMs + player.respawnSeconds * 1000 : timerNowMs,
+    weaponLabel: player.weaponLabel,
+    weaponTierColor: getWeaponTierColor(1),
+    kills: player.kills,
+    zc: player.gold,
+    slotIndex: index + 1
+  }))
+
+  return [localEntry, ...fakeEntries]
+}
+
+let cachedArenaRoster: Array<{ address: string; displayName: string }> = []
+let cachedArenaMatchId = ''
 
 let isMobileRuntime = detectMobileUserAgent()
 let runtimePlatformLookupRequested = false
@@ -389,6 +574,43 @@ export const uiMenu = () => {
   const livesRowLeft = 12
   const livesRowWidth =
     MAX_LIVES * PLAYER_LIVES_HEART_WIDTH + Math.max(0, MAX_LIVES - 1) * PLAYER_LIVES_HEART_GAP
+  if (inMatchContext && lobbyState && lobbyState.matchId && lobbyState.matchId !== cachedArenaMatchId && lobbyState.arenaPlayers.length > 0) {
+    cachedArenaRoster = [...lobbyState.arenaPlayers]
+    cachedArenaMatchId = lobbyState.matchId
+  } else if (!inMatchContext && !showGameplayHudDebug) {
+    cachedArenaRoster = []
+    cachedArenaMatchId = ''
+  }
+  const currentArenaAddresses = new Set((lobbyState?.arenaPlayers ?? []).map((p) => p.address))
+  const teamHudEntries =
+    showGameplayHud
+      ? showGameplayHudDebug
+        ? buildDebugTeamHudEntries(localAddress, timerNowMs)
+        : cachedArenaRoster.length > 0
+          ? buildTeamHudEntries(cachedArenaRoster, currentArenaAddresses, localAddress, timerNowMs)
+          : []
+      : []
+  const teamPanelVisible = teamHudEntries.length > 0
+  const teamPanelTop = PLAYER_HUD_TOP + livesRowTop + PLAYER_LIVES_HEART_HEIGHT + (isMobileRuntime ? 12 : 18)
+  const teamPanelWidth = isMobileRuntime ? 370 : 440
+  const teamPanelHeaderHeight = isMobileRuntime ? 40 : 44
+  const teamPanelHeaderFontSize = isMobileRuntime ? 17 : 19
+  const teamPanelRowHeight = isMobileRuntime ? 38 : 42
+const teamPanelNameWidth = isMobileRuntime ? 100 : 120
+  const teamPanelHpWidth = isMobileRuntime ? 80 : 100
+  const teamPanelKillsWidth = isMobileRuntime ? 54 : 62
+  const teamPanelGoldWidth = isMobileRuntime ? 46 : 54
+  const teamPanelWeaponWidth = isMobileRuntime ? 56 : 66
+  const teamPanelRowGap = 4
+  const teamPanelRowTextSize = isMobileRuntime ? 16 : 18
+  const teamPanelHeaderPadding = isMobileRuntime ? 12 : 14
+  const teamPanelBodyPadding = isMobileRuntime ? 8 : 10
+  const teamPanelHeight =
+    teamPanelHeaderHeight +
+    6 +
+    teamPanelBodyPadding * 2 +
+    teamHudEntries.length * teamPanelRowHeight +
+    Math.max(0, teamHudEntries.length - 1) * teamPanelRowGap
   const weaponBarScale = isMobileRuntime ? MOBILE_WEAPON_BAR_SCALE : 1
   const weaponBarBottomOffset = scaleUiValue(24, weaponBarScale)
   const weaponBarSidePadding = scaleUiValue(24, weaponBarScale)
@@ -422,6 +644,9 @@ export const uiMenu = () => {
   const miniGunBarWidth = scaleUiValue(128, weaponBarScale)
   const miniGunBarHeight = scaleUiValue(8, weaponBarScale)
   const miniGunBarFillWidth = miniGunBarWidth * miniGunHeatRatio
+  const displayWaveNumber = showGameplayHudDebug ? DEBUG_LOBBY_MATCH_WAVE : (matchRuntime?.waveNumber ?? state.currentWave)
+  const displayZombiesLeft = showGameplayHudDebug ? DEBUG_LOBBY_MATCH_ZOMBIES_LEFT : syncedZombiesLeft
+  const displayPhaseRemainingSeconds = showGameplayHudDebug ? DEBUG_LOBBY_MATCH_PHASE_SECONDS : phaseRemainingSeconds
 
   return (
     <UiEntity
@@ -531,7 +756,7 @@ export const uiMenu = () => {
       {showPlayerHealthHud && (
         <UiEntity
           uiTransform={{
-            position: { left: 64, top: 206 },
+            position: { left: PLAYER_HUD_LEFT, top: PLAYER_HUD_TOP },
             positionType: 'absolute',
             width: PLAYER_HP_FRAME_WIDTH,
             height: livesRowTop + PLAYER_LIVES_HEART_HEIGHT,
@@ -665,7 +890,7 @@ export const uiMenu = () => {
       {showGameplayHud && healthPickupFeedback !== '' && (
         <UiEntity
           uiTransform={{
-            position: { left: 64, top: 206 + healthFeedbackTop },
+            position: { left: PLAYER_HUD_LEFT, top: PLAYER_HUD_TOP + healthFeedbackTop },
             positionType: 'absolute',
             width: PLAYER_HP_FRAME_WIDTH,
             height: PLAYER_HEALTH_FEEDBACK_HEIGHT,
@@ -716,7 +941,7 @@ export const uiMenu = () => {
                 justifyContent: 'center'
               }}
               uiText={{
-                value: `${phaseRemainingSeconds}s`,
+                value: `${displayPhaseRemainingSeconds}s`,
                 fontSize: 36,
                 color: Color4.create(1, 0.9, 0.5, 1),
                 textAlign: 'middle-left'
@@ -730,7 +955,7 @@ export const uiMenu = () => {
                 position: { left: 158, top: 28 }
               }}
               uiText={{
-                value: `${matchRuntime?.waveNumber ?? state.currentWave}`,
+                value: `${displayWaveNumber}`,
                 fontSize: 58,
                 color: Color4.create(0.7, 1, 0.45, 1),
                 textAlign: 'middle-center'
@@ -744,13 +969,219 @@ export const uiMenu = () => {
                 position: { right: 24, top: 40 }
               }}
               uiText={{
-                value: `${syncedZombiesLeft}`,
+                value: `${displayZombiesLeft}`,
                 fontSize: 58,
                 color: Color4.create(1, 0.85, 0.35, 1),
                 textAlign: 'middle-center'
               }}
             />
           </UiEntity>
+        </UiEntity>
+      )}
+      {teamPanelVisible && (
+        <UiEntity
+          uiTransform={{
+            position: { left: PLAYER_HUD_LEFT, top: teamPanelTop },
+            positionType: 'absolute',
+            width: teamPanelWidth,
+            height: teamPanelHeight,
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            justifyContent: 'flex-start'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              width: teamPanelWidth,
+              height: teamPanelHeaderHeight,
+              padding: { left: teamPanelHeaderPadding, right: teamPanelHeaderPadding },
+              borderRadius: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'flex-start'
+            }}
+            uiBackground={{ color: Color4.create(0.06, 0.08, 0.11, 0.82) }}
+          >
+            <UiEntity
+              uiTransform={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'flex-start'
+              }}
+            >
+              <UiEntity
+                uiTransform={{ width: teamPanelNameWidth, height: teamPanelHeaderHeight }}
+                uiText={{
+                  value: `SQUAD ${teamHudEntries.length}/${MATCH_MAX_PLAYERS}`,
+                  fontSize: teamPanelHeaderFontSize,
+                  color: Color4.create(0.92, 0.94, 0.98, 1),
+                  textAlign: 'middle-left'
+                }}
+              />
+              <UiEntity
+                uiTransform={{ width: teamPanelHpWidth, height: teamPanelHeaderHeight }}
+                uiText={{
+                  value: 'STATUS',
+                  fontSize: teamPanelHeaderFontSize - 1,
+                  color: Color4.create(0.74, 0.89, 1, 1),
+                  textAlign: 'middle-center'
+                }}
+              />
+              <UiEntity
+                uiTransform={{ width: teamPanelKillsWidth, height: teamPanelHeaderHeight }}
+                uiText={{
+                  value: 'KILLS',
+                  fontSize: teamPanelHeaderFontSize - 1,
+                  color: Color4.create(1, 0.84, 0.4, 1),
+                  textAlign: 'middle-center'
+                }}
+              />
+              <UiEntity
+                uiTransform={{ width: teamPanelGoldWidth, height: teamPanelHeaderHeight }}
+                uiText={{
+                  value: 'ZC',
+                  fontSize: teamPanelHeaderFontSize - 1,
+                  color: Color4.create(1, 0.93, 0.54, 1),
+                  textAlign: 'middle-center'
+                }}
+              />
+              <UiEntity
+                uiTransform={{ width: teamPanelWeaponWidth, height: teamPanelHeaderHeight }}
+                uiText={{
+                  value: 'WPN',
+                  fontSize: teamPanelHeaderFontSize - 1,
+                  color: Color4.create(0.95, 0.96, 0.99, 1),
+                  textAlign: 'middle-center'
+                }}
+              />
+            </UiEntity>
+          </UiEntity>
+          <UiEntity
+              uiTransform={{
+                width: teamPanelWidth,
+                minHeight: teamPanelHeight - teamPanelHeaderHeight,
+                margin: { top: 6 },
+                padding: { top: teamPanelBodyPadding, right: teamPanelBodyPadding, bottom: teamPanelBodyPadding, left: teamPanelBodyPadding },
+                borderRadius: 8,
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                justifyContent: 'flex-start'
+              }}
+              uiBackground={{ color: Color4.create(0.03, 0.04, 0.06, 0.72) }}
+            >
+              {teamHudEntries.map((player, index) => {
+                const hpFillWidth = Math.max(0, Math.round(teamPanelHpWidth * player.hpRatio))
+
+                return (
+                  <UiEntity
+                    key={`team-hud-player-${player.address}`}
+                    uiTransform={{
+                      width: '100%',
+                      height: teamPanelRowHeight,
+                      margin: { bottom: index < teamHudEntries.length - 1 ? teamPanelRowGap : 0 },
+                      padding: { left: 6, right: 6 },
+                      borderRadius: 6,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start'
+                    }}
+                    uiBackground={{ color: Color4.create(0.12, 0.15, 0.2, player.isLocal ? 0.9 : 0.68) }}
+                  >
+                    <UiEntity
+                      uiTransform={{
+                        width: teamPanelNameWidth,
+                        height: teamPanelRowHeight,
+                        justifyContent: 'center'
+                      }}
+                      uiText={{
+                        value: truncateLabel(player.displayName, 12),
+                        fontSize: teamPanelRowTextSize,
+                        color: player.isDead ? Color4.create(0.88, 0.58, 0.58, 1) : Color4.create(0.95, 0.96, 0.99, 1),
+                        textAlign: 'middle-left'
+                      }}
+                    />
+                    <UiEntity
+                      uiTransform={{
+                        width: teamPanelHpWidth,
+                        height: 14,
+                        margin: { right: 14 },
+                        borderRadius: 4,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start'
+                      }}
+                      uiBackground={{ color: Color4.create(0.16, 0.19, 0.24, 1) }}
+                    >
+                      <UiEntity
+                        uiTransform={{
+                          width: hpFillWidth,
+                          height: 14,
+                          borderRadius: 4
+                        }}
+                        uiBackground={{ color: getHpBarColor(player.hpRatio, player.isDead) }}
+                      />
+                    </UiEntity>
+                    <UiEntity
+                      uiTransform={{
+                        width: teamPanelKillsWidth,
+                        height: teamPanelRowHeight,
+                        margin: { right: 6 },
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <UiEntity
+                        uiTransform={{ width: isMobileRuntime ? 14 : 16, height: teamPanelRowHeight, margin: { right: 4 } }}
+                        uiText={{
+                          value: '\u2620',
+                          fontSize: teamPanelRowTextSize - 1,
+                          color: Color4.create(0.96, 0.46, 0.42, 1),
+                          textAlign: 'middle-center'
+                        }}
+                      />
+                      <UiEntity
+                        uiTransform={{ width: teamPanelKillsWidth - (isMobileRuntime ? 18 : 20), height: teamPanelRowHeight }}
+                        uiText={{
+                          value: `${player.kills}`,
+                          fontSize: teamPanelRowTextSize,
+                          color: Color4.create(1, 0.84, 0.4, 1),
+                          textAlign: 'middle-left'
+                        }}
+                      />
+                    </UiEntity>
+                    <UiEntity
+                      uiTransform={{
+                        width: teamPanelGoldWidth,
+                        height: teamPanelRowHeight,
+                        margin: { right: 6 },
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      uiText={{
+                        value: `${player.zc}`,
+                        fontSize: teamPanelRowTextSize - 1,
+                        color: Color4.create(1, 0.93, 0.54, 1),
+                        textAlign: 'middle-center'
+                      }}
+                    />
+                    <UiEntity
+                      uiTransform={{
+                        width: teamPanelWeaponWidth,
+                        height: teamPanelRowHeight,
+                        justifyContent: 'center'
+                      }}
+                      uiText={{
+                        value: player.weaponLabel,
+                        fontSize: teamPanelRowTextSize,
+                        color: player.weaponTierColor,
+                        textAlign: 'middle-center'
+                      }}
+                    />
+                  </UiEntity>
+                )
+              })}
+            </UiEntity>
         </UiEntity>
       )}
       {showZcCounter && (

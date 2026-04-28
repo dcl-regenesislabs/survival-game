@@ -235,6 +235,10 @@ const LobbyMessages = {
   }),
   collectibleClaimRejected: Schemas.Map({
     collectibleId: Schemas.String
+  }),
+  playerZcState: Schemas.Map({
+    address: Schemas.String,
+    zc: Schemas.Number
   })
 }
 
