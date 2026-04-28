@@ -32,7 +32,6 @@ const playerCombatStateByAddress = new Map<string, { hp: number; isDead: boolean
 const playerArenaWeaponByAddress = new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>()
 const playerPowerupStateByAddress = new Map<string, { rageShieldEndAtMs: number; speedEndAtMs: number }>()
 const playerMatchKillsByAddress = new Map<string, number>()
-const playerGoldByAddress = new Map<string, number>()
 const playerMatchZcByAddress = new Map<string, number>()
 const ENABLE_LOCAL_AUTH_DEBUG_IN_PREVIEW = false
 const LOCAL_AUTH_DEBUG_GRACE_MS = 2500
@@ -53,7 +52,6 @@ function resetLocalMatchUiState(): void {
   lastTeamWipeAffectedLocalPlayer = false
   playerCombatStateByAddress.clear()
   playerMatchKillsByAddress.clear()
-  playerGoldByAddress.clear()
   playerMatchZcByAddress.clear()
   latestLobbyEventType = ''
   setIsoViewEnabled(false)
@@ -182,7 +180,6 @@ export function setupLobbyClient(): void {
     applyAuthoritativeHealthState(data.hp, data.isDead, data.respawnAtMs, data.lives)
   })
   room.onMessage('playerLoadoutState', (data) => {
-    playerGoldByAddress.set(data.address.toLowerCase(), data.gold)
     const localAddress = getLocalAddress()
     if (!localAddress || data.address !== localAddress) return
     hasLocalLoadoutState = true
@@ -793,10 +790,6 @@ export function getPlayerMatchStatsSnapshot(address: string): { kills: number } 
   return {
     kills: playerMatchKillsByAddress.get(address.toLowerCase()) ?? 0
   }
-}
-
-export function getPlayerGoldSnapshot(address: string): number {
-  return playerGoldByAddress.get(address.toLowerCase()) ?? 0
 }
 
 export function getPlayerZcSnapshot(address: string): number {

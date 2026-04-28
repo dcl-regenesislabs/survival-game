@@ -199,7 +199,7 @@ type TeamHudPlayerEntry = {
   weaponLabel: string
   weaponTierColor: Color4
   kills: number
-  gold: number
+  zc: number
   slotIndex: number
 }
 
@@ -284,7 +284,7 @@ function buildTeamHudEntries(
       weaponLabel: getWeaponShortLabel(weapon.weaponType, weapon.upgradeLevel),
       weaponTierColor: getWeaponTierColor(weapon.upgradeLevel),
       kills: stats.kills,
-      gold,
+      zc: gold,
       slotIndex
     }
   })
@@ -308,7 +308,7 @@ function buildDebugTeamHudEntries(localAddress: string, timerNowMs: number): Tea
     weaponLabel: getWeaponShortLabel(localWeapon ?? 'gun', 1),
     weaponTierColor: getWeaponTierColor(1),
     kills: 11,
-    gold: getZombieCoins(),
+    zc: getZombieCoins(),
     slotIndex: 0
   }
 
@@ -323,7 +323,7 @@ function buildDebugTeamHudEntries(localAddress: string, timerNowMs: number): Tea
     weaponLabel: player.weaponLabel,
     weaponTierColor: getWeaponTierColor(1),
     kills: player.kills,
-    gold: player.gold,
+    zc: player.gold,
     slotIndex: index + 1
   }))
 
@@ -596,8 +596,7 @@ export const uiMenu = () => {
   const teamPanelHeaderHeight = isMobileRuntime ? 40 : 44
   const teamPanelHeaderFontSize = isMobileRuntime ? 17 : 19
   const teamPanelRowHeight = isMobileRuntime ? 38 : 42
-  const teamPanelToggleWidth = isMobileRuntime ? 28 : 32
-  const teamPanelNameWidth = isMobileRuntime ? 100 : 120
+const teamPanelNameWidth = isMobileRuntime ? 100 : 120
   const teamPanelHpWidth = isMobileRuntime ? 80 : 100
   const teamPanelKillsWidth = isMobileRuntime ? 54 : 62
   const teamPanelGoldWidth = isMobileRuntime ? 46 : 54
@@ -1095,7 +1094,7 @@ export const uiMenu = () => {
                         justifyContent: 'center'
                       }}
                       uiText={{
-                        value: truncateLabel(player.displayName, 15),
+                        value: truncateLabel(player.displayName, 12),
                         fontSize: teamPanelRowTextSize,
                         color: player.isDead ? Color4.create(0.88, 0.58, 0.58, 1) : Color4.create(0.95, 0.96, 0.99, 1),
                         textAlign: 'middle-left'
@@ -1160,7 +1159,7 @@ export const uiMenu = () => {
                         justifyContent: 'center'
                       }}
                       uiText={{
-                        value: `${player.gold}`,
+                        value: `${player.zc}`,
                         fontSize: teamPanelRowTextSize - 1,
                         color: Color4.create(1, 0.93, 0.54, 1),
                         textAlign: 'middle-center'
