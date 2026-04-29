@@ -1,7 +1,7 @@
 import { Storage } from '@dcl/sdk/server'
 
-const KILLS_KEY = 'leaderboard_kills_v1'
-const WAVES_KEY = 'leaderboard_waves_v1'
+const KILLS_KEY = 'leaderboard_kills_v2'
+const WAVES_KEY = 'leaderboard_waves_v2'
 const MAX_ENTRIES = 10
 
 export type LeaderboardEntry = {
