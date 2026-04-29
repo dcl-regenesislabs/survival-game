@@ -257,7 +257,15 @@ function buildTeamHudEntries(
   localAddress: string,
   timerNowMs: number
 ): TeamHudPlayerEntry[] {
-  return rosterPlayers.slice(0, MATCH_MAX_PLAYERS).map((player, slotIndex) => {
+  const orderedRosterPlayers = rosterPlayers
+    .slice(0, MATCH_MAX_PLAYERS)
+    .sort((left, right) => {
+      if (left.address === localAddress) return -1
+      if (right.address === localAddress) return 1
+      return 0
+    })
+
+  return orderedRosterPlayers.map((player, slotIndex) => {
     const isStillInArena = currentArenaAddresses.has(player.address)
     const combat = getPlayerCombatSnapshot(player.address)
     const weapon = getPlayerArenaWeapon(player.address)
@@ -269,9 +277,7 @@ function buildTeamHudEntries(
     const isDead = isStillInArena ? (combat?.isDead ?? false) : true
     const respawnAtMs = combat?.respawnAtMs ?? 0
     const hpRatio = isDead ? 0 : Math.max(0, Math.min(1, hp / MAX_HP))
-    const displayName = player.address === localAddress
-      ? 'YOU'
-      : player.displayName || player.address.slice(0, 6)
+    const displayName = player.displayName || player.address.slice(0, 6)
 
     return {
       address: player.address,
@@ -299,7 +305,7 @@ function buildDebugTeamHudEntries(localAddress: string, timerNowMs: number): Tea
 
   const localEntry: TeamHudPlayerEntry = {
     address: resolvedLocalAddress,
-    displayName: 'YOU',
+    displayName: resolvedLocalAddress.slice(0, 6),
     isLocal: true,
     hp: localHp,
     hpRatio: localDead ? 0 : Math.max(0, Math.min(1, localHp / MAX_HP)),
@@ -332,6 +338,46 @@ function buildDebugTeamHudEntries(localAddress: string, timerNowMs: number): Tea
 
 let cachedArenaRoster: Array<{ address: string; displayName: string }> = []
 let cachedArenaMatchId = ''
+
+function syncCachedArenaRoster(
+  nextRoster: Array<{ address: string; displayName: string }>,
+  matchId: string
+): void {
+  if (!matchId) {
+    cachedArenaRoster = []
+    cachedArenaMatchId = ''
+    return
+  }
+
+  if (cachedArenaMatchId !== matchId) {
+    cachedArenaRoster = [...nextRoster]
+    cachedArenaMatchId = matchId
+    return
+  }
+
+  if (nextRoster.length === 0) return
+
+  const mergedRoster = [...cachedArenaRoster]
+  let rosterChanged = false
+
+  for (const player of nextRoster) {
+    const existingIndex = mergedRoster.findIndex((entry) => entry.address === player.address)
+    if (existingIndex >= 0) {
+      if (mergedRoster[existingIndex].displayName !== player.displayName) {
+        mergedRoster[existingIndex] = player
+        rosterChanged = true
+      }
+      continue
+    }
+
+    mergedRoster.push(player)
+    rosterChanged = true
+  }
+
+  if (rosterChanged) {
+    cachedArenaRoster = mergedRoster
+  }
+}
 
 let isMobileRuntime = detectMobileUserAgent()
 let runtimePlatformLookupRequested = false
@@ -574,12 +620,10 @@ export const uiMenu = () => {
   const livesRowLeft = 12
   const livesRowWidth =
     MAX_LIVES * PLAYER_LIVES_HEART_WIDTH + Math.max(0, MAX_LIVES - 1) * PLAYER_LIVES_HEART_GAP
-  if (inMatchContext && lobbyState && lobbyState.matchId && lobbyState.matchId !== cachedArenaMatchId && lobbyState.arenaPlayers.length > 0) {
-    cachedArenaRoster = [...lobbyState.arenaPlayers]
-    cachedArenaMatchId = lobbyState.matchId
+  if (inMatchContext && lobbyState?.matchId) {
+    syncCachedArenaRoster(lobbyState.arenaPlayers, lobbyState.matchId)
   } else if (!inMatchContext && !showGameplayHudDebug) {
-    cachedArenaRoster = []
-    cachedArenaMatchId = ''
+    syncCachedArenaRoster([], '')
   }
   const currentArenaAddresses = new Set((lobbyState?.arenaPlayers ?? []).map((p) => p.address))
   const teamHudEntries =
