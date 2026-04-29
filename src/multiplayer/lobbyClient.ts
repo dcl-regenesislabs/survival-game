@@ -1,4 +1,5 @@
 import { engine, PlayerIdentityData, RealmInfo } from '@dcl/sdk/ecs'
+import { GlobalLeaderboardComponent, LeaderboardEntrySnapshot } from '../shared/leaderboardSchemas'
 import { room } from '../shared/messages'
 import { LobbyPhase, LobbyPlayer, LobbyStateComponent, LobbyStateSnapshot } from '../shared/lobbySchemas'
 import { MatchRuntimeSnapshot, MatchRuntimeStateComponent, WaveCyclePhase } from '../shared/matchRuntimeSchemas'
@@ -794,4 +795,18 @@ export function getPlayerMatchStatsSnapshot(address: string): { kills: number } 
 
 export function getPlayerZcSnapshot(address: string): number {
   return playerMatchZcByAddress.get(address.toLowerCase()) ?? 0
+}
+
+export function getLeaderboardKills(): LeaderboardEntrySnapshot[] {
+  for (const [, data] of engine.getEntitiesWith(GlobalLeaderboardComponent)) {
+    return data.kills.map((e) => ({ address: e.address, displayName: e.displayName, value: e.value }))
+  }
+  return []
+}
+
+export function getLeaderboardWaves(): LeaderboardEntrySnapshot[] {
+  for (const [, data] of engine.getEntitiesWith(GlobalLeaderboardComponent)) {
+    return data.waves.map((e) => ({ address: e.address, displayName: e.displayName, value: e.value }))
+  }
+  return []
 }

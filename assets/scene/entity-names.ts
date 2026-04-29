@@ -36,6 +36,7 @@ export enum EntityNames {
   arena_2 = "arena_2",
   arena_3 = "arena_3",
   arena_4 = "arena_4",
+  leaderboard = "leaderboard",
   npc_collider_1 = "npc_collider_1",
   npc_collider_2 = "npc_collider_2",
   npcs01_glb = "npcs01.glb",

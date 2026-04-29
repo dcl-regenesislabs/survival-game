@@ -40,6 +40,8 @@ import {
   getLoadoutWeaponDefinition
 } from '../shared/loadoutCatalog'
 import { createPlayerProgressStore } from './storage/playerProgress'
+import { createLeaderboardStore } from './storage/leaderboard'
+import { GlobalLeaderboardComponent } from '../shared/leaderboardSchemas'
 import { getServerTime } from '../shared/timeSync'
 import {
   LAVA_DAMAGE_INTERVAL_MS,
@@ -60,6 +62,8 @@ import {
 } from '../shared/roomConfig'
 
 const playerProgressStore = createPlayerProgressStore()
+const leaderboardStore = createLeaderboardStore()
+let leaderboardEntity: ReturnType<typeof engine.addEntity> | null = null
 const VALID_WEAPON_IDS = new Set(LOADOUT_WEAPON_DEFINITIONS.map((w) => w.id))
 const PLAYER_PROGRESS_AUTOSAVE_SECONDS = 20
 const PLAYER_MAX_HP = 5
@@ -955,6 +959,9 @@ function applyZombieDamage(
   roomState.explodedZombieIds.delete(zombieId)
   recomputeZombiesAlive(roomId, runtime, now)
   sendToArena(roomId, 'zombieDied', { roomId, zombieId, killerAddress: normalizedAddress })
+  playerProgressStore.mutate(normalizedAddress, (progress) => {
+    progress.profile.lifetimeStats.zombiesKilled += 1
+  })
   const dropX = deathPos?.x ?? spawnState.spawnX
   const dropY = deathPos?.y ?? spawnState.spawnY
   const dropZ = deathPos?.z ?? spawnState.spawnZ
@@ -1042,6 +1049,9 @@ function finalizePendingTeamWipeReturn(roomId: RoomId): void {
   if (!roomState.pendingTeamWipeReturn) return
   const { players } = roomState.pendingTeamWipeReturn
   roomState.pendingTeamWipeReturn = null
+
+  commitMatchStatsToLeaderboard(players)
+
   for (const player of players) {
     if (playerRoomByAddress.get(player.address) === roomId) {
       playerRoomByAddress.delete(player.address)
@@ -1733,6 +1743,54 @@ function playerProgressAutosaveSystem(dt: number): void {
   void playerProgressStore.saveDirty()
 }
 
+function getLeaderboardEntityMutable() {
+  if (!leaderboardEntity) {
+    leaderboardEntity = engine.addEntity()
+    GlobalLeaderboardComponent.create(leaderboardEntity, { kills: [], waves: [] })
+    syncEntity(leaderboardEntity, [GlobalLeaderboardComponent.componentId])
+  }
+  return GlobalLeaderboardComponent.getMutable(leaderboardEntity)
+}
+
+function syncLeaderboardToComponent(): void {
+  const comp = getLeaderboardEntityMutable()
+  comp.kills = leaderboardStore.getKillsTop().map((e) => ({
+    address: e.address,
+    displayName: e.displayName,
+    value: e.value
+  }))
+  comp.waves = leaderboardStore.getWavesTop().map((e) => ({
+    address: e.address,
+    displayName: e.displayName,
+    value: e.value
+  }))
+}
+
+function commitMatchStatsToLeaderboard(players: LobbyPlayer[]): void {
+  let changed = false
+  for (const player of players) {
+    const progress = playerProgressStore.get(player.address)
+    if (!progress) continue
+    const killsChanged = leaderboardStore.update(
+      'kills',
+      player.address,
+      progress.profile.lastKnownName,
+      progress.profile.lifetimeStats.zombiesKilled
+    )
+    const wavesChanged = leaderboardStore.update(
+      'waves',
+      player.address,
+      progress.profile.lastKnownName,
+      progress.profile.lifetimeStats.wavesCleared
+    )
+    if (killsChanged || wavesChanged) changed = true
+  }
+  if (changed) {
+    syncLeaderboardToComponent()
+    void leaderboardStore.persist()
+  }
+}
+
 export function setupLobbyServer(): void {
   refreshArenaRoomConfigsFromScene()
   for (const roomId of ROOM_IDS) {
@@ -1743,6 +1801,11 @@ export function setupLobbyServer(): void {
     getLobbyStateMutable(roomId)
     getMatchRuntimeMutable(roomId)
   }
+
+  getLeaderboardEntityMutable()
+  void leaderboardStore.load().then(() => {
+    syncLeaderboardToComponent()
+  })
 
   room.onMessage('playerLoadProfile', async (_data, context) => {
     if (!context) return
