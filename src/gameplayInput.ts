@@ -12,6 +12,7 @@ export { isTopViewEnabled, setTopViewEnabled, isIsoViewEnabled, setIsoViewEnable
 
 let uiPointerCaptureActive = false
 let autoFireEnabled = false
+let cameraModeToggleEnabled = false
 let prevSecondaryPressed = false
 let prevAction3Pressed = false
 let prevAction4Pressed = false
@@ -42,6 +43,10 @@ export function setAutoFireEnabled(value: boolean): void {
   autoFireEnabled = value
 }
 
+export function setCameraModeToggleEnabled(value: boolean): void {
+  cameraModeToggleEnabled = value
+}
+
 export function updateAutoFireToggle(): void {
   const isPressed = inputSystem.isPressed(InputAction.IA_SECONDARY)
   if (isPressed && !prevSecondaryPressed) {
@@ -52,6 +57,10 @@ export function updateAutoFireToggle(): void {
 
 export function updateTopViewToggle(): void {
   const isPressed = inputSystem.isPressed(InputAction.IA_ACTION_3)
+  if (!cameraModeToggleEnabled) {
+    prevAction3Pressed = isPressed
+    return
+  }
   if (isPressed && !prevAction3Pressed) {
     toggleTopView()
   }
@@ -60,6 +69,10 @@ export function updateTopViewToggle(): void {
 
 export function updateIsoViewToggle(): void {
   const isPressed = inputSystem.isPressed(InputAction.IA_ACTION_4)
+  if (!cameraModeToggleEnabled) {
+    prevAction4Pressed = isPressed
+    return
+  }
   if (isPressed && !prevAction4Pressed) {
     toggleIsoView()
   }
