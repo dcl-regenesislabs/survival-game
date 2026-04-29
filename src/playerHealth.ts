@@ -27,6 +27,10 @@ const DAMAGE_OVERLAY_BASE_ALPHA = 0.12
 const DAMAGE_OVERLAY_ALPHA_PER_HP = 0.05
 const DAMAGE_OVERLAY_MAX_ALPHA = 0.26
 const PREDICTED_DAMAGE_FEEDBACK_SUPPRESS_MS = 2500
+const DEAD_MOVEMENT_LOCK_DISTANCE_SQ = 0.0025
+
+let deathMovementLockPosition: Vector3 | null = null
+let deathMovementLockSystemInitialized = false
 
 export function getPlayerHp(): number {
   return currentHp
@@ -73,6 +77,7 @@ export function resetPlayerHealthState(): void {
   currentHp = MAX_HP
   isDead = false
   respawnAtMs = 0
+  deathMovementLockPosition = null
   healGlowEndTime = 0
   diedAtMs = 0
   damageOverlayTriggeredAtMs = 0
@@ -125,6 +130,37 @@ export function triggerPredictedDamageFeedback(damageTaken: number): void {
   triggerDamageOverlay(normalizedDamage, nowMs)
 }
 
+function captureDeathMovementLockPosition(): void {
+  if (!Transform.has(engine.PlayerEntity)) return
+  const position = Transform.get(engine.PlayerEntity).position
+  deathMovementLockPosition = Vector3.create(position.x, position.y, position.z)
+}
+
+function deadMovementLockSystem(): void {
+  if (!isDead || !deathMovementLockPosition || !Transform.has(engine.PlayerEntity)) return
+
+  const currentPosition = Transform.get(engine.PlayerEntity).position
+  const dx = currentPosition.x - deathMovementLockPosition.x
+  const dy = currentPosition.y - deathMovementLockPosition.y
+  const dz = currentPosition.z - deathMovementLockPosition.z
+  const distanceSq = dx * dx + dy * dy + dz * dz
+  if (distanceSq <= DEAD_MOVEMENT_LOCK_DISTANCE_SQ) return
+
+  void movePlayerTo({
+    newRelativePosition: {
+      x: deathMovementLockPosition.x,
+      y: deathMovementLockPosition.y,
+      z: deathMovementLockPosition.z
+    }
+  })
+}
+
+export function initPlayerDeathMovementLockSystem(): void {
+  if (deathMovementLockSystemInitialized) return
+  deathMovementLockSystemInitialized = true
+  engine.addSystem(deadMovementLockSystem, undefined, 'player-death-movement-lock-system')
+}
+
 /** Respawn player: move to spawn, restore HP, clear death state. */
 export function respawnPlayer(): void {
   const roomConfig = getCurrentRoomConfig()
@@ -166,6 +202,7 @@ export function applyAuthoritativeHealthState(hp: number, dead: boolean, nextRes
 
   if (!wasDead && dead) {
     diedAtMs = nextRespawnAtMs > 0 ? nextRespawnAtMs - RESPAWN_DELAY * 1000 : nowMs
+    captureDeathMovementLockPosition()
   }
 
   if (wasDead && !isDead) {
