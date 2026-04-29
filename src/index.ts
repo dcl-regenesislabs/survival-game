@@ -33,7 +33,8 @@ import { initWeaponLifecycleSystem } from './weaponManager'
 import {
   isPlayerDead,
   getRespawnDelay,
-  respawnPlayer
+  respawnPlayer,
+  initPlayerDeathMovementLockSystem
 } from './playerHealth'
 import { getGameTime } from './zombie'
 import { rageEffectSystem } from './rageEffect'
@@ -359,6 +360,7 @@ export function main() {
   engine.addSystem(collectibleSystem)
   engine.addSystem(lavaHazardSystem)
   initDeathAnimationSystem()
+  initPlayerDeathMovementLockSystem()
   // Authoritative match waves (30s active / 10s rest)
   initMatchWaveClientSystem()
 
