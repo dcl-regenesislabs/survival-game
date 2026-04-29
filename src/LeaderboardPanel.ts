@@ -6,12 +6,10 @@ import {
   MeshRenderer,
   MeshCollider,
   Material,
-  MaterialTransparencyMode,
   TextShape,
   TextAlignMode,
   InputAction,
   pointerEventsSystem,
-  ColliderLayer,
   VisibilityComponent
 } from '@dcl/sdk/ecs'
 import { Color4, Quaternion, Vector3 } from '@dcl/sdk/math'
@@ -273,7 +271,7 @@ export function createLeaderboardPanel(options: LeaderboardPanelOptions = {}) {
     texture: Material.Texture.Common({ src: 'assets/images/backButton.png' }),
     alphaTexture: Material.Texture.Common({ src: 'assets/images/backButton.png' }),
     diffuseColor: Color4.create(1, 1, 1, 1),
-    alphaTest: MaterialTransparencyMode.MTM_ALPHA_BLEND
+    alphaTest: 0.5
   })
 
   // Right button (next tab)
@@ -290,7 +288,7 @@ export function createLeaderboardPanel(options: LeaderboardPanelOptions = {}) {
     texture: Material.Texture.Common({ src: 'assets/images/nextButton.png' }),
     alphaTexture: Material.Texture.Common({ src: 'assets/images/nextButton.png' }),
     diffuseColor: Color4.create(1, 1, 1, 1),
-    alphaTest: MaterialTransparencyMode.MTM_ALPHA_BLEND
+    alphaTest: 0.5
   })
 
   const state: PanelState = {

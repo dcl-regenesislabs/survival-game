@@ -195,7 +195,6 @@ type RoomServerState = {
   arenaWeaponByAddress: Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>
   playerMatchZcByAddress: Map<string, number>
   playerUnlockedArenaWeaponsInMatch: Map<string, Set<ArenaWeaponType>>
-  playerMatchKillsByAddress: Map<string, number>
   pendingTeamWipeReturn: PendingTeamWipeReturn | null
 }
 
@@ -220,7 +219,6 @@ function createRoomServerState(roomId: RoomId): RoomServerState {
     arenaWeaponByAddress: new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>(),
     playerMatchZcByAddress: new Map<string, number>(),
     playerUnlockedArenaWeaponsInMatch: new Map<string, Set<ArenaWeaponType>>(),
-    playerMatchKillsByAddress: new Map<string, number>(),
     pendingTeamWipeReturn: null
   }
 }
@@ -961,9 +959,6 @@ function applyZombieDamage(
   roomState.explodedZombieIds.delete(zombieId)
   recomputeZombiesAlive(roomId, runtime, now)
   sendToArena(roomId, 'zombieDied', { roomId, zombieId, killerAddress: normalizedAddress })
-  // Track kill server-side for leaderboard
-  const prevKills = roomState.playerMatchKillsByAddress.get(normalizedAddress) ?? 0
-  roomState.playerMatchKillsByAddress.set(normalizedAddress, prevKills + 1)
   playerProgressStore.mutate(normalizedAddress, (progress) => {
     progress.profile.lifetimeStats.zombiesKilled += 1
   })
@@ -1056,7 +1051,6 @@ function finalizePendingTeamWipeReturn(roomId: RoomId): void {
   roomState.pendingTeamWipeReturn = null
 
   commitMatchStatsToLeaderboard(players)
-  roomState.playerMatchKillsByAddress.clear()
 
   for (const player of players) {
     if (playerRoomByAddress.get(player.address) === roomId) {
