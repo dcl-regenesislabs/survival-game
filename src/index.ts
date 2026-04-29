@@ -53,6 +53,7 @@ import {
 } from './multiplayer/lobbyClient'
 import { initMatchWaveClientSystem } from './multiplayer/matchWaveClient'
 import { initLobbyWorldPanel } from './lobbyWorldPanel'
+import { initLeaderboardWorldPanel } from './LeaderboardWorldPanel'
 import { initLobbyStore } from './lobbyStore'
 import { initDeathAnimationSystem } from './deathAnimation'
 import { getCurrentRoomId } from './roomRuntime'
@@ -310,6 +311,7 @@ export function main() {
     sendPlayerDamageRequest(amount)
   })
   initLobbyWorldPanel()
+  initLeaderboardWorldPanel()
   initLobbyStore()
   initArenaRemoteDefaultWeapons()
   initArenaRemotePowerups()

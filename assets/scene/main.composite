@@ -1286,6 +1286,27 @@
             },
             "parent": 0
           }
+        },
+        "572": {
+          "json": {
+            "position": {
+              "x": 63.95000076293945,
+              "y": 3.8499999046325684,
+              "z": 19.399999618530273
+            },
+            "rotation": {
+              "x": 0,
+              "y": -0.707099974155426,
+              "z": 0,
+              "w": 0.707099974155426
+            },
+            "scale": {
+              "x": 3.799999952316284,
+              "y": 6.150000095367432,
+              "z": 1
+            },
+            "parent": 0
+          }
         }
       }
     },
@@ -2102,6 +2123,106 @@
               }
             }
           }
+        },
+        "572": {
+          "json": {
+            "material": {
+              "$case": "pbr",
+              "pbr": {
+                "texture": {
+                  "tex": {
+                    "$case": "texture",
+                    "texture": {
+                      "src": "",
+                      "wrapMode": 0,
+                      "filterMode": 0,
+                      "offset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "tiling": {
+                        "x": 1,
+                        "y": 1
+                      }
+                    }
+                  }
+                },
+                "alphaTest": 0.5,
+                "castShadows": true,
+                "alphaTexture": {
+                  "tex": {
+                    "$case": "texture",
+                    "texture": {
+                      "src": "",
+                      "wrapMode": 0,
+                      "filterMode": 0,
+                      "offset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "tiling": {
+                        "x": 1,
+                        "y": 1
+                      }
+                    }
+                  }
+                },
+                "emissiveTexture": {
+                  "tex": {
+                    "$case": "texture",
+                    "texture": {
+                      "src": "",
+                      "wrapMode": 0,
+                      "filterMode": 0,
+                      "offset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "tiling": {
+                        "x": 1,
+                        "y": 1
+                      }
+                    }
+                  }
+                },
+                "bumpTexture": {
+                  "tex": {
+                    "$case": "texture",
+                    "texture": {
+                      "src": "",
+                      "wrapMode": 0,
+                      "filterMode": 0,
+                      "offset": {
+                        "x": 0,
+                        "y": 0
+                      },
+                      "tiling": {
+                        "x": 1,
+                        "y": 1
+                      }
+                    }
+                  }
+                },
+                "albedoColor": {
+                  "r": 0,
+                  "g": 0,
+                  "b": 0,
+                  "a": 1
+                },
+                "reflectivityColor": {
+                  "r": 0,
+                  "g": 0,
+                  "b": 0
+                },
+                "transparencyMode": 4,
+                "metallic": 0.5,
+                "roughness": 0.5,
+                "specularIntensity": 1,
+                "emissiveIntensity": 0,
+                "directIntensity": 1
+              }
+            }
+          }
         }
       }
     },
@@ -2173,6 +2294,15 @@
               "plane": {}
             }
           }
+        },
+        "572": {
+          "json": {
+            "collisionMask": 3,
+            "mesh": {
+              "$case": "plane",
+              "plane": {}
+            }
+          }
         }
       }
     },
@@ -2216,6 +2346,16 @@
           }
         },
         "570": {
+          "json": {
+            "mesh": {
+              "$case": "plane",
+              "plane": {
+                "uvs": []
+              }
+            }
+          }
+        },
+        "572": {
           "json": {
             "mesh": {
               "$case": "plane",
@@ -2524,6 +2664,11 @@
           "json": {
             "value": "arena_4"
           }
+        },
+        "572": {
+          "json": {
+            "value": "leaderboard"
+          }
         }
       }
     },
@@ -2569,7 +2714,7 @@
         "serializationType": "map"
       },
       "data": {
-        "1": {
+        "572": {
           "json": {
             "gizmo": 0
           }
@@ -2620,6 +2765,7 @@
             "value": [
               {
                 "entity": 0,
+                "open": true,
                 "children": [
                   517,
                   512,
@@ -2631,7 +2777,8 @@
                   521,
                   526,
                   531,
-                  541
+                  541,
+                  572
                 ]
               },
               {
@@ -2644,7 +2791,6 @@
               },
               {
                 "entity": 512,
-                "open": true,
                 "children": [
                   513,
                   515,
@@ -2927,6 +3073,10 @@
               {
                 "entity": 562,
                 "children": []
+              },
+              {
+                "entity": 572,
+                "children": []
               }
             ]
           }
@@ -3129,11 +3279,14 @@
         },
         "571": {
           "json": {}
+        },
+        "572": {
+          "json": {}
         }
       }
     },
     {
-      "name": "inspector::SceneMetadata-v4",
+      "name": "inspector::SceneMetadata-v3",
       "jsonSchema": {
         "type": "object",
         "properties": {
@@ -3451,14 +3604,6 @@
               "type": "string",
               "serializationType": "utf8-string"
             }
-          },
-          "disableNearbyVoiceChat": {
-            "type": "boolean",
-            "serializationType": "optional",
-            "optionalJsonSchema": {
-              "type": "boolean",
-              "serializationType": "boolean"
-            }
           }
         },
         "serializationType": "map"
@@ -3468,14 +3613,12 @@
           "json": {
             "name": "Survival",
             "description": "Multiplayer arena game focused on wave-based zombie combat, arena hazards, and short-session progression. Players enter an authoritative multiplayer match, survive escalating enemy waves, collect resources, buy stronger tools, and push as far as possible through a 100-wave survival ladder.",
+            "thumbnail": "",
             "categories": [],
             "author": "SDK",
+            "email": "",
             "tags": [],
             "layout": {
-              "base": {
-                "x": 0,
-                "y": 0
-              },
               "parcels": [
                 {
                   "x": 0,
@@ -3785,8 +3928,14 @@
                   "x": 10,
                   "y": -1
                 }
-              ]
+              ],
+              "base": {
+                "x": 0,
+                "y": 0
+              }
             },
+            "silenceVoiceChat": false,
+            "disablePortableExperiences": false,
             "spawnPoints": [
               {
                 "name": "spawn1",
@@ -3818,7 +3967,8 @@
                 }
               }
             ],
-            "skyboxConfig": {}
+            "skyboxConfig": {},
+            "creator": ""
           }
         }
       }
