@@ -193,6 +193,8 @@ type RoomServerState = {
   activeLavaHazardsById: Map<string, ActiveLavaHazardState>
   awardedWaveGoldMilestones: Set<number>
   arenaWeaponByAddress: Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>
+  playerMatchKillsByAddress: Map<string, number>
+  playerMatchWavesSurvivedByAddress: Map<string, number>
   playerMatchZcByAddress: Map<string, number>
   playerUnlockedArenaWeaponsInMatch: Map<string, Set<ArenaWeaponType>>
   pendingTeamWipeReturn: PendingTeamWipeReturn | null
@@ -217,6 +219,8 @@ function createRoomServerState(roomId: RoomId): RoomServerState {
     activeLavaHazardsById: new Map<string, ActiveLavaHazardState>(),
     awardedWaveGoldMilestones: new Set<number>(),
     arenaWeaponByAddress: new Map<string, { weaponType: ArenaWeaponType; upgradeLevel: number }>(),
+    playerMatchKillsByAddress: new Map<string, number>(),
+    playerMatchWavesSurvivedByAddress: new Map<string, number>(),
     playerMatchZcByAddress: new Map<string, number>(),
     playerUnlockedArenaWeaponsInMatch: new Map<string, Set<ArenaWeaponType>>(),
     pendingTeamWipeReturn: null
@@ -240,6 +244,21 @@ let isDisconnectReconcileInFlight = false
 
 function getRoomServerState(roomId: RoomId): RoomServerState {
   return roomServerStateById[roomId]
+}
+
+function resetMatchLeaderboardStats(roomId: RoomId): void {
+  const roomState = getRoomServerState(roomId)
+  roomState.playerMatchKillsByAddress.clear()
+  roomState.playerMatchWavesSurvivedByAddress.clear()
+}
+
+function initializeMatchLeaderboardStats(roomId: RoomId, players: LobbyPlayer[]): void {
+  resetMatchLeaderboardStats(roomId)
+  const roomState = getRoomServerState(roomId)
+  for (const player of players) {
+    roomState.playerMatchKillsByAddress.set(player.address, 0)
+    roomState.playerMatchWavesSurvivedByAddress.set(player.address, 0)
+  }
 }
 
 function logLobbyServerEvent(roomId: RoomId, message: string): void {
@@ -957,6 +976,10 @@ function applyZombieDamage(
   roomState.zombieSpawnAtById.delete(zombieId)
   roomState.deadZombieIds.delete(zombieId)
   roomState.explodedZombieIds.delete(zombieId)
+  roomState.playerMatchKillsByAddress.set(
+    normalizedAddress,
+    (roomState.playerMatchKillsByAddress.get(normalizedAddress) ?? 0) + 1
+  )
   recomputeZombiesAlive(roomId, runtime, now)
   sendToArena(roomId, 'zombieDied', { roomId, zombieId, killerAddress: normalizedAddress })
   playerProgressStore.mutate(normalizedAddress, (progress) => {
@@ -1050,7 +1073,8 @@ function finalizePendingTeamWipeReturn(roomId: RoomId): void {
   const { players } = roomState.pendingTeamWipeReturn
   roomState.pendingTeamWipeReturn = null
 
-  commitMatchStatsToLeaderboard(players)
+  commitMatchStatsToLeaderboard(roomId, players)
+  resetMatchLeaderboardStats(roomId)
 
   for (const player of players) {
     if (playerRoomByAddress.get(player.address) === roomId) {
@@ -1114,6 +1138,7 @@ function resetMatchToLobbyKeepingPlayers(roomId: RoomId): void {
   lobby.countdownEndTimeMs = 0
   lobby.arenaIntroEndTimeMs = 0
   resetMatchRuntime(roomId)
+  resetMatchLeaderboardStats(roomId)
 }
 
 function cancelArenaAutoTeleportCountdown(roomId: RoomId): void {
@@ -1289,10 +1314,18 @@ async function removePlayerFromLobby(
   options?: { preserveLoadedProfile?: boolean }
 ): Promise<void> {
   const normalizedAddress = address.toLowerCase()
+  const roomState = getRoomServerState(roomId)
   const state = getLobbyState(roomId)
   const nextPlayers = state.players.filter((p) => p.address !== normalizedAddress)
   const nextArenaPlayers = state.arenaPlayers.filter((p) => p.address !== normalizedAddress)
   const leavingPlayer = state.players.find((p) => p.address === normalizedAddress)
+  const leavingArenaPlayer = state.arenaPlayers.find((p) => p.address === normalizedAddress)
+  const leaderboardCandidate = leavingArenaPlayer ?? leavingPlayer
+
+  if (leaderboardCandidate && commitPlayerMatchStatsToLeaderboard(roomId, leaderboardCandidate)) {
+    syncLeaderboardToComponent()
+    void leaderboardStore.persist()
+  }
 
   if (options?.preserveLoadedProfile) {
     await playerProgressStore.save(normalizedAddress)
@@ -1306,6 +1339,8 @@ async function removePlayerFromLobby(
   if (playerRoomByAddress.get(normalizedAddress) === roomId) {
     playerRoomByAddress.delete(normalizedAddress)
   }
+  roomState.playerMatchKillsByAddress.delete(normalizedAddress)
+  roomState.playerMatchWavesSurvivedByAddress.delete(normalizedAddress)
   setPlayers(roomId, nextPlayers)
   setArenaPlayers(roomId, nextArenaPlayers)
   if (nextArenaPlayers.length === 0) {
@@ -1623,6 +1658,7 @@ function startZombieWaves(roomId: RoomId, address: string, startReason: 'manual'
   runtime.phaseEndTimeMs = runtime.serverNowMs + runtime.activeDurationSeconds * 1000
   runtime.startedByAddress = normalizedAddress
   clearZombieTracking(roomId, runtime)
+  initializeMatchLeaderboardStats(roomId, state.arenaPlayers)
   sendWaveSpawnPlan(roomId, runtime.waveNumber, runtime.serverNowMs)
   queueLavaHazardsForWave(roomId, runtime.waveNumber, runtime.serverNowMs)
   spawnScheduledLavaHazards(roomId, runtime.serverNowMs)
@@ -1707,11 +1743,17 @@ function waveRuntimeSystem(dt: number): void {
     if (now < runtime.phaseEndTimeMs) continue
 
     if (runtime.cyclePhase === WaveCyclePhase.ACTIVE) {
+      const roomState = getRoomServerState(roomId)
       runtime.cyclePhase = WaveCyclePhase.REST
       runtime.phaseEndTimeMs = now + runtime.restDurationSeconds * 1000
       clearAllLavaHazards(roomId)
       grantWaveMilestoneGold(roomId, runtime.waveNumber, lobbyState.arenaPlayers)
       for (const player of lobbyState.arenaPlayers) {
+        const normalizedAddress = player.address.toLowerCase()
+        roomState.playerMatchWavesSurvivedByAddress.set(
+          normalizedAddress,
+          (roomState.playerMatchWavesSurvivedByAddress.get(normalizedAddress) ?? 0) + 1
+        )
         playerProgressStore.mutate(player.address, (progress) => {
           progress.profile.lifetimeStats.wavesCleared += 1
         })
@@ -1766,24 +1808,31 @@ function syncLeaderboardToComponent(): void {
   }))
 }
 
-function commitMatchStatsToLeaderboard(players: LobbyPlayer[]): void {
+function commitPlayerMatchStatsToLeaderboard(roomId: RoomId, player: LobbyPlayer): boolean {
+  const progress = playerProgressStore.get(player.address)
+  if (!progress) return false
+
+  const roomState = getRoomServerState(roomId)
+  const killsChanged = leaderboardStore.update(
+    'kills',
+    player.address,
+    progress.profile.lastKnownName,
+    roomState.playerMatchKillsByAddress.get(player.address) ?? 0
+  )
+  const wavesChanged = leaderboardStore.update(
+    'waves',
+    player.address,
+    progress.profile.lastKnownName,
+    roomState.playerMatchWavesSurvivedByAddress.get(player.address) ?? 0
+  )
+
+  return killsChanged || wavesChanged
+}
+
+function commitMatchStatsToLeaderboard(roomId: RoomId, players: LobbyPlayer[]): void {
   let changed = false
   for (const player of players) {
-    const progress = playerProgressStore.get(player.address)
-    if (!progress) continue
-    const killsChanged = leaderboardStore.update(
-      'kills',
-      player.address,
-      progress.profile.lastKnownName,
-      progress.profile.lifetimeStats.zombiesKilled
-    )
-    const wavesChanged = leaderboardStore.update(
-      'waves',
-      player.address,
-      progress.profile.lastKnownName,
-      progress.profile.lifetimeStats.wavesCleared
-    )
-    if (killsChanged || wavesChanged) changed = true
+    if (commitPlayerMatchStatsToLeaderboard(roomId, player)) changed = true
   }
   if (changed) {
     syncLeaderboardToComponent()
