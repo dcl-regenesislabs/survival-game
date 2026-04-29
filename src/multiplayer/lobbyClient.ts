@@ -15,7 +15,7 @@ import { WAVE_ACTIVE_SECONDS, WAVE_REST_SECONDS } from '../shared/matchConfig'
 import { getCurrentRoomId as getRuntimeRoomId, setCurrentRoomId } from '../roomRuntime'
 import { DEFAULT_ROOM_ID, RoomId, getArenaRoomConfig, isRoomId } from '../shared/roomConfig'
 import { getServerTime } from '../shared/timeSync'
-import { setIsoViewEnabled, setAutoFireEnabled } from '../gameplayInput'
+import { setIsoViewEnabled, setTopViewEnabled, setAutoFireEnabled, setCameraModeToggleEnabled } from '../gameplayInput'
 
 let latestLobbyEvent = ''
 let latestLobbyEventType = ''
@@ -55,6 +55,8 @@ function resetLocalMatchUiState(): void {
   playerMatchKillsByAddress.clear()
   playerMatchZcByAddress.clear()
   latestLobbyEventType = ''
+  setCameraModeToggleEnabled(false)
+  setTopViewEnabled(false)
   setIsoViewEnabled(false)
   setAutoFireEnabled(false)
   setLocalAvatarHidden(false)
@@ -204,6 +206,7 @@ export function setupLobbyClient(): void {
     const localAddress = getLocalAddress()
     if (!localAddress || !data.addresses.includes(localAddress)) return
     localReadyForMatch = true
+    setCameraModeToggleEnabled(true)
     setIsoViewEnabled(true)
     setAutoFireEnabled(true)
     movePlayerTo({
@@ -222,21 +225,12 @@ export function setupLobbyClient(): void {
   room.onMessage('lobbyReturnTeleport', (data) => {
     const localAddress = getLocalAddress()
     if (!localAddress || !data.addresses.includes(localAddress)) return
-    setIsoViewEnabled(false)
-    setAutoFireEnabled(false)
-    setLocalAvatarHidden(false)
-    resetDeathAnimationState()
     resetLocalMatchUiState()
     movePlayerTo({
       newRelativePosition: {
         x: data.positionX,
         y: data.positionY,
         z: data.positionZ
-      },
-      cameraTarget: {
-        x: data.lookAtX,
-        y: data.lookAtY,
-        z: data.lookAtZ
       }
     })
   })

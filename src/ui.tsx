@@ -62,7 +62,7 @@ import {
   sendStartGameManual
 } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
-import { LOBBY_RETURN_LOOK_AT, LOBBY_RETURN_POSITION } from './shared/roomConfig'
+import { LOBBY_RETURN_POSITION } from './shared/roomConfig'
 import { MATCH_MAX_PLAYERS } from './shared/matchConfig'
 import { getServerTime } from './shared/timeSync'
 
@@ -1352,8 +1352,7 @@ const teamPanelNameWidth = isMobileRuntime ? 100 : 120
               beginUiPointerCapture()
               sendLeaveLobby()
               movePlayerTo({
-                newRelativePosition: LOBBY_RETURN_POSITION,
-                cameraTarget: LOBBY_RETURN_LOOK_AT
+                newRelativePosition: LOBBY_RETURN_POSITION
               })
             }}
             onMouseUp={endUiPointerCapture}
