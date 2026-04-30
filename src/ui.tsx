@@ -63,7 +63,7 @@ import {
 } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
 import { LOBBY_RETURN_POSITION } from './shared/roomConfig'
-import { MATCH_MAX_PLAYERS } from './shared/matchConfig'
+import { MATCH_MAX_PLAYERS, START_GAME_COUNTDOWN_SECONDS } from './shared/matchConfig'
 import { getServerTime } from './shared/timeSync'
 
 const PLAYER_HP_FRAME_WIDTH = 581
@@ -210,7 +210,7 @@ const STARTING_GAME_BUTTON_UVS = createAtlasUvs(
   STARTING_GAME_BUTTON_SOURCE_WIDTH,
   STARTING_GAME_BUTTON_SOURCE_HEIGHT
 )
-const START_GAME_COUNTDOWN_DURATION_MS = 5000
+const START_GAME_COUNTDOWN_DURATION_MS = START_GAME_COUNTDOWN_SECONDS * 1000
 const START_GAME_PROGRESS_BAR_WIDTH = Math.round(STARTING_GAME_BUTTON_WIDTH * 0.9)
 const START_GAME_PROGRESS_BAR_HEIGHT = 10
 const START_GAME_PROGRESS_BAR_RADIUS = 5
