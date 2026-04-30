@@ -186,6 +186,11 @@ const LOBBY_HUD_SHOP_SOURCE_HEIGHT = 178
 const LOBBY_HUD_SHOP_WIDTH = Math.round(LOBBY_HUD_SHOP_SOURCE_WIDTH * 0.5)
 const LOBBY_HUD_SHOP_HEIGHT = Math.round(LOBBY_HUD_SHOP_SOURCE_HEIGHT * 0.5)
 const LOBBY_HUD_SHOP_UVS = createAtlasUvs(346, 80, LOBBY_HUD_SHOP_SOURCE_WIDTH, LOBBY_HUD_SHOP_SOURCE_HEIGHT)
+const START_GAME_BUTTON_SOURCE_WIDTH = 719
+const START_GAME_BUTTON_SOURCE_HEIGHT = 190
+const START_GAME_BUTTON_WIDTH = Math.round(START_GAME_BUTTON_SOURCE_WIDTH * 0.5)
+const START_GAME_BUTTON_HEIGHT = Math.round(START_GAME_BUTTON_SOURCE_HEIGHT * 0.5)
+const START_GAME_BUTTON_UVS = createAtlasUvs(397, 780, START_GAME_BUTTON_SOURCE_WIDTH, START_GAME_BUTTON_SOURCE_HEIGHT)
 const LOBBY_HUD_GOLD_TOP = Math.round((1080 - (LOBBY_HUD_GOLD_HEIGHT + LOBBY_HUD_ITEM_MARGIN_BOTTOM + LOBBY_HUD_SHOP_HEIGHT)) * 0.5)
 
 type TeamHudPlayerEntry = {
@@ -553,7 +558,6 @@ export const uiMenu = () => {
   const isInZone = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
   const isInsideLobbyTrigger = isLocalPlayerInsideLobbyTrigger()
   const isStartGameButtonLocked = startCountdownSeconds > 0
-  const startGameButtonLabel = isStartGameButtonLocked ? `STARTING IN ${startCountdownSeconds}` : 'START GAME'
   const showStartGameButton =
     isInZone &&
     isInsideLobbyTrigger &&
@@ -1371,14 +1375,10 @@ const teamPanelNameWidth = isMobileRuntime ? 100 : 120
         >
           <UiEntity
             uiTransform={{
-              width: 320,
-              height: 64,
+              width: START_GAME_BUTTON_WIDTH,
+              height: START_GAME_BUTTON_HEIGHT,
               alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 8
-            }}
-            uiBackground={{
-              color: isStartGameButtonLocked ? Color4.create(0.22, 0.46, 0.28, 0.92) : Color4.create(0.1, 0.7, 0.25, 0.92)
+              justifyContent: 'center'
             }}
             onMouseDown={
               isStartGameButtonLocked
@@ -1391,12 +1391,12 @@ const teamPanelNameWidth = isMobileRuntime ? 100 : 120
             onMouseUp={endUiPointerCapture}
           >
             <UiEntity
-              uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
-              uiText={{
-                value: startGameButtonLabel,
-                fontSize: 24,
-                color: Color4.White(),
-                textAlign: 'middle-center'
+              uiTransform={{ width: '100%', height: '100%' }}
+              uiBackground={{
+                textureMode: 'stretch',
+                texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                uvs: START_GAME_BUTTON_UVS,
+                color: Color4.create(1, 1, 1, isStartGameButtonLocked ? 0.72 : 1)
               }}
             />
           </UiEntity>
