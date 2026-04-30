@@ -156,7 +156,7 @@ function topViewCameraSystem(dt: number) {
 
   if (!topViewSmoothedReady) {
     topViewSmoothedPos = Vector3.clone(target)
-    topViewSmoothedReady = true
+    topViewSmoothedReady = true 
   }
 
   const factor = 1 - Math.exp(-TOP_VIEW_SMOOTH_SPEED * stableDt)
