@@ -63,7 +63,7 @@ import {
 } from './multiplayer/lobbyClient'
 import { LobbyPhase } from './shared/lobbySchemas'
 import { LOBBY_RETURN_POSITION } from './shared/roomConfig'
-import { MATCH_MAX_PLAYERS } from './shared/matchConfig'
+import { MATCH_MAX_PLAYERS, START_GAME_COUNTDOWN_SECONDS } from './shared/matchConfig'
 import { getServerTime } from './shared/timeSync'
 
 const PLAYER_HP_FRAME_WIDTH = 581
@@ -186,6 +186,34 @@ const LOBBY_HUD_SHOP_SOURCE_HEIGHT = 178
 const LOBBY_HUD_SHOP_WIDTH = Math.round(LOBBY_HUD_SHOP_SOURCE_WIDTH * 0.5)
 const LOBBY_HUD_SHOP_HEIGHT = Math.round(LOBBY_HUD_SHOP_SOURCE_HEIGHT * 0.5)
 const LOBBY_HUD_SHOP_UVS = createAtlasUvs(346, 80, LOBBY_HUD_SHOP_SOURCE_WIDTH, LOBBY_HUD_SHOP_SOURCE_HEIGHT)
+const START_GAME_BUTTON_SOURCE_WIDTH = 691
+const START_GAME_BUTTON_SOURCE_HEIGHT = 150
+const START_GAME_BUTTON_SOURCE_X = 73
+const START_GAME_BUTTON_SOURCE_Y = 820
+const START_GAME_BUTTON_WIDTH = Math.round(START_GAME_BUTTON_SOURCE_WIDTH * 0.5)
+const START_GAME_BUTTON_HEIGHT = Math.round(START_GAME_BUTTON_SOURCE_HEIGHT * 0.5)
+const START_GAME_BUTTON_UVS = createAtlasUvs(
+  START_GAME_BUTTON_SOURCE_X,
+  START_GAME_BUTTON_SOURCE_Y,
+  START_GAME_BUTTON_SOURCE_WIDTH,
+  START_GAME_BUTTON_SOURCE_HEIGHT
+)
+const STARTING_GAME_BUTTON_SOURCE_WIDTH = 688
+const STARTING_GAME_BUTTON_SOURCE_HEIGHT = 145
+const STARTING_GAME_BUTTON_SOURCE_X = 789
+const STARTING_GAME_BUTTON_SOURCE_Y = 821
+const STARTING_GAME_BUTTON_WIDTH = Math.round(STARTING_GAME_BUTTON_SOURCE_WIDTH * 0.5)
+const STARTING_GAME_BUTTON_HEIGHT = Math.round(STARTING_GAME_BUTTON_SOURCE_HEIGHT * 0.5)
+const STARTING_GAME_BUTTON_UVS = createAtlasUvs(
+  STARTING_GAME_BUTTON_SOURCE_X,
+  STARTING_GAME_BUTTON_SOURCE_Y,
+  STARTING_GAME_BUTTON_SOURCE_WIDTH,
+  STARTING_GAME_BUTTON_SOURCE_HEIGHT
+)
+const START_GAME_COUNTDOWN_DURATION_MS = START_GAME_COUNTDOWN_SECONDS * 1000
+const START_GAME_PROGRESS_BAR_WIDTH = Math.round(STARTING_GAME_BUTTON_WIDTH * 0.9)
+const START_GAME_PROGRESS_BAR_HEIGHT = 10
+const START_GAME_PROGRESS_BAR_RADIUS = 5
 const LOBBY_HUD_GOLD_TOP = Math.round((1080 - (LOBBY_HUD_GOLD_HEIGHT + LOBBY_HUD_ITEM_MARGIN_BOTTOM + LOBBY_HUD_SHOP_HEIGHT)) * 0.5)
 
 type TeamHudPlayerEntry = {
@@ -541,6 +569,10 @@ export const uiMenu = () => {
     lobbyState?.countdownEndTimeMs && lobbyState.countdownEndTimeMs > timerNowMs
       ? Math.max(0, Math.ceil((lobbyState.countdownEndTimeMs - timerNowMs) / 1000))
       : 0
+  const startCountdownRemainingMs =
+    lobbyState?.countdownEndTimeMs && lobbyState.countdownEndTimeMs > timerNowMs
+      ? Math.max(0, lobbyState.countdownEndTimeMs - timerNowMs)
+      : 0
   const phaseRemainingSeconds = matchRuntime ? Math.max(0, Math.ceil((matchRuntime.phaseEndTimeMs - timerNowMs) / 1000)) : 0
   const showGameOverOverlay = shouldShowGameOverOverlay()
   const countdownLabel = getWaveCountdownLabel()
@@ -553,7 +585,13 @@ export const uiMenu = () => {
   const isInZone = !!localAddress && !!lobbyState?.players.find((p) => p.address === localAddress)
   const isInsideLobbyTrigger = isLocalPlayerInsideLobbyTrigger()
   const isStartGameButtonLocked = startCountdownSeconds > 0
-  const startGameButtonLabel = isStartGameButtonLocked ? `STARTING IN ${startCountdownSeconds}` : 'START GAME'
+  const activeStartGameButtonWidth = isStartGameButtonLocked ? STARTING_GAME_BUTTON_WIDTH : START_GAME_BUTTON_WIDTH
+  const activeStartGameButtonHeight = isStartGameButtonLocked ? STARTING_GAME_BUTTON_HEIGHT : START_GAME_BUTTON_HEIGHT
+  const activeStartGameButtonUvs = isStartGameButtonLocked ? STARTING_GAME_BUTTON_UVS : START_GAME_BUTTON_UVS
+  const startGameProgressRatio = isStartGameButtonLocked
+    ? Math.max(0, Math.min(1, 1 - startCountdownRemainingMs / START_GAME_COUNTDOWN_DURATION_MS))
+    : 0
+  const startGameProgressFillWidth = Math.max(0, Math.round(START_GAME_PROGRESS_BAR_WIDTH * startGameProgressRatio))
   const showStartGameButton =
     isInZone &&
     isInsideLobbyTrigger &&
@@ -1364,21 +1402,17 @@ const teamPanelNameWidth = isMobileRuntime ? 100 : 120
           uiTransform={{
             position: { bottom: 80, left: 0, right: 0 },
             positionType: 'absolute',
-            flexDirection: 'row',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center'
           }}
         >
           <UiEntity
             uiTransform={{
-              width: 320,
-              height: 64,
+              width: activeStartGameButtonWidth,
+              height: activeStartGameButtonHeight,
               alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 8
-            }}
-            uiBackground={{
-              color: isStartGameButtonLocked ? Color4.create(0.22, 0.46, 0.28, 0.92) : Color4.create(0.1, 0.7, 0.25, 0.92)
+              justifyContent: 'center'
             }}
             onMouseDown={
               isStartGameButtonLocked
@@ -1391,15 +1425,35 @@ const teamPanelNameWidth = isMobileRuntime ? 100 : 120
             onMouseUp={endUiPointerCapture}
           >
             <UiEntity
-              uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
-              uiText={{
-                value: startGameButtonLabel,
-                fontSize: 24,
-                color: Color4.White(),
-                textAlign: 'middle-center'
+              uiTransform={{ width: '100%', height: '100%' }}
+              uiBackground={{
+                textureMode: 'stretch',
+                texture: { src: HUD_LOBBY_SHEET_SRC, filterMode: 'tri-linear', wrapMode: 'clamp' },
+                uvs: activeStartGameButtonUvs
               }}
             />
           </UiEntity>
+          {isStartGameButtonLocked && (
+            <UiEntity
+              uiTransform={{
+                width: START_GAME_PROGRESS_BAR_WIDTH,
+                height: START_GAME_PROGRESS_BAR_HEIGHT,
+                margin: { top: 10 },
+                borderRadius: START_GAME_PROGRESS_BAR_RADIUS,
+                justifyContent: 'center'
+              }}
+              uiBackground={{ color: Color4.create(0.05, 0.17, 0.08, 0.95) }}
+            >
+              <UiEntity
+                uiTransform={{
+                  width: startGameProgressFillWidth,
+                  height: START_GAME_PROGRESS_BAR_HEIGHT,
+                  borderRadius: START_GAME_PROGRESS_BAR_RADIUS
+                }}
+                uiBackground={{ color: Color4.create(0.15, 0.42, 0.18, 1) }}
+              />
+            </UiEntity>
+          )}
         </UiEntity>
       )}
       {showLobbyHud && (

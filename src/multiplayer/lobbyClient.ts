@@ -11,7 +11,7 @@ import { applyPlayerLoadoutSnapshot } from '../loadoutState'
 import { enableArenaWeapon, resetArenaWeaponProgress } from '../weaponManager'
 import { resetToIdle } from '../waveManager'
 import { ArenaWeaponType } from '../shared/loadoutCatalog'
-import { WAVE_ACTIVE_SECONDS, WAVE_REST_SECONDS } from '../shared/matchConfig'
+import { START_GAME_COUNTDOWN_SECONDS, WAVE_ACTIVE_SECONDS, WAVE_REST_SECONDS } from '../shared/matchConfig'
 import { getCurrentRoomId as getRuntimeRoomId, setCurrentRoomId } from '../roomRuntime'
 import { DEFAULT_ROOM_ID, RoomId, getArenaRoomConfig, isRoomId } from '../shared/roomConfig'
 import { getServerTime } from '../shared/timeSync'
@@ -36,7 +36,6 @@ const playerMatchKillsByAddress = new Map<string, number>()
 const playerMatchZcByAddress = new Map<string, number>()
 const ENABLE_LOCAL_AUTH_DEBUG_IN_PREVIEW = false
 const LOCAL_AUTH_DEBUG_GRACE_MS = 2500
-const LOCAL_AUTH_DEBUG_AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const LOCAL_AUTH_DEBUG_ARENA_INTRO_SECONDS = 5
 const DEBUG_MATCH_ID_PREFIX = 'debug_local_match_'
 
@@ -655,7 +654,7 @@ function debugStartGameManual(): void {
   const runtime = ensureDebugMatchRuntimeState()
   if (runtime.isRunning || lobby.countdownEndTimeMs > 0 || lobby.arenaIntroEndTimeMs > 0) return
 
-  lobby.countdownEndTimeMs = getServerTime() + LOCAL_AUTH_DEBUG_AUTO_TELEPORT_COUNTDOWN_SECONDS * 1000
+  lobby.countdownEndTimeMs = getServerTime() + START_GAME_COUNTDOWN_SECONDS * 1000
   latestLobbyEvent = 'Debug auto-teleport countdown started'
   latestLobbyEventType = 'countdown'
   latestLobbyEventAtMs = Date.now()

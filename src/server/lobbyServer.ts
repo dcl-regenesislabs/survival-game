@@ -22,6 +22,7 @@ import {
   EXPLODER_ZOMBIE_MAX_SIMULTANEOUS_LATE_WAVE,
   EXPLODER_ZOMBIE_UNLOCK_WAVE,
   MATCH_MAX_PLAYERS,
+  START_GAME_COUNTDOWN_SECONDS,
   QUICK_ZOMBIE_CHANCE,
   QUICK_ZOMBIE_UNLOCK_WAVE,
   TANK_ZOMBIE_CHANCE,
@@ -113,7 +114,6 @@ const GUN_UPGRADE_FIRE_RATE_MS: Record<number, number> = {
 const SPAWN_EDGE_BAND_WIDTH = 4.75
 const SPAWN_CENTER_SAFE_RADIUS = 8.5
 const SPAWN_CENTER_SAFE_RADIUS_SQ = SPAWN_CENTER_SAFE_RADIUS * SPAWN_CENTER_SAFE_RADIUS
-const AUTO_TELEPORT_COUNTDOWN_SECONDS = 5
 const ARENA_WARNING_SECONDS = 5
 const TEAM_WIPE_UI_DELAY_MS = 0
 const TEAM_WIPE_TELEPORT_DELAY_MS = 3000
@@ -1269,10 +1269,10 @@ function sendLobbyReturnTeleport(roomId: RoomId, players: LobbyPlayer[]): void {
 function startArenaAutoTeleportCountdown(roomId: RoomId, players: LobbyPlayer[]): void {
   const lobby = getLobbyStateMutable(roomId)
   if (lobby.countdownEndTimeMs > 0) return
-  lobby.countdownEndTimeMs = getServerTime() + AUTO_TELEPORT_COUNTDOWN_SECONDS * 1000
+  lobby.countdownEndTimeMs = getServerTime() + START_GAME_COUNTDOWN_SECONDS * 1000
   logLobbyServerEvent(
     roomId,
-    `ArenaAutoTeleportCountdownStarted ${players.length}/${MATCH_MAX_PLAYERS} (${AUTO_TELEPORT_COUNTDOWN_SECONDS}s)`
+    `ArenaAutoTeleportCountdownStarted ${players.length}/${MATCH_MAX_PLAYERS} (${START_GAME_COUNTDOWN_SECONDS}s)`
   )
 }
 
