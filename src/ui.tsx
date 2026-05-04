@@ -408,6 +408,7 @@ function syncCachedArenaRoster(
 }
 
 let isMobileRuntime = detectMobileUserAgent()
+export function isMobile(): boolean { return isMobileRuntime }
 let runtimePlatformLookupRequested = false
 let serverLoaderWasActive = false
 let serverLoaderCompletedUntil = 0

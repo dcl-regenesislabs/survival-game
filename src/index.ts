@@ -150,13 +150,13 @@ function topViewCameraSystem(dt: number) {
 
   if (!enabled || !topViewCameraEntity || !Transform.has(engine.PlayerEntity)) return
 
-  const stableDt = Math.min(dt, TOP_VIEW_DT_MAX)
+  const stableDt = Math.min(dt, TOP_VIEW_DT_MAX) 
   const playerPos = Transform.get(engine.PlayerEntity).position
   const target = Vector3.create(playerPos.x, playerPos.y + TOP_VIEW_HEIGHT, playerPos.z - TOP_VIEW_DISTANCE)
 
   if (!topViewSmoothedReady) {
     topViewSmoothedPos = Vector3.clone(target)
-    topViewSmoothedReady = true
+    topViewSmoothedReady = true 
   }
 
   const factor = 1 - Math.exp(-TOP_VIEW_SMOOTH_SPEED * stableDt)
