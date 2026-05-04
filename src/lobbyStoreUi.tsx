@@ -11,6 +11,7 @@ import {
 import { getPlayerGold, isLoadoutWeaponEquipped, isLoadoutWeaponOwned } from './loadoutState'
 import { sendBuyLoadoutWeapon, sendEquipLoadoutWeapon, sendRequestLoadoutRefresh } from './multiplayer/lobbyClient'
 import { endUiPointerCapture } from './gameplayInput'
+import { isMobile } from './ui'
 
 let storeOpen = false
 let selectedWeaponId: LoadoutWeaponId = LOADOUT_WEAPON_DEFINITIONS[0].id
@@ -33,7 +34,6 @@ function getUiCanvasInfo() {
 function getEffectiveCanvasViewport() {
   const canvasInfo = getUiCanvasInfo()
   if (!canvasInfo) return null
-
   const devicePixelRatio = canvasInfo.devicePixelRatio > 0 ? canvasInfo.devicePixelRatio : 1
   return {
     width: Math.round(canvasInfo.width / devicePixelRatio),
@@ -47,73 +47,72 @@ function getStoreScaleProfile() {
   if (!effectiveViewport) {
     return { width: 1, height: 1, spacing: 1, font: 1, image: 1, button: 1 }
   }
-
   const shortestEffectiveSide = Math.min(effectiveViewport.width, effectiveViewport.height)
-
   if (shortestEffectiveSide <= 460) {
     return { width: 1.10, height: 1.26, spacing: 1.12, font: 1.52, image: 1.40, button: 1.22 }
   }
-
   if (shortestEffectiveSide <= 540) {
     return { width: 1.08, height: 1.20, spacing: 1.10, font: 1.40, image: 1.30, button: 1.18 }
   }
-
   if (shortestEffectiveSide <= 720) {
     return { width: 1.04, height: 1.10, spacing: 1.06, font: 1.18, image: 1.14, button: 1.10 }
   }
-
   return { width: 1, height: 1, spacing: 1, font: 1, image: 1, button: 1 }
 }
 
 function scaleStoreUiValue(value: number, scale: number = 1): number {
   return scale === 1 ? value : Math.max(1, Math.round(value * scale))
 }
-
-function scaleStoreWidth(value: number): number {
-  return scaleStoreUiValue(value, getStoreScaleProfile().width)
-}
-
-function scaleStoreHeight(value: number): number {
-  return scaleStoreUiValue(value, getStoreScaleProfile().height)
-}
-
-function scaleStoreSpacing(value: number): number {
-  return scaleStoreUiValue(value, getStoreScaleProfile().spacing)
-}
-
-function scaleStoreFont(value: number): number {
-  return scaleStoreUiValue(value, getStoreScaleProfile().font)
-}
-
-function scaleStoreImage(value: number): number {
-  return scaleStoreUiValue(value, getStoreScaleProfile().image)
-}
-
-function scaleStoreButton(value: number): number {
-  return scaleStoreUiValue(value, getStoreScaleProfile().button)
-}
+function scaleStoreWidth(value: number): number { return scaleStoreUiValue(value, getStoreScaleProfile().width) }
+function scaleStoreHeight(value: number): number { return scaleStoreUiValue(value, getStoreScaleProfile().height) }
+function scaleStoreSpacing(value: number): number { return scaleStoreUiValue(value, getStoreScaleProfile().spacing) }
+function scaleStoreFont(value: number): number { return scaleStoreUiValue(value, getStoreScaleProfile().font) }
+function scaleStoreImage(value: number): number { return scaleStoreUiValue(value, getStoreScaleProfile().image) }
+function scaleStoreButton(value: number): number { return scaleStoreUiValue(value, getStoreScaleProfile().button) }
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
 const C = {
-  overlay:      Color4.create(0,    0,    0,    0.75),
-  panel:        Color4.create(0.161, 0.267, 0.180, 0.94),
-  rowLabel:     Color4.create(0.20, 0.27, 0.30, 1),
-  cardBg:       Color4.create(0.42, 0.58, 0.52, 1),
-  cardSelected: Color4.create(0.30, 0.70, 0.62, 1),
-  cardOwned:    Color4.create(0.35, 0.55, 0.48, 1),
-  cardLocked:   Color4.create(0.28, 0.36, 0.34, 1),
-  detailBg:     Color4.create(0.20, 0.26, 0.30, 1),
-  textWhite:    Color4.create(1,    1,    1,    1),
-  textGold:     Color4.create(1.0,  0.82, 0.20, 1),
-  textGray:     Color4.create(0.75, 0.85, 0.82, 1),
-  textGreen:    Color4.create(0.45, 0.95, 0.75, 1),
-  textLocked:   Color4.create(0.45, 0.52, 0.50, 1),
-  btnBuy:       Color4.create(0.25, 0.62, 0.52, 1),
-  btnOwned:     Color4.create(0.28, 0.45, 0.40, 1),
-  btnLocked:    Color4.create(0.22, 0.28, 0.28, 1),
-  btnClose:     Color4.create(0.60, 0.10, 0.08, 1),
-  star:         Color4.create(1.0,  0.78, 0.10, 1),
+  panel:        Color4.create(0.10, 0.12, 0.07, 0.97),
+  headerBg:     Color4.create(0.16, 0.24, 0.13, 1),
+  separator:    Color4.create(0.56, 0.69, 0.30, 1),
+
+  rowLabel:     Color4.create(0.18, 0.28, 0.12, 1),
+  rowLabelText: Color4.create(0.96, 0.94, 0.74, 1),
+
+  cardT1:       Color4.create(0.16, 0.27, 0.13, 1),
+  cardT1Sel:    Color4.create(0.34, 0.26, 0.10, 1),
+  cardT2:       Color4.create(0.33, 0.10, 0.11, 1),
+  cardT2Sel:    Color4.create(0.54, 0.16, 0.16, 1),
+  cardT3:       Color4.create(0.48, 0.30, 0.08, 1),
+  cardT3Sel:    Color4.create(0.72, 0.47, 0.12, 1),
+  cardOwned:    Color4.create(0.10, 0.29, 0.14, 1),
+  cardOwnedSel: Color4.create(0.17, 0.43, 0.20, 1),
+
+  detailBg:     Color4.create(0.12, 0.15, 0.10, 1),
+  statRowA:     Color4.create(0.20, 0.23, 0.15, 1),
+  statBarBg:    Color4.create(0.29, 0.22, 0.12, 1),
+  statBarFg:    Color4.create(0.77, 0.71, 0.28, 1),
+
+  textWhite:    Color4.create(1.00, 1.00, 1.00, 1),
+  textGold:     Color4.create(0.98, 0.83, 0.27, 1),
+  textGray:     Color4.create(0.76, 0.77, 0.66, 1),
+  textGreen:    Color4.create(0.56, 0.92, 0.45, 1),
+  textLocked:   Color4.create(0.53, 0.50, 0.40, 1),
+  textTitle:    Color4.create(0.97, 0.95, 0.79, 1),
+
+  tierT1:       Color4.create(0.62, 0.84, 0.46, 1),
+  tierT2:       Color4.create(0.93, 0.40, 0.30, 1),
+  tierT3:       Color4.create(1.00, 0.80, 0.18, 1),
+
+  btnBuy:       Color4.create(0.69, 0.46, 0.10, 1),
+  btnEquip:     Color4.create(0.17, 0.49, 0.18, 1),
+  btnEquipped:  Color4.create(0.11, 0.24, 0.10, 1),
+  btnLocked:    Color4.create(0.19, 0.18, 0.14, 1),
+  btnClose:     Color4.create(0.60, 0.13, 0.08, 1),
+  goldBadgeBg:  Color4.create(0.28, 0.19, 0.04, 1),
+
+  star:         Color4.create(1.00, 0.78, 0.10, 1),
 }
 
 // ─── Assets ───────────────────────────────────────────────────────────────────
@@ -137,7 +136,7 @@ const WEAPON_ROW_LABEL: Record<ArenaWeaponType, string> = {
 }
 
 const WEAPON_BASE_LABEL: Record<ArenaWeaponType, string> = {
-  gun: 'Pistol',
+  gun:     'Pistol',
   shotgun: 'Shotgun',
   minigun: 'Minigun',
 }
@@ -169,8 +168,29 @@ const WEAPON_STATS: Partial<Record<LoadoutWeaponId, { dmg: string; rate: string;
 }
 
 const WEAPON_ROWS: ArenaWeaponType[] = ['gun', 'shotgun', 'minigun']
+const STORE_BACKGROUND_ASPECT = 722 / 1137
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getTierColor(upgradeLevel: number): Color4 {
+  if (upgradeLevel === 1) return C.tierT1
+  if (upgradeLevel === 2) return C.tierT2
+  return C.tierT3
+}
+
+function getStatPercent(statKey: 'dmg' | 'rate' | 'range', value: string): number {
+  if (statKey === 'dmg') return Math.min(parseInt(value) || 0, 120) / 120
+  if (statKey === 'rate') return Math.max(0, 1 - ((parseFloat(value) || 0) / 1.0))
+  return value === 'Short' ? 0.33 : value === 'Medium' ? 0.66 : 1.0
+}
+
+function getCardBg(upgradeLevel: number, isSelected: boolean, owned: boolean): Color4 {
+  if (owned) return isSelected ? C.cardOwnedSel : C.cardOwned
+  if (upgradeLevel === 1) return isSelected ? C.cardT1Sel : C.cardT1
+  if (upgradeLevel === 2) return isSelected ? C.cardT2Sel : C.cardT2
+  return isSelected ? C.cardT3Sel : C.cardT3
+}
+
 
 function isPreviousOwned(weapon: LoadoutWeaponDefinition): boolean {
   if (weapon.upgradeLevel === 1) return true
@@ -187,19 +207,27 @@ function getUpgradeTierLabel(weapon: LoadoutWeaponDefinition): string {
   return WEAPON_TIER_LABEL[weapon.upgradeLevel]
 }
 
-// ─── Upgrade card ─────────────────────────────────────────────────────────────
+// ─── Metrics ─────────────────────────────────────────────────────────────────
 
 function getStoreMetrics() {
   const cardW = scaleStoreWidth(152)
   const cardH = scaleStoreHeight(146)
   const cardGap = scaleStoreSpacing(8)
-  const cardImageBox = scaleStoreImage(76)
-  const cardImageAreaH = scaleStoreHeight(80)
-  const cardNameAreaH = scaleStoreHeight(36)
+  const cardImageBox = scaleStoreImage(72)
+  const cardImageAreaH = scaleStoreHeight(76)
+  const cardNameAreaH = scaleStoreHeight(28)
   const rowGap = scaleStoreSpacing(8)
-  const rowLabelW = scaleStoreWidth(118)
-  const rowLabelGap = scaleStoreSpacing(12)
-  const detailPanelW = scaleStoreWidth(296)
+  const mobile = isMobile()
+  const rowLabelW = mobile ? 0 : scaleStoreWidth(118)
+  const rowLabelGap = mobile ? 0 : scaleStoreSpacing(12)
+  const detailPanelW = mobile ? scaleStoreWidth(320) : scaleStoreWidth(330)
+
+  // Stat row widths derived from panel so they always add up (panel - 24 panel pad - 26 row pad - 16 gaps)
+  const statNoGap = detailPanelW - 24 - 26 - 16
+  const statLabelW = Math.round(statNoGap * 0.379)
+  const statValueW = Math.round(statNoGap * 0.265)
+  const statBarW   = statNoGap - statLabelW - statValueW
+
   const detailTitleH = scaleStoreHeight(36)
   const detailSubtitleH = scaleStoreHeight(24)
   const storePanelMaxW = 1080
@@ -208,36 +236,37 @@ function getStoreMetrics() {
   const leftGridW = rowLabelW + rowLabelGap + cardW * gridColumns + cardGap * (gridColumns - 1)
   const storeContentW = leftGridW + storeBodyGap + detailPanelW
   const storeGridHeight = cardH * WEAPON_ROWS.length + rowGap * (WEAPON_ROWS.length - 1)
+  const storeHeaderHeight = scaleStoreButton(34) + scaleStoreSpacing(20)
+  const storeSeparatorHeight = 2 + scaleStoreSpacing(12)
+  const storePanelVerticalPadding = scaleStoreSpacing(72)
+  const storeBodyHeight = storeGridHeight + scaleStoreSpacing(10)
+  const storePanelContentH = storeHeaderHeight + scaleStoreSpacing(4) + storeSeparatorHeight + storeBodyHeight + storePanelVerticalPadding
+  const storePanelAspectH = Math.round(storePanelMaxW * STORE_BACKGROUND_ASPECT)
+  const storePanelHeight = Math.max(storePanelAspectH + scaleStoreHeight(18), storePanelContentH)
 
   return {
-    CARD_W: cardW,
-    CARD_H: cardH,
-    CARD_GAP: cardGap,
-    CARD_IMAGE_BOX: cardImageBox,
-    CARD_IMAGE_AREA_H: cardImageAreaH,
-    CARD_NAME_AREA_H: cardNameAreaH,
-    ROW_GAP: rowGap,
-    ROW_LABEL_W: rowLabelW,
-    ROW_LABEL_GAP: rowLabelGap,
-    DETAIL_PANEL_W: detailPanelW,
-    DETAIL_TITLE_H: detailTitleH,
-    DETAIL_SUBTITLE_H: detailSubtitleH,
-    STORE_PANEL_MAX_W: storePanelMaxW,
-    STORE_BODY_GAP: storeBodyGap,
-    LEFT_GRID_W: leftGridW,
-    STORE_CONTENT_W: storeContentW,
-    STORE_GRID_HEIGHT: storeGridHeight,
+    CARD_W: cardW, CARD_H: cardH, CARD_GAP: cardGap,
+    CARD_IMAGE_BOX: cardImageBox, CARD_IMAGE_AREA_H: cardImageAreaH, CARD_NAME_AREA_H: cardNameAreaH,
+    ROW_GAP: rowGap, ROW_LABEL_W: rowLabelW, ROW_LABEL_GAP: rowLabelGap,
+    DETAIL_PANEL_W: detailPanelW, DETAIL_TITLE_H: detailTitleH, DETAIL_SUBTITLE_H: detailSubtitleH,
+    STORE_PANEL_MAX_W: storePanelMaxW, STORE_BODY_GAP: storeBodyGap,
+    LEFT_GRID_W: leftGridW, STORE_CONTENT_W: storeContentW, STORE_GRID_HEIGHT: storeGridHeight, STORE_PANEL_HEIGHT: storePanelHeight,
+    STAT_LABEL_W: statLabelW, STAT_BAR_W: statBarW, STAT_VALUE_W: statValueW,
+    MOBILE: mobile,
   }
 }
+
+// ─── Upgrade Card ─────────────────────────────────────────────────────────────
 
 function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLast?: boolean }) {
   const { CARD_W, CARD_H, CARD_GAP, CARD_IMAGE_BOX, CARD_IMAGE_AREA_H, CARD_NAME_AREA_H } = getStoreMetrics()
   const isSelected = selectedWeaponId === weapon.id
   const owned = isLoadoutWeaponOwned(weapon.id)
+  const equipped = isLoadoutWeaponEquipped(weapon.id)
   const stars = UPGRADE_STARS[weapon.upgradeLevel - 1]
   const imageSrc = WEAPON_IMAGE[weapon.id]
-
-  const bg = isSelected ? C.cardSelected : owned ? C.cardOwned : C.cardBg
+  const tierColor = getTierColor(weapon.upgradeLevel)
+  const bg = getCardBg(weapon.upgradeLevel, isSelected, owned)
 
   return (
     <UiEntity
@@ -248,20 +277,21 @@ function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLa
         alignItems: 'center',
         justifyContent: 'flex-start',
         padding: scaleStoreSpacing(6),
-        borderRadius: 9,
+        borderRadius: 10,
         flexShrink: 0,
       }}
       uiBackground={{ color: bg }}
       onMouseDown={() => { selectedWeaponId = weapon.id }}
     >
+      {/* Tier accent strip */}
       <UiEntity
-        uiTransform={{
-          width: '100%',
-          height: CARD_IMAGE_AREA_H,
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: { bottom: scaleStoreSpacing(2) },
-        }}
+        uiTransform={{ width: '75%', height: 3, borderRadius: 2, margin: { bottom: scaleStoreSpacing(4) } }}
+        uiBackground={{ color: owned ? C.textGreen : tierColor }}
+      />
+
+      {/* Weapon image */}
+      <UiEntity
+        uiTransform={{ width: '100%', height: CARD_IMAGE_AREA_H, alignItems: 'center', justifyContent: 'center' }}
       >
         {imageSrc ? (
           <UiEntity
@@ -272,20 +302,25 @@ function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLa
           <Label value={WEAPON_EMOJI[weapon.arenaWeaponType]} fontSize={scaleStoreFont(38)} color={C.textWhite} />
         )}
       </UiEntity>
-      <Label value={stars} fontSize={scaleStoreFont(16)} color={C.star} uiTransform={{ margin: { bottom: scaleStoreSpacing(5) } }} />
+
+      <Label
+        value={stars}
+        fontSize={scaleStoreFont(15)}
+        color={owned ? C.textGreen : tierColor}
+        uiTransform={{ margin: { bottom: scaleStoreSpacing(3) } }}
+      />
+
       <UiEntity
         uiTransform={{
-          width: '100%',
-          height: CARD_NAME_AREA_H,
-          alignItems: 'center',
-          justifyContent: 'center',
+          width: '100%', height: CARD_NAME_AREA_H,
+          alignItems: 'center', justifyContent: 'center',
           padding: { left: scaleStoreSpacing(4), right: scaleStoreSpacing(4) },
         }}
       >
         <Label
-          value={getUpgradeTierLabel(weapon)}
-          fontSize={scaleStoreFont(14)}
-          color={C.textWhite}
+          value={equipped ? 'EQUIPPED' : getUpgradeTierLabel(weapon)}
+          fontSize={scaleStoreFont(12)}
+          color={equipped ? C.textGreen : (owned ? C.textGray : tierColor)}
           textAlign="middle-center"
           textWrap="wrap"
           uiTransform={{ width: '100%' }}
@@ -295,40 +330,39 @@ function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLa
   )
 }
 
-// ─── Weapon row ───────────────────────────────────────────────────────────────
+// ─── Weapon Row ───────────────────────────────────────────────────────────────
 
 function WeaponRow({ weaponType, isLast }: { weaponType: ArenaWeaponType; isLast?: boolean }) {
   const { CARD_H, ROW_GAP, ROW_LABEL_W, ROW_LABEL_GAP } = getStoreMetrics()
   const upgrades = getWeaponUpgrades(weaponType)
+  const mobile = isMobile()
   return (
     <UiEntity
       uiTransform={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        width: '100%',
-        margin: { bottom: isLast ? 0 : ROW_GAP },
+        flexDirection: 'row', alignItems: 'center',
+        width: '100%', margin: { bottom: isLast ? 0 : ROW_GAP },
       }}
     >
+      {!mobile && (
         <UiEntity
-        uiTransform={{
-          width: ROW_LABEL_W, height: CARD_H,
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: { right: ROW_LABEL_GAP },
-          borderRadius: 6,
-          flexShrink: 0,
-        }}
-        uiBackground={{ color: C.rowLabel }}
-      >
-        <Label
-          value={WEAPON_ROW_LABEL[weaponType]}
-          fontSize={scaleStoreFont(weaponType === 'gun' ? 18 : 16)}
-          color={C.textGray}
-          textAlign="middle-center"
-          textWrap="wrap"
-          uiTransform={{ width: '100%', padding: { left: scaleStoreSpacing(6), right: scaleStoreSpacing(6) } }}
-        />
-      </UiEntity>
+          uiTransform={{
+            width: ROW_LABEL_W, height: CARD_H,
+            alignItems: 'center', justifyContent: 'center',
+            margin: { right: ROW_LABEL_GAP },
+            borderRadius: 8, flexShrink: 0,
+          }}
+          uiBackground={{ color: C.rowLabel }}
+        >
+          <Label
+            value={WEAPON_ROW_LABEL[weaponType]}
+            fontSize={scaleStoreFont(weaponType === 'gun' ? 18 : 15)}
+            color={C.rowLabelText}
+            textAlign="middle-center"
+            textWrap="wrap"
+            uiTransform={{ width: '100%', padding: { left: scaleStoreSpacing(6), right: scaleStoreSpacing(6) } }}
+          />
+        </UiEntity>
+      )}
 
       {upgrades.map((w, index) =>
         ReactEcs.createElement(UpgradeCard, {
@@ -341,10 +375,48 @@ function WeaponRow({ weaponType, isLast }: { weaponType: ArenaWeaponType; isLast
   )
 }
 
-// ─── Detail panel ─────────────────────────────────────────────────────────────
+// ─── Stat Row ─────────────────────────────────────────────────────────────────
+
+function StatRow({ label, value, statKey, labelW, barW, valueW }: {
+  label: string; value: string; statKey: 'dmg' | 'rate' | 'range'
+  labelW: number; barW: number; valueW: number
+}) {
+  const fillW = Math.max(4, Math.round(Math.min(getStatPercent(statKey, value), 1) * barW))
+  const rowH = scaleStoreHeight(38)
+  return (
+    <UiEntity
+      uiTransform={{
+        flexDirection: 'row', alignItems: 'center',
+        width: '100%', height: rowH,
+        margin: { bottom: scaleStoreSpacing(6) },
+        padding: { left: scaleStoreSpacing(10), right: scaleStoreSpacing(16) },
+        borderRadius: 6,
+      }}
+      uiBackground={{ color: C.statRowA }}
+    >
+      <Label value={label} fontSize={scaleStoreFont(16)} color={C.textGray}
+        textAlign="middle-left"
+        uiTransform={{ width: labelW, height: rowH, flexShrink: 0 }} />
+      <UiEntity
+        uiTransform={{ width: barW, height: scaleStoreHeight(8), borderRadius: 4, margin: { left: scaleStoreSpacing(8), right: scaleStoreSpacing(8) }, flexShrink: 0 }}
+        uiBackground={{ color: C.statBarBg }}
+      >
+        <UiEntity
+          uiTransform={{ width: fillW, height: '100%', borderRadius: 4 }}
+          uiBackground={{ color: C.statBarFg }}
+        />
+      </UiEntity>
+      <Label value={value} fontSize={scaleStoreFont(16)} color={C.textWhite}
+        textAlign="middle-right"
+        uiTransform={{ width: valueW, height: rowH, flexShrink: 0 }} />
+    </UiEntity>
+  )
+}
+
+// ─── Detail Panel ─────────────────────────────────────────────────────────────
 
 function DetailPanel({ weapon }: { weapon: LoadoutWeaponDefinition }) {
-  const { DETAIL_PANEL_W, DETAIL_TITLE_H, DETAIL_SUBTITLE_H, STORE_GRID_HEIGHT } = getStoreMetrics()
+  const { DETAIL_PANEL_W, DETAIL_TITLE_H, DETAIL_SUBTITLE_H, STORE_GRID_HEIGHT, STAT_LABEL_W, STAT_BAR_W, STAT_VALUE_W, MOBILE } = getStoreMetrics()
   const owned = isLoadoutWeaponOwned(weapon.id)
   const equipped = isLoadoutWeaponEquipped(weapon.id)
   const unlocked = isPreviousOwned(weapon)
@@ -353,16 +425,34 @@ function DetailPanel({ weapon }: { weapon: LoadoutWeaponDefinition }) {
   const stats = WEAPON_STATS[weapon.id] ?? { dmg: '-', rate: '-', range: '-' }
   const stars = UPGRADE_STARS[weapon.upgradeLevel - 1]
   const imageSrc = WEAPON_IMAGE[weapon.id]
+  const tierColor = getTierColor(weapon.upgradeLevel)
+  const showOwnedLabel = owned && (!MOBILE || !equipped)
+  const priceLabel = owned ? 'OWNED' : `${weapon.priceGold} G`
+  const actionLabel = owned
+    ? (equipped ? 'EQUIPPED' : 'EQUIP')
+    : (!unlocked ? 'Unlock previous first' : (canAfford ? 'BUY' : 'NOT ENOUGH GOLD'))
+  const actionBg = owned
+    ? (equipped ? C.btnEquipped : C.btnEquip)
+    : (!unlocked ? C.btnLocked : (canAfford ? C.btnBuy : C.btnLocked))
+  const actionTextColor = owned
+    ? (equipped ? C.textGreen : C.textWhite)
+    : (!unlocked || !canAfford ? C.textLocked : C.textWhite)
+  const actionFontSize = scaleStoreFont(
+    MOBILE
+      ? (owned ? 20 : (!unlocked || !canAfford ? 12 : 20))
+      : (owned ? 22 : (!unlocked || !canAfford ? 13 : 22))
+  )
+  const actionHandler = owned
+    ? (equipped ? undefined : () => sendEquipLoadoutWeapon(weapon.id))
+    : (unlocked && canAfford ? () => sendBuyLoadoutWeapon(weapon.id) : undefined)
 
   return (
     <UiEntity
       uiTransform={{
-        width: DETAIL_PANEL_W,
+        ...(MOBILE ? { flex: 1 } : { width: DETAIL_PANEL_W }),
         height: STORE_GRID_HEIGHT,
-        maxWidth: '100%',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        maxWidth: '100%', flexDirection: 'column',
+        alignItems: 'center', justifyContent: MOBILE ? 'flex-start' : 'space-between',
         padding: scaleStoreSpacing(12),
         borderRadius: 10,
         margin: { bottom: scaleStoreSpacing(6) },
@@ -370,134 +460,106 @@ function DetailPanel({ weapon }: { weapon: LoadoutWeaponDefinition }) {
       }}
       uiBackground={{ color: C.detailBg }}
     >
-      <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-        <UiEntity
-          uiTransform={{
-            width: '100%',
-            height: DETAIL_TITLE_H,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Label
-            value={getShopWeaponLabel(weapon)}
-            fontSize={scaleStoreFont(26)}
-            color={C.textWhite}
-            textAlign="middle-center"
-            textWrap="wrap"
-            uiTransform={{ width: '100%', padding: { left: scaleStoreSpacing(4), right: scaleStoreSpacing(4) } }}
-          />
-        </UiEntity>
-        <UiEntity
-          uiTransform={{
-            width: '100%',
-            height: DETAIL_SUBTITLE_H,
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: { bottom: scaleStoreSpacing(8) },
-          }}
-        >
+      {/* Tier accent bar */}
+      <UiEntity
+        uiTransform={{ width: '100%', height: 3, borderRadius: 2, margin: { bottom: MOBILE ? scaleStoreSpacing(8) : 0 } }}
+        uiBackground={{ color: tierColor }}
+      />
+
+      {/* Title */}
+      <UiEntity uiTransform={{ width: '100%', height: DETAIL_TITLE_H, alignItems: 'center', justifyContent: 'center', margin: { bottom: MOBILE ? scaleStoreSpacing(4) : 0 } }}>
+        <Label
+          value={getShopWeaponLabel(weapon)}
+          fontSize={scaleStoreFont(24)}
+          color={C.textWhite}
+          textAlign="middle-center"
+          textWrap="wrap"
+          uiTransform={{ width: '100%', padding: { left: scaleStoreSpacing(4), right: scaleStoreSpacing(4) } }}
+        />
+      </UiEntity>
+
+      {/* Subtitle — desktop only */}
+      {!MOBILE && (
+        <UiEntity uiTransform={{ width: '100%', height: DETAIL_SUBTITLE_H, alignItems: 'center', justifyContent: 'center' }}>
           <Label
             value={weapon.previewLabel}
-            fontSize={scaleStoreFont(16)}
+            fontSize={scaleStoreFont(14)}
             color={C.textGray}
             textAlign="middle-center"
             textWrap="wrap"
             uiTransform={{ width: '100%', padding: { left: scaleStoreSpacing(4), right: scaleStoreSpacing(4) } }}
           />
         </UiEntity>
+      )}
 
-        {imageSrc ? (
-          <UiEntity
-            uiTransform={{
-              width: scaleStoreImage(108),
-              height: scaleStoreImage(108),
-              margin: { bottom: scaleStoreSpacing(8) }
-            }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: imageSrc } }}
-          />
-        ) : (
-          <Label
-            value={WEAPON_EMOJI[weapon.arenaWeaponType]}
-            fontSize={scaleStoreFont(50)}
-            color={C.textWhite}
-            uiTransform={{ margin: { bottom: scaleStoreSpacing(8) } }}
-          />
-        )}
+      {/* Weapon image */}
+      {imageSrc ? (
+        <UiEntity
+          uiTransform={{ width: scaleStoreImage(MOBILE ? 72 : 96), height: scaleStoreImage(MOBILE ? 72 : 96), margin: { bottom: MOBILE ? scaleStoreSpacing(4) : 0 } }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: imageSrc } }}
+        />
+      ) : (
+        <Label
+          value={WEAPON_EMOJI[weapon.arenaWeaponType]}
+          fontSize={scaleStoreFont(MOBILE ? 36 : 50)}
+          color={C.textWhite}
+        />
+      )}
 
-        <Label value={stars} fontSize={scaleStoreFont(24)} color={C.star} uiTransform={{ margin: { bottom: scaleStoreSpacing(8) } }} />
+      {/* Stars */}
+      <Label
+        value={stars}
+        fontSize={scaleStoreFont(22)}
+        color={owned ? C.textGreen : tierColor}
+        uiTransform={{ margin: { bottom: MOBILE ? scaleStoreSpacing(6) : 0 } }}
+      />
 
-        <UiEntity uiTransform={{ flexDirection: 'column', width: '100%' }}>
-          <StatRow label="Damage"    value={stats.dmg} />
-          <StatRow label="Fire Rate" value={stats.rate} />
-          <StatRow label="Range"     value={stats.range} />
-        </UiEntity>
+      {/* Stats */}
+      <UiEntity uiTransform={{ flexDirection: 'column', width: '100%', margin: { bottom: MOBILE ? scaleStoreSpacing(8) : 0 } }}>
+        <StatRow label="Damage"    value={stats.dmg}   statKey="dmg"   labelW={STAT_LABEL_W} barW={STAT_BAR_W} valueW={STAT_VALUE_W} />
+        <StatRow label="Fire Rate" value={stats.rate}  statKey="rate"  labelW={STAT_LABEL_W} barW={STAT_BAR_W} valueW={STAT_VALUE_W} />
+        <StatRow label="Range"     value={stats.range} statKey="range" labelW={STAT_LABEL_W} barW={STAT_BAR_W} valueW={STAT_VALUE_W} />
       </UiEntity>
 
+      {/* Bottom: price + action */}
       <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-        <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { bottom: scaleStoreSpacing(8) } }}>
+        {showOwnedLabel || !owned ? (
+          <UiEntity
+            key={`price-${weapon.id}-${owned ? 'owned' : 'price'}-${equipped ? 'equipped' : 'idle'}`}
+            uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { bottom: scaleStoreSpacing(8) } }}
+          >
+            <Label
+              value={priceLabel}
+              fontSize={scaleStoreFont(MOBILE ? 18 : 20)}
+              color={owned ? C.textGreen : C.textGold}
+            />
+          </UiEntity>
+        ) : null}
+
+        <UiEntity
+          key={`action-${weapon.id}-${owned ? 'owned' : 'shop'}-${equipped ? 'equipped' : 'idle'}-${unlocked ? 'unlocked' : 'locked'}-${canAfford ? 'can' : 'cant'}`}
+          uiTransform={{ width: '100%', height: scaleStoreButton(MOBILE ? 36 : 40), borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
+          uiBackground={{ color: actionBg }}
+          onMouseDown={actionHandler}
+        >
           <Label
-            value={owned ? 'OWNED' : `PRICE: ${weapon.priceGold} G`}
-            fontSize={scaleStoreFont(20)}
-            color={owned ? C.textGreen : C.textGold}
+            value={actionLabel}
+            fontSize={actionFontSize}
+            color={actionTextColor}
           />
         </UiEntity>
-
-        {owned ? (
-          <UiEntity
-            uiTransform={{ width: '100%', height: scaleStoreButton(36), borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
-            uiBackground={{ color: equipped ? C.btnOwned : C.btnBuy }}
-            onMouseDown={equipped ? undefined : () => sendEquipLoadoutWeapon(weapon.id)}
-          >
-            <Label
-              value={equipped ? 'EQUIPPED' : 'EQUIP'}
-              fontSize={scaleStoreFont(24)}
-              color={equipped ? C.textGreen : C.textWhite}
-            />
-          </UiEntity>
-        ) : !unlocked ? (
-          <UiEntity
-            uiTransform={{ width: '100%', height: scaleStoreButton(36), borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
-            uiBackground={{ color: C.btnLocked }}
-          >
-            <Label value="🔒 Unlock previous first" fontSize={scaleStoreFont(17)} color={C.textLocked} />
-          </UiEntity>
-        ) : (
-          <UiEntity
-            uiTransform={{ width: '100%', height: scaleStoreButton(36), borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
-            uiBackground={{ color: canAfford ? C.btnBuy : C.btnLocked }}
-            onMouseDown={canAfford ? () => sendBuyLoadoutWeapon(weapon.id) : undefined}
-          >
-            <Label
-              value="BUY"
-              fontSize={scaleStoreFont(20)}
-              color={canAfford ? C.textWhite : C.textGray}
-            />
-          </UiEntity>
-        )}
       </UiEntity>
     </UiEntity>
   )
 }
 
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <UiEntity
-      uiTransform={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', margin: { bottom: scaleStoreSpacing(4) } }}
-    >
-      <Label value={label} fontSize={scaleStoreFont(16)} color={C.textGray} />
-      <Label value={value}  fontSize={scaleStoreFont(16)} color={C.textWhite} />
-    </UiEntity>
-  )
-}
-
-// ─── Root store UI ────────────────────────────────────────────────────────────
+// ─── Root Store UI ────────────────────────────────────────────────────────────
 
 export function LobbyStoreUi() {
   if (!storeOpen) return null
-  const { STORE_PANEL_MAX_W, STORE_CONTENT_W, LEFT_GRID_W, STORE_BODY_GAP } = getStoreMetrics()
-
+  const { STORE_PANEL_MAX_W, STORE_CONTENT_W, LEFT_GRID_W, STORE_BODY_GAP, STORE_PANEL_HEIGHT, MOBILE } = getStoreMetrics()
   const selected = LOADOUT_WEAPON_DEFINITIONS.find((w) => w.id === selectedWeaponId) ?? LOADOUT_WEAPON_DEFINITIONS[0]
+  const gold = getPlayerGold()
 
   return (
     <UiEntity
@@ -516,10 +578,11 @@ export function LobbyStoreUi() {
           flexDirection: 'column',
           width: '100%',
           maxWidth: STORE_PANEL_MAX_W,
-          padding: scaleStoreSpacing(16),
-          borderRadius: 12,
+          height: STORE_PANEL_HEIGHT,
+          padding: { top: scaleStoreSpacing(44), bottom: scaleStoreSpacing(28), left: scaleStoreSpacing(2), right: scaleStoreSpacing(30) },
+          borderRadius: 14,
         }}
-        uiBackground={{ color: C.panel }}
+        uiBackground={{ textureMode: 'stretch', texture: { src: 'assets/images/background.png' } }}
       >
         {/* Header */}
         <UiEntity
@@ -530,24 +593,50 @@ export function LobbyStoreUi() {
             width: '100%',
             maxWidth: STORE_CONTENT_W,
             alignSelf: 'center',
-            margin: { bottom: scaleStoreSpacing(12) },
+            padding: { left: scaleStoreSpacing(14), right: scaleStoreSpacing(14), top: scaleStoreSpacing(10), bottom: scaleStoreSpacing(10) },
+            borderRadius: 10,
+            margin: { bottom: scaleStoreSpacing(4) },
           }}
+          uiBackground={{ color: C.headerBg }}
         >
-          <Label value="UPGRADE SHOP" fontSize={scaleStoreFont(28)} color={C.textWhite} />
-          <UiEntity
-            uiTransform={{ width: scaleStoreButton(86), height: scaleStoreButton(34), borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
-            uiBackground={{ color: C.btnClose }}
-            onMouseDown={() => closeLobbyStore()}
-          >
-            <Label value="Close" fontSize={scaleStoreFont(18)} color={C.textWhite} />
+          <Label value="UPGRADE SHOP" fontSize={scaleStoreFont(28)} color={C.textTitle} />
+
+          <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
+            {/* Gold badge */}
+            <UiEntity
+              uiTransform={{
+                flexDirection: 'row', alignItems: 'center',
+                borderRadius: 8,
+                padding: { left: scaleStoreSpacing(12), right: scaleStoreSpacing(12), top: scaleStoreSpacing(5), bottom: scaleStoreSpacing(5) },
+                margin: { right: scaleStoreSpacing(12) },
+              }}
+              uiBackground={{ color: C.goldBadgeBg }}
+            >
+              <Label value={`${gold} G`} fontSize={scaleStoreFont(17)} color={C.textGold} />
+            </UiEntity>
+
+            {/* Close */}
+            <UiEntity
+              uiTransform={{ width: scaleStoreButton(86), height: scaleStoreButton(34), borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
+              uiBackground={{ color: C.btnClose }}
+              onMouseDown={() => closeLobbyStore()}
+            >
+              <Label value="Close" fontSize={scaleStoreFont(18)} color={C.textWhite} />
+            </UiEntity>
           </UiEntity>
         </UiEntity>
 
-        {/* Body: weapon rows + detail */}
+        {/* Separator */}
+        <UiEntity
+          uiTransform={{ width: '100%', maxWidth: STORE_CONTENT_W, alignSelf: 'center', height: 2, margin: { bottom: scaleStoreSpacing(12) } }}
+          uiBackground={{ color: C.separator }}
+        />
+
+        {/* Body */}
         <UiEntity
           uiTransform={{
             flexDirection: 'row',
-            flexWrap: 'wrap',
+            flexWrap: MOBILE ? 'nowrap' : 'wrap',
             justifyContent: 'center',
             alignItems: 'flex-start',
             width: '100%',
