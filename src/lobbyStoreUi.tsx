@@ -17,6 +17,10 @@ import { OutlinedText } from './outlineComponent'
 
 let storeOpen = false
 let selectedWeaponId: LoadoutWeaponId = LOADOUT_WEAPON_DEFINITIONS[0].id
+let deniedPriceShakeWeaponId: LoadoutWeaponId | null = null
+let deniedPriceShakeStartedAt = 0
+const DENIED_PRICE_SHAKE_DURATION_MS = 420
+const DENIED_PRICE_SHAKE_AMPLITUDE = 10
 
 export function openLobbyStore(): void {
   storeOpen = true
@@ -30,6 +34,27 @@ export function closeLobbyStore(): void {
   if (DEBUG_SHOP_UI_ONLY) return
   storeOpen = false
   endUiPointerCapture()
+}
+
+function triggerDeniedPriceShake(weaponId: LoadoutWeaponId): void {
+  deniedPriceShakeWeaponId = weaponId
+  deniedPriceShakeStartedAt = Date.now()
+}
+
+function getDeniedPriceShakeOffset(weaponId: LoadoutWeaponId): number {
+  if (deniedPriceShakeWeaponId !== weaponId) return 0
+
+  const elapsed = Date.now() - deniedPriceShakeStartedAt
+  if (elapsed >= DENIED_PRICE_SHAKE_DURATION_MS) {
+    deniedPriceShakeWeaponId = null
+    deniedPriceShakeStartedAt = 0
+    return 0
+  }
+
+  const progress = elapsed / DENIED_PRICE_SHAKE_DURATION_MS
+  const wave = Math.sin(progress * Math.PI * 10)
+  const damping = 1 - progress
+  return Math.round(wave * damping * DENIED_PRICE_SHAKE_AMPLITUDE)
 }
 
 function getUiCanvasInfo() {
@@ -104,6 +129,7 @@ const C = {
   textGray:     Color4.create(0.76, 0.77, 0.66, 1),
   textGreen:    Color4.create(0.56, 0.92, 0.45, 1),
   textLocked:   Color4.create(0.53, 0.50, 0.40, 1),
+  textBurgundy: Color4.create(0.62, 0.18, 0.20, 1),
   textTitle:    Color4.create(0.97, 0.95, 0.79, 1),
 
   tierT1:       Color4.create(0.62, 0.84, 0.46, 1),
@@ -209,12 +235,36 @@ const STORE_EQUIPPED_SOURCE_X = 24
 const STORE_EQUIPPED_SOURCE_Y = 789
 const STORE_EQUIPPED_SOURCE_WIDTH = 173
 const STORE_EQUIPPED_SOURCE_HEIGHT = 49
+const STORE_EQUIP_SOURCE_X = 592
+const STORE_EQUIP_SOURCE_Y = 786
+const STORE_EQUIP_SOURCE_WIDTH = 201
+const STORE_EQUIP_SOURCE_HEIGHT = 54
 const STORE_OWNED_SOURCE_X = 211
 const STORE_OWNED_SOURCE_Y = 788
 const STORE_OWNED_SOURCE_WIDTH = 186
 const STORE_OWNED_SOURCE_HEIGHT = 52
 const STORE_OWNED_RENDER_SCALE = 0.98
 const STORE_EQUIPPED_RENDER_SCALE = 1.04
+const STORE_BUY_SOURCE_X = 407
+const STORE_BUY_SOURCE_Y = 849
+const STORE_BUY_SOURCE_WIDTH = 168
+const STORE_BUY_SOURCE_HEIGHT = 53
+const STORE_BUY_DISABLED_SOURCE_X = 591
+const STORE_BUY_DISABLED_SOURCE_Y = 849
+const STORE_BUY_DISABLED_SOURCE_WIDTH = 168
+const STORE_BUY_DISABLED_SOURCE_HEIGHT = 53
+const STORE_UNLOCK_PREVIOUS_SOURCE_X = 412
+const STORE_UNLOCK_PREVIOUS_SOURCE_Y = 922
+const STORE_UNLOCK_PREVIOUS_SOURCE_WIDTH = 167
+const STORE_UNLOCK_PREVIOUS_SOURCE_HEIGHT = 41
+const STORE_BUY_GOLD_ICON_SOURCE_X = 1058
+const STORE_BUY_GOLD_ICON_SOURCE_Y = 122
+const STORE_BUY_GOLD_ICON_SOURCE_WIDTH = 44
+const STORE_BUY_GOLD_ICON_SOURCE_HEIGHT = 46
+const STORE_CARD_TAG_SOURCE_X = 406
+const STORE_CARD_TAG_SOURCE_Y = 785
+const STORE_CARD_TAG_SOURCE_WIDTH = 166
+const STORE_CARD_TAG_SOURCE_HEIGHT = 53
 const STORE_UPGRADE_ROW_SOURCE_X = 987
 const STORE_UPGRADE_ROW_SOURCE_Y = 343
 const STORE_UPGRADE_ROW_SOURCE_WIDTH = 326
@@ -276,11 +326,47 @@ const STORE_EQUIPPED_UVS = createShopHudUvs(
   STORE_EQUIPPED_SOURCE_WIDTH,
   STORE_EQUIPPED_SOURCE_HEIGHT
 )
+const STORE_EQUIP_UVS = createShopHudUvs(
+  STORE_EQUIP_SOURCE_X,
+  STORE_EQUIP_SOURCE_Y,
+  STORE_EQUIP_SOURCE_WIDTH,
+  STORE_EQUIP_SOURCE_HEIGHT
+)
 const STORE_OWNED_UVS = createShopHudUvs(
   STORE_OWNED_SOURCE_X,
   STORE_OWNED_SOURCE_Y,
   STORE_OWNED_SOURCE_WIDTH,
   STORE_OWNED_SOURCE_HEIGHT
+)
+const STORE_BUY_UVS = createShopHudUvs(
+  STORE_BUY_SOURCE_X,
+  STORE_BUY_SOURCE_Y,
+  STORE_BUY_SOURCE_WIDTH,
+  STORE_BUY_SOURCE_HEIGHT
+)
+const STORE_BUY_DISABLED_UVS = createShopHudUvs(
+  STORE_BUY_DISABLED_SOURCE_X,
+  STORE_BUY_DISABLED_SOURCE_Y,
+  STORE_BUY_DISABLED_SOURCE_WIDTH,
+  STORE_BUY_DISABLED_SOURCE_HEIGHT
+)
+const STORE_UNLOCK_PREVIOUS_UVS = createShopHudUvs(
+  STORE_UNLOCK_PREVIOUS_SOURCE_X,
+  STORE_UNLOCK_PREVIOUS_SOURCE_Y,
+  STORE_UNLOCK_PREVIOUS_SOURCE_WIDTH,
+  STORE_UNLOCK_PREVIOUS_SOURCE_HEIGHT
+)
+const STORE_BUY_GOLD_ICON_UVS = createShopHudUvs(
+  STORE_BUY_GOLD_ICON_SOURCE_X,
+  STORE_BUY_GOLD_ICON_SOURCE_Y,
+  STORE_BUY_GOLD_ICON_SOURCE_WIDTH,
+  STORE_BUY_GOLD_ICON_SOURCE_HEIGHT
+)
+const STORE_CARD_TAG_UVS = createShopHudUvs(
+  STORE_CARD_TAG_SOURCE_X,
+  STORE_CARD_TAG_SOURCE_Y,
+  STORE_CARD_TAG_SOURCE_WIDTH,
+  STORE_CARD_TAG_SOURCE_HEIGHT
 )
 const STORE_UPGRADE_ROW_UVS = createShopHudUvs(
   STORE_UPGRADE_ROW_SOURCE_X,
@@ -296,9 +382,9 @@ const STORE_UPGRADE_CARD_UVS: Record<LoadoutWeaponDefinition['upgradeLevel'], Sh
     STORE_UPGRADE_CARD_SOURCE_HEIGHT
   ),
   2: createShopHudUvs(
-    STORE_UPGRADE_ROW_SOURCE_X + 112,
+    STORE_UPGRADE_ROW_SOURCE_X + 113,
     STORE_UPGRADE_ROW_SOURCE_Y,
-    STORE_UPGRADE_CARD_SOURCE_WIDTH,
+    STORE_UPGRADE_CARD_SOURCE_WIDTH - 1,
     STORE_UPGRADE_CARD_SOURCE_HEIGHT
   ),
   3: createShopHudUvs(
@@ -477,6 +563,22 @@ function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLa
   const { CARD_W, CARD_H, CARD_GAP, CARD_IMAGE_BOX, CARD_IMAGE_AREA_H } = getStoreMetrics()
   const imageSrc = WEAPON_IMAGE[weapon.id]
   const cardImageSize = getContainedWeaponImageSize(weapon.id, CARD_IMAGE_BOX, CARD_IMAGE_BOX)
+  const cardTagWidth = Math.max(1, CARD_W - scaleStoreSpacing(28))
+  const cardTagScale = cardTagWidth / STORE_CARD_TAG_SOURCE_WIDTH
+  const cardTagHeight = Math.max(1, Math.round(STORE_CARD_TAG_SOURCE_HEIGHT * cardTagScale))
+  const owned = isLoadoutWeaponOwned(weapon.id)
+  const equipped = isLoadoutWeaponEquipped(weapon.id)
+  const unlocked = isPreviousOwned(weapon)
+  const canAfford = getPlayerGold() >= weapon.priceGold
+  const cardTagLabel = equipped
+    ? 'EQUIPPED'
+    : (owned
+      ? 'EQUIP'
+      : (unlocked ? 'BUY' : 'LOCKED'))
+  const cardTagLeft = weapon.upgradeLevel === 1 ? scaleStoreSpacing(7) : scaleStoreSpacing(10)
+  const cardTagTextColor = cardTagLabel === 'BUY'
+    ? (canAfford ? C.textGold : C.textBurgundy)
+    : (cardTagLabel === 'LOCKED' ? C.textGray : C.textWhite)
 
   return (
     <UiEntity
@@ -508,6 +610,30 @@ function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLa
         ) : (
           <Label value={WEAPON_EMOJI[weapon.arenaWeaponType]} fontSize={scaleStoreFont(38)} color={C.textWhite} />
         )}
+      </UiEntity>
+
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { bottom: scaleStoreSpacing(10), left: cardTagLeft },
+          width: cardTagWidth,
+          height: cardTagHeight,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: SHOP_HUD_SHEET_SRC },
+          uvs: STORE_CARD_TAG_UVS
+        }}
+      >
+        <Label
+          value={cardTagLabel}
+          fontSize={scaleStoreFont(14)}
+          color={cardTagTextColor}
+          textAlign="middle-center"
+          uiTransform={{ width: '100%', height: '100%' }}
+        />
       </UiEntity>
     </UiEntity>
   )
@@ -657,12 +783,16 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
   const detailTopSectionH = embedded ? '42%' : scaleStoreHeight(MOBILE ? 156 : 188)
   const detailStatsSectionH = embedded ? '30%' : scaleStoreHeight(MOBILE ? 122 : 138)
   const detailButtonsSectionH = embedded ? '28%' : scaleStoreHeight(MOBILE ? 110 : 126)
+  const deniedPriceShakeOffset = !owned ? getDeniedPriceShakeOffset(weapon.id) : 0
   const tierColor = getTierColor(weapon.upgradeLevel)
   const showOwnedLabel = owned && (!MOBILE || !equipped)
   const priceLabel = owned ? 'OWNED' : `${weapon.priceGold} G`
   const actionLabel = owned
     ? (equipped ? 'EQUIPPED' : 'EQUIP')
     : (!unlocked ? 'Unlock previous first' : (canAfford ? 'BUY' : 'NOT ENOUGH GOLD'))
+  const showBuyButtonSprite = !owned && unlocked && canAfford
+  const showUnlockPreviousButtonSprite = !owned && !unlocked
+  const showDisabledBuyButtonSprite = !owned && unlocked && !canAfford
   const actionBg = owned
     ? (equipped ? C.btnEquipped : C.btnEquip)
     : (!unlocked ? C.btnLocked : (canAfford ? C.btnBuy : C.btnLocked))
@@ -675,14 +805,42 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
         texture: { src: SHOP_HUD_SHEET_SRC },
         uvs: STORE_OWNED_UVS
       }
-    : { color: Color4.create(0.14, 0.22, 0.11, 1) }
+    : {
+        textureMode: 'stretch' as const,
+        texture: { src: SHOP_HUD_SHEET_SRC },
+        uvs: STORE_CARD_TAG_UVS
+      }
   const actionBackground = equipped
     ? {
         textureMode: 'stretch' as const,
         texture: { src: SHOP_HUD_SHEET_SRC },
         uvs: STORE_EQUIPPED_UVS
       }
-    : { color: actionBg }
+    : (owned
+      ? {
+          textureMode: 'stretch' as const,
+          texture: { src: SHOP_HUD_SHEET_SRC },
+          uvs: STORE_EQUIP_UVS
+        }
+      : (showBuyButtonSprite
+        ? {
+            textureMode: 'stretch' as const,
+            texture: { src: SHOP_HUD_SHEET_SRC },
+            uvs: STORE_BUY_UVS
+          }
+        : (showUnlockPreviousButtonSprite
+          ? {
+              textureMode: 'stretch' as const,
+              texture: { src: SHOP_HUD_SHEET_SRC },
+              uvs: STORE_UNLOCK_PREVIOUS_UVS
+            }
+          : (showDisabledBuyButtonSprite
+            ? {
+                textureMode: 'stretch' as const,
+                texture: { src: SHOP_HUD_SHEET_SRC },
+                uvs: STORE_BUY_DISABLED_UVS
+              }
+            : { color: actionBg }))))
   const actionFontSize = scaleStoreFont(
     MOBILE
       ? (owned ? 20 : (!unlocked || !canAfford ? 12 : 20))
@@ -702,7 +860,9 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
         return
       }
       sendBuyLoadoutWeapon(weapon.id)
-    } : undefined)
+    } : (!owned && unlocked && !canAfford ? () => {
+      triggerDeniedPriceShake(weapon.id)
+    } : undefined))
 
   return (
     <UiEntity
@@ -806,40 +966,75 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
       >
         {showOwnedLabel || !owned ? (
           <UiEntity
-            key={`price-${weapon.id}-${owned ? 'owned' : 'price'}-${equipped ? 'equipped' : 'idle'}`}
             uiTransform={{
-              width: owned ? Math.round(STORE_OWNED_SOURCE_WIDTH * STORE_OWNED_RENDER_SCALE) : '88%',
-              height: owned ? Math.round((STORE_OWNED_SOURCE_HEIGHT + 10) * STORE_OWNED_RENDER_SCALE) : scaleStoreHeight(40),
+              width: owned ? Math.round(STORE_OWNED_SOURCE_WIDTH * STORE_OWNED_RENDER_SCALE) : Math.round(STORE_CARD_TAG_SOURCE_WIDTH * 0.9),
+              height: owned ? Math.round((STORE_OWNED_SOURCE_HEIGHT + 10) * STORE_OWNED_RENDER_SCALE) : Math.round(STORE_CARD_TAG_SOURCE_HEIGHT * 0.9),
               alignItems: 'center',
               justifyContent: 'center',
-              margin: { bottom: scaleStoreSpacing(4) },
+              margin: { left: deniedPriceShakeOffset, bottom: scaleStoreSpacing(4) },
               borderRadius: 8
             }}
             uiBackground={priceBackground}
           >
             {!owned && (
-              <Label
-                value={priceLabel}
-                fontSize={scaleStoreFont(MOBILE ? 18 : 19)}
-                color={C.textGold}
-              />
+              <UiEntity
+                uiTransform={{
+                  flexDirection: 'row',
+                  width: '100%',
+                  height: '100%',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: { left: scaleStoreSpacing(10), right: scaleStoreSpacing(10) }
+                }}
+              >
+                <UiEntity
+                  uiTransform={{
+                    width: scaleStoreImage(24),
+                    height: scaleStoreImage(24),
+                    margin: { right: scaleStoreSpacing(6) }
+                  }}
+                  uiBackground={{
+                    textureMode: 'stretch',
+                    texture: { src: SHOP_HUD_SHEET_SRC },
+                    uvs: STORE_BUY_GOLD_ICON_UVS
+                  }}
+                />
+                <Label
+                  value={`${weapon.priceGold} G`}
+                  fontSize={scaleStoreFont(MOBILE ? 18 : 19)}
+                  color={canAfford ? C.textGold : C.textBurgundy}
+                  textAlign="middle-center"
+                />
+              </UiEntity>
             )}
           </UiEntity>
         ) : null}
 
         <UiEntity
-          key={`action-${weapon.id}-${owned ? 'owned' : 'shop'}-${equipped ? 'equipped' : 'idle'}-${unlocked ? 'unlocked' : 'locked'}-${canAfford ? 'can' : 'cant'}`}
           uiTransform={{
-            width: equipped ? Math.round(STORE_EQUIPPED_SOURCE_WIDTH * STORE_EQUIPPED_RENDER_SCALE) : '88%',
-            height: equipped ? STORE_EQUIPPED_SOURCE_HEIGHT + 6 : scaleStoreButton(MOBILE ? 40 : 46),
+            width: (equipped || owned)
+              ? Math.round(STORE_EQUIPPED_SOURCE_WIDTH * STORE_EQUIPPED_RENDER_SCALE)
+              : (showBuyButtonSprite
+                ? STORE_BUY_SOURCE_WIDTH
+                : (showDisabledBuyButtonSprite
+                  ? STORE_BUY_DISABLED_SOURCE_WIDTH
+                  : (showUnlockPreviousButtonSprite ? STORE_UNLOCK_PREVIOUS_SOURCE_WIDTH : '88%'))),
+            height: (equipped || owned)
+              ? STORE_EQUIPPED_SOURCE_HEIGHT + 6
+              : (showBuyButtonSprite
+                ? STORE_BUY_SOURCE_HEIGHT
+                : (showDisabledBuyButtonSprite
+                  ? STORE_BUY_DISABLED_SOURCE_HEIGHT
+                  : (showUnlockPreviousButtonSprite ? STORE_UNLOCK_PREVIOUS_SOURCE_HEIGHT : scaleStoreButton(MOBILE ? 40 : 46)))),
             borderRadius: 10,
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            margin: { top: (showBuyButtonSprite || showUnlockPreviousButtonSprite || showDisabledBuyButtonSprite) ? scaleStoreSpacing(8) : 0 }
           }}
           uiBackground={actionBackground}
           onMouseDown={actionHandler}
         >
-          {!equipped && (
+          {!showBuyButtonSprite && !showUnlockPreviousButtonSprite && !showDisabledBuyButtonSprite && !owned && !equipped && (
             <Label
               value={actionLabel}
               fontSize={actionFontSize}
