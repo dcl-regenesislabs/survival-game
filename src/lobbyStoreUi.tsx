@@ -36,6 +36,10 @@ export function closeLobbyStore(): void {
   endUiPointerCapture()
 }
 
+export function isLobbyStoreOpen(): boolean {
+  return storeOpen
+}
+
 function triggerDeniedPriceShake(weaponId: LoadoutWeaponId): void {
   deniedPriceShakeWeaponId = weaponId
   deniedPriceShakeStartedAt = Date.now()

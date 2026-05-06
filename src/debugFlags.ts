@@ -1,7 +1,7 @@
 import { PlayerLoadoutSnapshot } from './loadoutState'
 
 // Temporary UI sandbox for rebuilding the shop without gameplay/server noise.
-export const DEBUG_SHOP_UI_ONLY = true
+export const DEBUG_SHOP_UI_ONLY = false
 
 export const DEBUG_SHOP_UI_ONLY_LOADOUT: PlayerLoadoutSnapshot = {
   gold: 30,

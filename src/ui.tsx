@@ -44,7 +44,7 @@ import {
 } from './brick'
 import { getPlayerGold } from './loadoutState'
 import { OutlinedText } from './outlineComponent'
-import { LobbyStoreUi, openLobbyStore } from './lobbyStoreUi'
+import { LobbyStoreUi, isLobbyStoreOpen, openLobbyStore } from './lobbyStoreUi'
 import { isLocalPlayerInsideLobbyTrigger } from './lobbyWorldPanel'
 import {
   getLobbyState,
@@ -65,7 +65,6 @@ import { LobbyPhase } from './shared/lobbySchemas'
 import { LOBBY_RETURN_POSITION } from './shared/roomConfig'
 import { MATCH_MAX_PLAYERS, START_GAME_COUNTDOWN_SECONDS } from './shared/matchConfig'
 import { getServerTime } from './shared/timeSync'
-import { DEBUG_SHOP_UI_ONLY } from './debugFlags'
 
 const PLAYER_HP_FRAME_WIDTH = 581
 const PLAYER_HP_FRAME_HEIGHT = 86
@@ -544,22 +543,10 @@ export function setupUi() {
 }
 
 export const uiMenu = () => {
-  if (DEBUG_SHOP_UI_ONLY) {
-    return (
-      <UiEntity
-        uiTransform={{
-          width: '100%',
-          height: '100%'
-        }}
-      >
-        <LobbyStoreUi />
-      </UiEntity>
-    )
-  }
-
   const state = getWaveUiState()
   const lobbyState = getLobbyState()
   const localAddress = getLocalAddress()
+  const lobbyStoreOpen = isLobbyStoreOpen()
   const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const matchRuntime = getMatchRuntimeState()
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInArenaRoster
@@ -572,7 +559,7 @@ export const uiMenu = () => {
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
   const showGameplayHud = (inMatchContext && localReadyForMatch) || showGameplayHudDebug
-  const showLobbyHud = isLobbyContext && !showGameplayHudDebug
+  const showLobbyHud = isLobbyContext && !showGameplayHudDebug && !lobbyStoreOpen
   const showBackToLobbyButton = isInArenaRoster && localReadyForMatch
   const showPlayerHealthHud = showGameplayHud
   const timerNowMs = getServerTime()
