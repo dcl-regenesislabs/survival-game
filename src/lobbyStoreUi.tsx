@@ -269,6 +269,10 @@ const STORE_CARD_TAG_SOURCE_X = 406
 const STORE_CARD_TAG_SOURCE_Y = 785
 const STORE_CARD_TAG_SOURCE_WIDTH = 166
 const STORE_CARD_TAG_SOURCE_HEIGHT = 53
+const STORE_CARD_SELECTION_GLOW_SOURCE_X = 1340
+const STORE_CARD_SELECTION_GLOW_SOURCE_Y = 320
+const STORE_CARD_SELECTION_GLOW_SOURCE_WIDTH = 148
+const STORE_CARD_SELECTION_GLOW_SOURCE_HEIGHT = 182
 const STORE_UPGRADE_ROW_SOURCE_X = 987
 const STORE_UPGRADE_ROW_SOURCE_Y = 343
 const STORE_UPGRADE_ROW_SOURCE_WIDTH = 326
@@ -371,6 +375,12 @@ const STORE_CARD_TAG_UVS = createShopHudUvs(
   STORE_CARD_TAG_SOURCE_Y,
   STORE_CARD_TAG_SOURCE_WIDTH,
   STORE_CARD_TAG_SOURCE_HEIGHT
+)
+const STORE_CARD_SELECTION_GLOW_UVS = createShopHudUvs(
+  STORE_CARD_SELECTION_GLOW_SOURCE_X,
+  STORE_CARD_SELECTION_GLOW_SOURCE_Y,
+  STORE_CARD_SELECTION_GLOW_SOURCE_WIDTH,
+  STORE_CARD_SELECTION_GLOW_SOURCE_HEIGHT
 )
 const STORE_UPGRADE_ROW_UVS = createShopHudUvs(
   STORE_UPGRADE_ROW_SOURCE_X,
@@ -574,11 +584,22 @@ function getStoreMetrics() {
 function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLast?: boolean }) {
   const { CARD_W, CARD_H, CARD_GAP, CARD_IMAGE_BOX, CARD_IMAGE_AREA_H } = getStoreMetrics()
   const ACTUAL_MOBILE = isMobile()
+  const isSelected = weapon.id === selectedWeaponId
   const imageSrc = WEAPON_IMAGE[weapon.id]
   const cardImageSize = getContainedWeaponImageSize(weapon.id, CARD_IMAGE_BOX, CARD_IMAGE_BOX)
-  const cardTagWidth = Math.max(1, CARD_W - scaleStoreSpacing(ACTUAL_MOBILE ? 18 : 28))
+  const cardTagWidth = Math.max(1, CARD_W - scaleStoreSpacing(ACTUAL_MOBILE ? 14 : 18))
   const cardTagScale = cardTagWidth / STORE_CARD_TAG_SOURCE_WIDTH
   const cardTagHeight = Math.max(1, Math.round(STORE_CARD_TAG_SOURCE_HEIGHT * cardTagScale))
+  const selectionGlowFrameWidth = CARD_W + scaleStoreSpacing(ACTUAL_MOBILE ? 8 : 6)
+  const selectionGlowFrameHeight = CARD_H + scaleStoreSpacing(ACTUAL_MOBILE ? 10 : 8)
+  const selectionGlowWidth = Math.round(selectionGlowFrameWidth * (STORE_CARD_SELECTION_GLOW_SOURCE_WIDTH / 108))
+  const selectionGlowHeight = Math.round(selectionGlowFrameHeight * (STORE_CARD_SELECTION_GLOW_SOURCE_HEIGHT / 142))
+  const selectionGlowLeft = Math.round((CARD_W - selectionGlowWidth) * 0.5) + (
+    weapon.upgradeLevel === 1
+      ? (ACTUAL_MOBILE ? -3 : scaleStoreSpacing(-3))
+      : 0
+  )
+  const selectionGlowTop = Math.round((CARD_H - selectionGlowHeight) * 0.5)
   const owned = isLoadoutWeaponOwned(weapon.id)
   const equipped = isLoadoutWeaponEquipped(weapon.id)
   const unlocked = isPreviousOwned(weapon)
@@ -590,7 +611,11 @@ function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLa
       : (unlocked ? 'BUY' : 'LOCKED'))
   const cardTagLeft = ACTUAL_MOBILE
     ? scaleStoreSpacing(6)
-    : (weapon.upgradeLevel === 1 ? scaleStoreSpacing(7) : scaleStoreSpacing(10))
+    : Math.round((CARD_W - cardTagWidth) * 0.5) + (
+      weapon.upgradeLevel === 1
+        ? -2
+        : (weapon.upgradeLevel === 3 ? 2 : 0)
+    )
   const cardTagTextColor = cardTagLabel === 'BUY'
     ? (canAfford ? C.textGold : C.textBurgundy)
     : (cardTagLabel === 'LOCKED' ? C.textGray : C.textWhite)
@@ -606,13 +631,38 @@ function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLa
         padding: { left: scaleStoreSpacing(6), right: scaleStoreSpacing(6) },
         flexShrink: 0,
       }}
-      uiBackground={{
-        textureMode: 'stretch',
-        texture: { src: SHOP_HUD_SHEET_SRC },
-        uvs: STORE_UPGRADE_CARD_UVS[weapon.upgradeLevel]
-      }}
       onMouseDown={() => { selectedWeaponId = weapon.id }}
     >
+      {isSelected && (
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { top: selectionGlowTop, left: selectionGlowLeft },
+            width: selectionGlowWidth,
+            height: selectionGlowHeight,
+          }}
+          uiBackground={{
+            textureMode: 'stretch',
+            texture: { src: SHOP_HUD_SHEET_SRC },
+            uvs: STORE_CARD_SELECTION_GLOW_UVS
+          }}
+        />
+      )}
+
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: 0, left: 0 },
+          width: CARD_W,
+          height: CARD_H,
+        }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: SHOP_HUD_SHEET_SRC },
+          uvs: STORE_UPGRADE_CARD_UVS[weapon.upgradeLevel]
+        }}
+      />
+
       {/* Weapon image */}
       <UiEntity
         uiTransform={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
