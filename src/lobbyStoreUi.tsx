@@ -631,7 +631,6 @@ function UpgradeCard({ weapon, isLast }: { weapon: LoadoutWeaponDefinition; isLa
         justifyContent: 'center',
         padding: { left: scaleStoreSpacing(6), right: scaleStoreSpacing(6) },
         flexShrink: 0,
-        pointerFilter: 'block',
       }}
       onMouseDown={() => { selectedWeaponId = weapon.id }}
     >
@@ -1107,8 +1106,7 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
             borderRadius: 10,
             alignItems: 'center',
             justifyContent: 'center',
-            margin: { top: (showBuyButtonSprite || showUnlockPreviousButtonSprite || showDisabledBuyButtonSprite) ? scaleStoreSpacing(ACTUAL_MOBILE ? 8 : 8) : 0 },
-            pointerFilter: 'block',
+            margin: { top: (showBuyButtonSprite || showUnlockPreviousButtonSprite || showDisabledBuyButtonSprite) ? scaleStoreSpacing(ACTUAL_MOBILE ? 8 : 8) : 0 }
           }}
           uiBackground={actionBackground}
           onMouseDown={actionHandler}
@@ -1238,8 +1236,7 @@ export function LobbyStoreUi() {
           <UiEntity
             uiTransform={{
               width: ACTUAL_MOBILE ? Math.round(STORE_CLOSE_RENDER_WIDTH * 1.08) : STORE_CLOSE_RENDER_WIDTH,
-              height: ACTUAL_MOBILE ? Math.round(STORE_CLOSE_RENDER_HEIGHT * 1.08) : STORE_CLOSE_RENDER_HEIGHT,
-              pointerFilter: 'block',
+              height: ACTUAL_MOBILE ? Math.round(STORE_CLOSE_RENDER_HEIGHT * 1.08) : STORE_CLOSE_RENDER_HEIGHT
             }}
             uiBackground={{
               textureMode: 'stretch',
