@@ -20,6 +20,15 @@ const defaultSnapshot: PlayerLoadoutSnapshot = {
 
 let playerLoadoutSnapshot: PlayerLoadoutSnapshot = { ...defaultSnapshot }
 
+function replaceEquippedWeaponForTier(weaponIds: LoadoutWeaponId[], weaponId: LoadoutWeaponId): LoadoutWeaponId[] {
+  const weapon = getLoadoutWeaponDefinition(weaponId)
+  if (!weapon) return weaponIds
+  return [
+    ...weaponIds.filter((equippedId) => getLoadoutWeaponDefinition(equippedId)?.tierKey !== weapon.tierKey),
+    weapon.id
+  ]
+}
+
 function uniqueWeaponIds(weaponIds: string[]): LoadoutWeaponId[] {
   const seen = new Set<LoadoutWeaponId>()
   const filtered: LoadoutWeaponId[] = []
@@ -93,4 +102,40 @@ export function isLoadoutWeaponEquipped(weaponId: LoadoutWeaponId): boolean {
 
 export function getDefaultSelectedLoadoutWeaponId(): LoadoutWeaponId {
   return LOADOUT_WEAPON_DEFINITIONS[0].id
+}
+
+export function buyLoadoutWeaponLocally(weaponId: LoadoutWeaponId): boolean {
+  const weapon = getLoadoutWeaponDefinition(weaponId)
+  if (!weapon) return false
+
+  const snapshot = getPlayerLoadoutSnapshot()
+  if (snapshot.ownedWeaponIds.includes(weapon.id)) {
+    return equipLoadoutWeaponLocally(weapon.id)
+  }
+  if (snapshot.gold < weapon.priceGold) return false
+
+  const ownedWeaponIds = [...snapshot.ownedWeaponIds, weapon.id]
+  const equippedWeaponIds = replaceEquippedWeaponForTier(snapshot.equippedWeaponIds, weapon.id)
+
+  applyPlayerLoadoutSnapshot({
+    gold: snapshot.gold - weapon.priceGold,
+    ownedWeaponIds,
+    equippedWeaponIds
+  })
+  return true
+}
+
+export function equipLoadoutWeaponLocally(weaponId: LoadoutWeaponId): boolean {
+  const weapon = getLoadoutWeaponDefinition(weaponId)
+  if (!weapon) return false
+
+  const snapshot = getPlayerLoadoutSnapshot()
+  if (!snapshot.ownedWeaponIds.includes(weapon.id)) return false
+
+  applyPlayerLoadoutSnapshot({
+    gold: snapshot.gold,
+    ownedWeaponIds: snapshot.ownedWeaponIds,
+    equippedWeaponIds: replaceEquippedWeaponForTier(snapshot.equippedWeaponIds, weapon.id)
+  })
+  return true
 }

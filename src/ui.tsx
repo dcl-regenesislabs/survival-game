@@ -44,7 +44,7 @@ import {
 } from './brick'
 import { getPlayerGold } from './loadoutState'
 import { OutlinedText } from './outlineComponent'
-import { LobbyStoreUi, openLobbyStore } from './lobbyStoreUi'
+import { LobbyStoreUi, isLobbyStoreOpen, openLobbyStore } from './lobbyStoreUi'
 import { isLocalPlayerInsideLobbyTrigger } from './lobbyWorldPanel'
 import {
   getLobbyState,
@@ -546,6 +546,7 @@ export const uiMenu = () => {
   const state = getWaveUiState()
   const lobbyState = getLobbyState()
   const localAddress = getLocalAddress()
+  const lobbyStoreOpen = isLobbyStoreOpen()
   const isInArenaRoster = !!localAddress && !!lobbyState?.arenaPlayers.find((p) => p.address === localAddress)
   const matchRuntime = getMatchRuntimeState()
   const inMatchContext = lobbyState?.phase === LobbyPhase.MATCH_CREATED && isInArenaRoster
@@ -558,7 +559,7 @@ export const uiMenu = () => {
   const syncedZombiesLeft = matchRuntime?.zombiesAlive ?? 0
   const localReadyForMatch = isLocalReadyForMatch()
   const showGameplayHud = (inMatchContext && localReadyForMatch) || showGameplayHudDebug
-  const showLobbyHud = isLobbyContext && !showGameplayHudDebug
+  const showLobbyHud = isLobbyContext && !showGameplayHudDebug && !lobbyStoreOpen
   const showBackToLobbyButton = isInArenaRoster && localReadyForMatch
   const showPlayerHealthHud = showGameplayHud
   const timerNowMs = getServerTime()
@@ -1497,7 +1498,7 @@ const teamPanelNameWidth = isMobileRuntime ? 100 : 120
       {showLobbyHud && (
         <UiEntity
           uiTransform={{
-            position: { left: LOBBY_HUD_LEFT_MARGIN, top: LOBBY_HUD_GOLD_TOP },
+            position: { left: isMobileRuntime ? LOBBY_HUD_LEFT_MARGIN + 88 : LOBBY_HUD_LEFT_MARGIN, top: LOBBY_HUD_GOLD_TOP },
             positionType: 'absolute',
             width: LOBBY_HUD_GOLD_WIDTH,
             height: LOBBY_HUD_GOLD_HEIGHT
