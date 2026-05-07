@@ -1031,6 +1031,7 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
       >
         {showOwnedLabel || !owned ? (
           <UiEntity
+            key={`price-badge-${weapon.id}`}
             uiTransform={{
               width: owned
                 ? Math.round(STORE_OWNED_SOURCE_WIDTH * (ACTUAL_MOBILE ? 1.10 : STORE_OWNED_RENDER_SCALE))
@@ -1047,6 +1048,7 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
           >
             {!owned && (
               <UiEntity
+                key={`price-inner-${weapon.id}`}
                 uiTransform={{
                   flexDirection: 'row',
                   width: '100%',
@@ -1060,6 +1062,7 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
                   uiTransform={{
                     width: scaleStoreImage(24),
                     height: scaleStoreImage(24),
+                    flexShrink: 0,
                     margin: { right: scaleStoreSpacing(6) }
                   }}
                   uiBackground={{
@@ -1073,6 +1076,7 @@ function DetailPanel({ weapon, embedded = false }: { weapon: LoadoutWeaponDefini
                   fontSize={scaleStoreFont(MOBILE ? 18 : 19)}
                   color={canAfford ? C.textGold : C.textBurgundy}
                   textAlign="middle-center"
+                  uiTransform={{ flex: 1, height: '100%', minWidth: 0 }}
                 />
               </UiEntity>
             )}
