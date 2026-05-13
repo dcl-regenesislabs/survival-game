@@ -219,13 +219,16 @@ const START_GAME_PROGRESS_BAR_WIDTH = Math.round(STARTING_GAME_BUTTON_WIDTH * 0.
 const START_GAME_PROGRESS_BAR_HEIGHT = 10
 const START_GAME_PROGRESS_BAR_RADIUS = 5
 const LOBBY_HUD_GOLD_TOP = Math.round((1080 - (LOBBY_HUD_GOLD_HEIGHT + LOBBY_HUD_ITEM_MARGIN_BOTTOM + LOBBY_HUD_SHOP_HEIGHT)) * 0.5)
-const GAME_OVER_STATS_PANEL_WIDTH = 466
-const GAME_OVER_STATS_PANEL_HEIGHT = 340
-const GAME_OVER_STATS_PANEL_TOP = 372
+const GAME_OVER_STATS_PANEL_WIDTH = Math.round(466 * 1.1)
+const GAME_OVER_STATS_PANEL_HEIGHT = Math.round(340 * 1.1)
+const GAME_OVER_STATS_PANEL_TOP = 339
+const GAME_OVER_STATS_PANEL_PADDING_X = 26
+const GAME_OVER_STATS_PANEL_PADDING_TOP = 18
 const GAME_OVER_STATS_ROW_HEIGHT = 46
 const GAME_OVER_STATS_ROW_GAP = 8
 const GAME_OVER_STATS_ICON_SLOT_WIDTH = 56
 const GAME_OVER_STATS_INNER_WIDTH = GAME_OVER_STATS_PANEL_WIDTH - 52
+const GAME_OVER_STATS_DIVIDER_WIDTH = 414
 const GAME_OVER_REWARD_ROW_HEIGHT = 58
 const GAME_OVER_REWARD_ROW_TOP = 256
 const GAME_OVER_DIVIDER_TOP = 238
@@ -245,6 +248,39 @@ const GAME_OVER_BUTTON_APPEAR_DURATION_MS = 280
 const GAME_OVER_ATLAS_SRC = 'assets/images/game_over_atlas.png'
 const GAME_OVER_ATLAS_WIDTH = 600
 const GAME_OVER_ATLAS_HEIGHT = 600
+const GAME_OVER_FRAME_ATLAS_SRC = 'assets/images/game_over_atlas3.png'
+const GAME_OVER_FRAME_ATLAS_WIDTH = 1024
+const GAME_OVER_FRAME_ATLAS_HEIGHT = 1024
+const GAME_OVER_TITLE_WIDTH = 735
+const GAME_OVER_TITLE_HEIGHT = 145
+const GAME_OVER_TITLE_TOP = 148
+const GAME_OVER_TITLE_UVS = createAtlasUvsFromSource(
+  140,
+  111,
+  735,
+  145,
+  GAME_OVER_FRAME_ATLAS_WIDTH,
+  GAME_OVER_FRAME_ATLAS_HEIGHT
+)
+const GAME_OVER_PANEL_UVS = createAtlasUvsFromSource(
+  176,
+  286,
+  661,
+  480,
+  GAME_OVER_FRAME_ATLAS_WIDTH,
+  GAME_OVER_FRAME_ATLAS_HEIGHT
+)
+const GAME_OVER_BUTTON_WIDTH = 420
+const GAME_OVER_BUTTON_HEIGHT = 86
+const GAME_OVER_BUTTON_TOP = 774
+const GAME_OVER_BUTTON_UVS = createAtlasUvsFromSource(
+  218,
+  797,
+  577,
+  118,
+  GAME_OVER_FRAME_ATLAS_WIDTH,
+  GAME_OVER_FRAME_ATLAS_HEIGHT
+)
 const GAME_OVER_ICON_ZOMBIE_UVS = createAtlasUvsFromSource(72, 55, 179, 170, GAME_OVER_ATLAS_WIDTH, GAME_OVER_ATLAS_HEIGHT)
 const GAME_OVER_ICON_TIMER_UVS = createAtlasUvsFromSource(339, 26, 174, 207, GAME_OVER_ATLAS_WIDTH, GAME_OVER_ATLAS_HEIGHT)
 const GAME_OVER_ICON_GOLD_UVS = createAtlasUvsFromSource(76, 275, 166, 162, GAME_OVER_ATLAS_WIDTH, GAME_OVER_ATLAS_HEIGHT)
@@ -717,6 +753,7 @@ function GameOverOverlay(props: { stats: GameOverStatsModel }) {
   const nowMs = Date.now()
   const startedAtMs = gameOverCounterAnimationStartedAtMs > 0 ? gameOverCounterAnimationStartedAtMs : nowMs
   const rewardDelayMs = getRewardCounterDelay(props.stats.performance)
+  const statsPanelShiftX = isMobileRuntime ? 0 : 36
   const titleAppearProgress = getTimedAnimationProgress(startedAtMs, nowMs, 0, GAME_OVER_TITLE_APPEAR_DURATION_MS)
   const panelAppearProgress = getTimedAnimationProgress(
     startedAtMs,
@@ -756,38 +793,46 @@ function GameOverOverlay(props: { stats: GameOverStatsModel }) {
         justifyContent: 'center'
       }}
     >
-      <OutlinedText
+      <UiEntity
         uiTransform={{
-          width: 980,
-          height: 128,
+          width: GAME_OVER_TITLE_WIDTH,
+          height: GAME_OVER_TITLE_HEIGHT,
           positionType: 'absolute',
-          position: { top: 188 + Math.round((1 - titleAppearProgress) * 34) },
+          position: { top: GAME_OVER_TITLE_TOP + Math.round((1 - titleAppearProgress) * 34) },
           alignItems: 'center',
           justifyContent: 'center'
         }}
-        uiText={{
-          value: 'GAME OVER',
-          fontSize: Math.round(96 + titleAppearProgress * 14),
-          color: Color4.create(1, 0.2, 0.14, titleAppearProgress),
-          textAlign: 'middle-center'
+        uiBackground={{
+          color: Color4.create(1, 1, 1, titleAppearProgress),
+          textureMode: 'stretch',
+          texture: { src: GAME_OVER_FRAME_ATLAS_SRC, filterMode: 'bi-linear', wrapMode: 'clamp' },
+          uvs: GAME_OVER_TITLE_UVS
         }}
-        outlineColor={Color4.create(0.08, 0, 0, 0.98 * titleAppearProgress)}
-        outlineScale={4}
-        outlineKeyPrefix='game-over-title'
       />
       <UiEntity
         uiTransform={{
-          width: GAME_OVER_STATS_PANEL_WIDTH,
+          width: '100%',
           height: GAME_OVER_STATS_PANEL_HEIGHT,
           positionType: 'absolute',
           position: { top: GAME_OVER_STATS_PANEL_TOP + Math.round((1 - panelAppearProgress) * 24) },
-          borderRadius: 22,
-          padding: { top: 18, right: 26, bottom: 18, left: 26 }
-        }}
-        uiBackground={{
-          color: Color4.create(0.05, 0.05, 0.05, 0.8 * panelAppearProgress)
+          alignItems: 'center',
+          justifyContent: 'center'
         }}
       >
+        <UiEntity
+          uiTransform={{
+            width: GAME_OVER_STATS_PANEL_WIDTH,
+            height: GAME_OVER_STATS_PANEL_HEIGHT,
+            margin: { left: statsPanelShiftX },
+            padding: { top: 18, right: 26, bottom: 18, left: 26 }
+          }}
+          uiBackground={{
+            color: Color4.create(1, 1, 1, panelAppearProgress),
+            textureMode: 'stretch',
+            texture: { src: GAME_OVER_FRAME_ATLAS_SRC, filterMode: 'bi-linear', wrapMode: 'clamp' },
+            uvs: GAME_OVER_PANEL_UVS
+          }}
+        >
         {props.stats.performance.map((stat, index) => (
           (() => {
             const counterDelayMs = getPerformanceCounterDelay(props.stats.performance, index)
@@ -898,7 +943,7 @@ function GameOverOverlay(props: { stats: GameOverStatsModel }) {
         ))}
         <UiEntity
           uiTransform={{
-            width: GAME_OVER_STATS_INNER_WIDTH,
+            width: GAME_OVER_STATS_DIVIDER_WIDTH,
             height: 1,
             positionType: 'absolute',
             position: { left: 26, top: GAME_OVER_DIVIDER_TOP + Math.round((1 - dividerAppearProgress) * 10) }
@@ -938,41 +983,41 @@ function GameOverOverlay(props: { stats: GameOverStatsModel }) {
               }}
             />
           </UiEntity>
-          <UiEntity
-            uiTransform={{
-              width: 214,
-              height: '100%',
-              margin: { left: 16 },
-              justifyContent: 'center'
-            }}
-            uiText={{
-              value: props.stats.reward.label,
-              fontSize: 24,
-              color: Color4.create(0.92, 0.89, 0.82, rewardAppearProgress),
-              textAlign: 'middle-left'
-            }}
-          />
-          <UiEntity
-            uiTransform={{
-              width: 30,
-              height: '100%',
-              margin: { left: 4, right: 4 },
-              justifyContent: 'center'
-            }}
-            uiText={{
-              value: 'X',
-              fontSize: 24,
-              color: Color4.create(0.84, 0.75, 0.56, 0.95 * rewardAppearProgress),
-              textAlign: 'middle-center'
-            }}
-          />
-          <UiEntity
-            uiTransform={{
-              width: 90,
-              height: '100%',
-              justifyContent: 'center'
-            }}
-          >
+            <UiEntity
+              uiTransform={{
+                width: 214,
+                height: '100%',
+                margin: { left: 16 },
+                justifyContent: 'center'
+              }}
+              uiText={{
+                value: props.stats.reward.label,
+                fontSize: 24,
+                color: Color4.create(0.92, 0.89, 0.82, rewardAppearProgress),
+                textAlign: 'middle-left'
+              }}
+            />
+            <UiEntity
+              uiTransform={{
+                width: 30,
+                height: '100%',
+                margin: { left: 4, right: 4 },
+                justifyContent: 'center'
+              }}
+              uiText={{
+                value: 'X',
+                fontSize: 24,
+                color: Color4.create(0.84, 0.75, 0.56, 0.95 * rewardAppearProgress),
+                textAlign: 'middle-center'
+              }}
+            />
+            <UiEntity
+              uiTransform={{
+                width: 90,
+                height: '100%',
+                justifyContent: 'center'
+              }}
+            >
             <OutlinedText
               uiTransform={{
                 width: '100%',
@@ -980,14 +1025,14 @@ function GameOverOverlay(props: { stats: GameOverStatsModel }) {
                 alignItems: 'flex-start',
                 justifyContent: 'center'
               }}
-              uiText={{
-                value: formatAnimatedCounter(
-                  getAnimatedCounterValue(props.stats.reward.value, startedAtMs, nowMs, rewardDelayMs)
-                ),
-                fontSize: 32,
-                color: Color4.create(
-                  0.98,
-                  0.9,
+                uiText={{
+                  value: formatAnimatedCounter(
+                    getAnimatedCounterValue(props.stats.reward.value, startedAtMs, nowMs, rewardDelayMs)
+                  ),
+                  fontSize: 32,
+                  color: Color4.create(
+                    0.98,
+                    0.9,
                   0.52,
                   rewardAppearProgress * getCounterAnimatedAlpha(startedAtMs, nowMs, rewardDelayMs)
                 ),
@@ -999,19 +1044,22 @@ function GameOverOverlay(props: { stats: GameOverStatsModel }) {
             />
           </UiEntity>
         </UiEntity>
+        </UiEntity>
       </UiEntity>
       <UiEntity
         uiTransform={{
-          width: 420,
-          height: 82,
+          width: GAME_OVER_BUTTON_WIDTH,
+          height: GAME_OVER_BUTTON_HEIGHT,
           positionType: 'absolute',
-          position: { top: 792 + Math.round((1 - buttonAppearProgress) * 18) },
+          position: { top: GAME_OVER_BUTTON_TOP + Math.round((1 - buttonAppearProgress) * 18) },
           alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 18
+          justifyContent: 'center'
         }}
         uiBackground={{
-          color: Color4.create(0.08, 0.08, 0.08, 0.92 * buttonAppearProgress)
+          color: Color4.create(1, 1, 1, buttonAppearProgress),
+          textureMode: 'stretch',
+          texture: { src: GAME_OVER_FRAME_ATLAS_SRC, filterMode: 'bi-linear', wrapMode: 'clamp' },
+          uvs: GAME_OVER_BUTTON_UVS
         }}
         onMouseDown={() => {
           beginUiPointerCapture()
@@ -1021,52 +1069,7 @@ function GameOverOverlay(props: { stats: GameOverStatsModel }) {
           })
         }}
         onMouseUp={endUiPointerCapture}
-      >
-        <UiEntity
-          uiTransform={{
-            width: '100%',
-            height: '100%',
-            positionType: 'absolute',
-            position: { left: 0, top: 0 },
-            borderRadius: 18,
-            padding: { top: 2, right: 2, bottom: 2, left: 2 }
-          }}
-          uiBackground={{
-            color: Color4.create(0.82, 0.12, 0.09, 0.96 * buttonAppearProgress)
-          }}
-        >
-          <UiEntity
-            uiTransform={{
-              width: '100%',
-              height: '100%',
-              borderRadius: 16,
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            uiBackground={{
-              color: Color4.create(0.11, 0.02, 0.02, 0.96 * buttonAppearProgress)
-            }}
-          >
-            <OutlinedText
-              uiTransform={{
-                width: '100%',
-                height: '100%',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              uiText={{
-                value: 'RETURN TO LOBBY',
-                fontSize: 30,
-                color: Color4.create(0.97, 0.92, 0.84, buttonAppearProgress),
-                textAlign: 'middle-center'
-              }}
-              outlineColor={Color4.create(0.08, 0.03, 0.02, 0.95 * buttonAppearProgress)}
-              outlineScale={2}
-              outlineKeyPrefix='game-over-button'
-            />
-          </UiEntity>
-        </UiEntity>
-      </UiEntity>
+      />
     </UiEntity>
   )
 }
